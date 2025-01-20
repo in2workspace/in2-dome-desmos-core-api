@@ -125,3 +125,6 @@ access-node:
 
 external-access-nodes:
   urls: "https://desmos.dome-marketplace-prd.org"
+
+verifier:
+  externalDomain:

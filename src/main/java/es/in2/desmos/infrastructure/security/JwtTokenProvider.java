@@ -1,9 +1,10 @@
 package es.in2.desmos.infrastructure.security;
 
-import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.JOSEObjectType;
-import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSHeader;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.ECDSASigner;
 import com.nimbusds.jose.crypto.ECDSAVerifier;
 import com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton;
@@ -12,6 +13,7 @@ import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import es.in2.desmos.domain.exceptions.JWTClaimMissingException;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.jce.ECNamedCurveTable;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -19,7 +21,9 @@ import org.bouncycastle.jce.spec.ECParameterSpec;
 import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.bouncycastle.math.ec.ECCurve;
 import org.bouncycastle.math.ec.ECPoint;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
@@ -31,8 +35,8 @@ import java.security.spec.ECFieldFp;
 import java.security.spec.ECPublicKeySpec;
 import java.security.spec.EllipticCurve;
 import java.security.spec.InvalidKeySpecException;
+import java.text.ParseException;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -41,13 +45,19 @@ import java.util.UUID;
 public class JwtTokenProvider {
 
     private final ECKey ecJWK;
+    private final ObjectMapper objectMapper;
+    private final VerifierService verifierService;
 
     static {
         Security.addProvider(new BouncyCastleProvider());
     }
 
     // Build a useful Private Key from the hexadecimal private key set in the application.properties
-    public JwtTokenProvider(SecurityProperties securityProperties) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException {
+    @Autowired
+    public JwtTokenProvider(SecurityProperties securityProperties, ObjectMapper objectMapper, VerifierService verifierService) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException {
+        this.objectMapper = objectMapper;
+        this.verifierService = verifierService;
+
         Security.addProvider(BouncyCastleProviderSingleton.getInstance());
 
         String privateKeyHex = securityProperties.privateKey().replace("0x", "");
@@ -104,7 +114,28 @@ public class JwtTokenProvider {
         // Create JWT for the ES256 algorithm (P-256)
         SignedJWT jwt = new SignedJWT(
                 new JWSHeader.Builder(JWSAlgorithm.ES256)  // Changed to ES256
-                        .type(new JOSEObjectType("dpop+jwt"))
+                        .type(JOSEObjectType.JWT)
+                        .jwk(ecJWK.toPublicJWK())
+                        .build(),
+                claimsSet);
+
+        // Sign with a private EC key
+        jwt.sign(signer);
+        return jwt.serialize();
+    }
+
+    public String generateTokenWithPayload(String payload) throws JOSEException {
+
+        // Sample JWT claims
+        JWTClaimsSet claimsSet = convertPayloadToJWTClaimsSet(payload);
+        // Import new Provider to work with ECDSA and Java 17
+        ECDSASigner signer = new ECDSASigner(ecJWK);
+        signer.getJCAContext().setProvider(BouncyCastleProviderSingleton.getInstance());
+
+        // Create JWT for the ES256 algorithm (P-256)
+        SignedJWT jwt = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.ES256)  // Changed to ES256
+                        .type(JOSEObjectType.JWT)
                         .jwk(ecJWK.toPublicJWK())
                         .build(),
                 claimsSet);
@@ -117,30 +148,50 @@ public class JwtTokenProvider {
     // Use public keys from Access Node Directory in memory
     public Mono<SignedJWT> validateSignedJwt(String jwtString, String externalNodeUrl, Map<String, String> publicKeysByUrl) {
         try {
-            // Retrieve the public key from AccessNodeMemoryStore
-            String publicKeyHex = getPublicKeyFromAccessNodeMemory(externalNodeUrl, publicKeysByUrl);
-            if (publicKeyHex == null) {
-                return Mono.error(new InvalidKeyException("Public key not found for origin: " + externalNodeUrl));
-            }
-
-            // Convert the hexadecimal public key to ECPublicKey
-            ECPublicKey ecPublicKey = convertHexPublicKeyToECPublicKey(publicKeyHex);
-
-            ECDSAVerifier verifier = new ECDSAVerifier(ecPublicKey);
-            verifier.getJCAContext().setProvider(BouncyCastleProviderSingleton.getInstance());
-
-            SignedJWT jwt = SignedJWT.parse(jwtString);
-            boolean verified = jwt.verify(verifier);
-            if (verified) {
-                log.info("VERIFIED OK? {}", jwt.verify(verifier));
-                return Mono.just(jwt);
+            SignedJWT jwt = getSignedJWT(jwtString);
+            String jwtHeaderKid = jwt.getHeader().getKeyID();
+            if (jwtHeaderKid != null) {
+                log.debug("Performing M2M validation");
+                return validateM2MJwt(jwtString, jwt);
             } else {
-                return Mono.error(new Exception("JWT verification failed"));
+                log.debug("Performing Desmos2Desmos validation");
+                return validateDesmos2DesmosJwt(externalNodeUrl, publicKeysByUrl, jwt);
             }
         } catch (Exception e) {
             log.warn("Error parsing JWT", e);
             return Mono.error(new InvalidKeyException());
         }
+    }
+
+    private Mono<SignedJWT> validateM2MJwt(String jwtString, SignedJWT jwt) {
+        return verifierService.verifyToken(jwtString)
+                .then(Mono.just(jwt));
+    }
+
+    private Mono<SignedJWT> validateDesmos2DesmosJwt(String externalNodeUrl, Map<String, String> publicKeysByUrl, SignedJWT jwt) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidKeySpecException, JOSEException {
+        // Retrieve the public key from AccessNodeMemoryStore
+        String publicKeyHex = getPublicKeyFromAccessNodeMemory(externalNodeUrl, publicKeysByUrl);
+        if (publicKeyHex == null) {
+            return Mono.error(new InvalidKeyException("Public key not found for origin: " + externalNodeUrl));
+        }
+
+        // Convert the hexadecimal public key to ECPublicKey
+        ECPublicKey ecPublicKey = convertHexPublicKeyToECPublicKey(publicKeyHex);
+
+        ECDSAVerifier verifier = new ECDSAVerifier(ecPublicKey);
+        verifier.getJCAContext().setProvider(BouncyCastleProviderSingleton.getInstance());
+
+        boolean verified = jwt.verify(verifier);
+        if (verified) {
+            log.info("VERIFIED OK? {}", jwt.verify(verifier));
+            return Mono.just(jwt);
+        } else {
+            return Mono.error(new Exception("JWT verification failed"));
+        }
+    }
+
+    public SignedJWT getSignedJWT(String jwtString) throws ParseException {
+        return SignedJWT.parse(jwtString);
     }
 
     private String getPublicKeyFromAccessNodeMemory(String origin, Map<String, String> publicKeysByUrl) {
@@ -203,5 +254,29 @@ public class JwtTokenProvider {
         KeyFactory keyFactory = KeyFactory.getInstance("EC", "BC");
         ECPublicKeySpec ecPublicKeySpec = new ECPublicKeySpec(w, ecSpec);
         return (ECPublicKey) keyFactory.generatePublic(ecPublicKeySpec);
+    }
+
+    public String getClaimFromPayload(Payload payload, String claimName) {
+        Object claimValue = payload.toJSONObject().get(claimName);
+        if (claimValue == null) {
+            throw new JWTClaimMissingException(String.format("The '%s' claim is missing or empty in the JWT payload.", claimName));
+        }
+        return claimValue.toString();
+    }
+
+    private JWTClaimsSet convertPayloadToJWTClaimsSet(String payload) {
+        try {
+            JsonNode jsonNode = objectMapper.readTree(payload);
+            Map<String, Object> claimsMap = objectMapper.convertValue(jsonNode, new TypeReference<>() {
+            });
+            JWTClaimsSet.Builder builder = new JWTClaimsSet.Builder();
+            for (Map.Entry<String, Object> entry : claimsMap.entrySet()) {
+                builder.claim(entry.getKey(), entry.getValue());
+            }
+            return builder.build();
+        } catch (JsonProcessingException e) {
+            log.error("Error while parsing the JWT payload", e);
+            throw new JwtException("Error while parsing the JWT payload");
+        }
     }
 }

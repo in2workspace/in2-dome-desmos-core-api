@@ -1,5 +1,6 @@
 package es.in2.desmos.security;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton;
@@ -7,6 +8,7 @@ import com.nimbusds.jose.jca.JCASupport;
 import com.nimbusds.jwt.SignedJWT;
 import es.in2.desmos.infrastructure.security.JwtTokenProvider;
 import es.in2.desmos.infrastructure.security.SecurityProperties;
+import es.in2.desmos.infrastructure.security.VerifierService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,12 +35,18 @@ class JwtTokenProviderTest {
     @Mock
     private SecurityProperties securityProperties;
 
+    @Mock
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    @Mock
+    VerifierService verifierService;
+
     @BeforeEach
     void setUp() throws InvalidKeySpecException, NoSuchAlgorithmException, NoSuchProviderException {
         MockitoAnnotations.openMocks(this);
         when(securityProperties.privateKey())
                 .thenReturn("0xd1d346bbb4e3748b370c5985face9a4e5b402dcf41d3f715a455d08144b2327f");
-        jwtTokenProvider = new JwtTokenProvider(securityProperties);
+        jwtTokenProvider = new JwtTokenProvider(securityProperties, objectMapper, verifierService);
     }
 
     @Test
