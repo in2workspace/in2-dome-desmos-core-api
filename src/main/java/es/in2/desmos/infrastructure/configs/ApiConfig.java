@@ -1,6 +1,5 @@
 package es.in2.desmos.infrastructure.configs;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import es.in2.desmos.domain.exceptions.HashCreationException;
 import es.in2.desmos.infrastructure.configs.properties.ApiProperties;
 import es.in2.desmos.infrastructure.configs.properties.OpenApiProperties;
@@ -17,7 +16,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.web.reactive.function.client.WebClient;
 
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 import static es.in2.desmos.domain.utils.ApplicationUtils.calculateSHA256;
@@ -31,6 +29,11 @@ public class ApiConfig {
     private final OperatorProperties operatorProperties;
     private final Environment environment;
     private final ApiProperties apiProperties;
+
+    @Bean
+    public String getOrganizationId() {
+        return operatorProperties.organizationIdentifier();
+    }
 
     @Bean
     public String organizationIdHash() {

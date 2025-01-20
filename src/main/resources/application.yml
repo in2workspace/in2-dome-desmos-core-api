@@ -124,3 +124,6 @@ access-node:
 
 external-access-nodes:
   urls: ""
+
+verifier:
+  externalDomain:
