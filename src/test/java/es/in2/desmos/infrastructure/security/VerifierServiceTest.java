@@ -84,6 +84,43 @@ class VerifierServiceTest {
     }
 
     @Test
+    void itShouldThrowExceptionWhenErrorFetchingTheToken() {
+        mockWebServer.enqueue(new MockResponse()
+                .setBody("""
+                        {
+                         "token_endpoint":""" + "\"" + mockWebServer.url("/token") + "\"" + """
+                        }
+                    """)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
+
+        mockWebServer.enqueue(new MockResponse()
+                .setBody("""
+                        {
+                            "access_token": "your_access_token_value",
+                            "token_ty",
+                            "expires_in": "3600"
+                          }
+                    """)
+                .setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR.value()));
+
+        when(verifierConfig.getExternalDomain())
+                .thenReturn(mockWebServer.url("/").toString());
+
+        when(verifierConfig.getWellKnownPath())
+                .thenReturn("/.well-known/openid-configuration");
+
+        when(verifierConfig.getWellKnownContentType())
+                .thenReturn("Content-Type");
+
+        when(verifierConfig.getWellKnownContentTypeUrlEncodedForm())
+                .thenReturn("application/x-www-form-urlencoded");
+        StepVerifier
+                .create(verifierService.performTokenRequest("{\"hello\":\"world\"}"))
+                .expectError(TokenFetchException.class)
+                .verify();
+    }
+
+    @Test
     void itShouldThrowTokenFetchExceptionWhenPerformingTokenRequest() {
         mockWebServer.enqueue(new MockResponse()
                 .setBody("""
