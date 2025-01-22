@@ -3,9 +3,11 @@ package es.in2.desmos.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton;
 import com.nimbusds.jose.jca.JCASupport;
 import com.nimbusds.jwt.SignedJWT;
+import es.in2.desmos.domain.exceptions.JWTClaimMissingException;
 import es.in2.desmos.infrastructure.security.JwtTokenProvider;
 import es.in2.desmos.infrastructure.security.SecurityProperties;
 import es.in2.desmos.infrastructure.security.VerifierService;
@@ -23,6 +25,8 @@ import java.security.Provider;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
@@ -80,6 +84,40 @@ class JwtTokenProviderTest {
         String invalidJwt = "invalid.jwt.token";
         assertThrows(Exception.class, () -> jwtTokenProvider.validateSignedJwt(invalidJwt,"origin", new HashMap<>()).block());
 
+    }
+
+    @Test
+    void getClaimFromPayload_validClaim_returnsClaimValue() {
+        Payload payload = new Payload("{\"username\":\"testUser\",\"role\":\"admin\"}");
+
+        String claimValue = jwtTokenProvider.getClaimFromPayload(payload, "username");
+
+        assertThat(claimValue).isEqualTo("testUser");
+    }
+
+    @Test
+    void getClaimFromPayload_missingClaim_throwsJWTClaimMissingException() {
+        Payload payload = new Payload("{\"username\":\"testUser\"}");
+
+        assertThatThrownBy(() -> jwtTokenProvider.getClaimFromPayload(payload, "role"))
+                .isInstanceOf(JWTClaimMissingException.class)
+                .hasMessage("The 'role' claim is missing or empty in the JWT payload.");
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void getClaimFromPayload_nullPayload_throwsNullPointerException() {
+        assertThatThrownBy(() -> jwtTokenProvider.getClaimFromPayload(null, "username"))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void getClaimFromPayload_emptyClaimName_throwsJWTClaimMissingException() {
+        Payload payload = new Payload("{\"username\":\"testUser\"}");
+
+        assertThatThrownBy(() -> jwtTokenProvider.getClaimFromPayload(payload, ""))
+                .isInstanceOf(JWTClaimMissingException.class)
+                .hasMessage("The '' claim is missing or empty in the JWT payload.");
     }
 
 }
