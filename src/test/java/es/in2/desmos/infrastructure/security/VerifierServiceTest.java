@@ -1,7 +1,9 @@
 package es.in2.desmos.infrastructure.security;
 
 import es.in2.desmos.domain.exceptions.JWTVerificationException;
+import es.in2.desmos.domain.exceptions.TokenFetchException;
 import es.in2.desmos.domain.exceptions.WellKnownInfoFetchException;
+import es.in2.desmos.domain.models.VerifierOauth2AccessToken;
 import es.in2.desmos.infrastructure.configs.VerifierConfig;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -42,6 +44,72 @@ class VerifierServiceTest {
     @AfterEach
     void tearDown() throws Exception {
         mockWebServer.shutdown();
+    }
+
+    @Test
+    void itShouldPerformTokenRequest() {
+        mockWebServer.enqueue(new MockResponse()
+                .setBody("""
+                        {
+                         "token_endpoint":""" + "\"" + mockWebServer.url("/token") + "\"" + """
+                        }
+                    """)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
+
+        mockWebServer.enqueue(new MockResponse()
+                .setBody("""
+                        {
+                            "access_token": "your_access_token_value",
+                            "token_type": "Bearer",
+                            "expires_in": "3600"
+                          }
+                    """)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
+
+        when(verifierConfig.getExternalDomain())
+                .thenReturn(mockWebServer.url("/").toString());
+
+        when(verifierConfig.getWellKnownPath())
+                .thenReturn("/.well-known/openid-configuration");
+
+        when(verifierConfig.getWellKnownContentType())
+                .thenReturn("Content-Type");
+
+        when(verifierConfig.getWellKnownContentTypeUrlEncodedForm())
+                .thenReturn("application/x-www-form-urlencoded");
+        StepVerifier
+                .create(verifierService.performTokenRequest("{\"hello\":\"world\"}"))
+                .expectNext(new VerifierOauth2AccessToken("your_access_token_value", "Bearer", "3600"))
+                .verifyComplete();
+    }
+
+    @Test
+    void itShouldThrowTokenFetchExceptionWhenPerformingTokenRequest() {
+        mockWebServer.enqueue(new MockResponse()
+                .setBody("""
+                        {
+                            "access_token": "your_access_token_value",
+                            "token_type": "Bearer",
+                            "expires_in": "3600"
+                          }
+                    """)
+                .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
+
+        when(verifierConfig.getExternalDomain())
+                .thenReturn(mockWebServer.url("/").toString());
+
+        when(verifierConfig.getWellKnownPath())
+                .thenReturn("/.well-known/openid-configuration");
+
+        when(verifierConfig.getWellKnownContentType())
+                .thenReturn("Content-Type");
+
+        when(verifierConfig.getWellKnownContentTypeUrlEncodedForm())
+                .thenReturn("application/x-www-form-urlencoded");
+        StepVerifier
+                .create(verifierService.performTokenRequest("{\"hello\":\"world\"}"))
+                .expectError(TokenFetchException.class)
+                .verify();
     }
 
     @Test
