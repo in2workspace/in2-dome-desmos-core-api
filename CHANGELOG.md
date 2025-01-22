@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry mechanism for Blockchain Adapter and Context Broker.
 - Recover after a failure mechanism for Blockchain Adapter and Context Broker.
 
+## [Released]: v1.1.0
+- Add M2M authorization with LEARCredentialMachine.
+
 ## [Released]: v1.0.7
 - Fix entity updates to Scorpio during the synchronization process.
 - Terminate the application if startup fails to complete successfully.
