@@ -146,9 +146,6 @@ public class ContainerManager {
                 postgresContainerA.getFirstMappedPort()));
         registry.add("spring.r2dbc.username", postgresContainerA::getUsername);
         registry.add("spring.r2dbc.password", postgresContainerA::getPassword);
-        registry.add("spring.datasource.hikari.maximum-pool-size", () -> "2");
-        registry.add("spring.datasource.hikari.minimum-idle", () -> "5");
-        registry.add("spring.test.context.cache.maxSize", () -> "4");
         registry.add("spring.flyway.url", postgresContainerA::getJdbcUrl);
         registry.add("broker.internalDomain", ContainerManager::getBaseUriForScorpioA);
         registry.add("dlt-adapter.externalDomain", ContainerManager::getBaseUriBlockchainAdapterA);

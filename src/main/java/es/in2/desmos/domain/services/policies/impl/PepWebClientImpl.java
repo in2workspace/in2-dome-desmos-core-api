@@ -8,9 +8,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
-import reactor.util.retry.Retry;
-
-import java.time.Duration;
 
 @Slf4j
 @Service
@@ -29,7 +26,6 @@ public class PepWebClientImpl implements PepWebClient {
                 .uri(uri)
                 .headers(x -> x.addAll(headers))
                 .retrieve()
-                .bodyToMono(Void.class)
-                .retryWhen(Retry.backoff(3, Duration.ofSeconds(2)));
+                .bodyToMono(Void.class);
     }
 }
