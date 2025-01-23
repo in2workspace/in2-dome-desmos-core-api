@@ -128,3 +128,6 @@ external-access-nodes:
 
 verifier:
   externalDomain:
+
+pep:
+  externalDomain:
