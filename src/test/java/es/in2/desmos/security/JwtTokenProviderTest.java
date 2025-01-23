@@ -18,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -28,6 +29,7 @@ import java.util.HashMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,7 +68,7 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    void testValidateSignedJwt() throws JOSEException {
+    void testValidateDesmos2DesmosJwt() throws JOSEException {
 
         HashMap<String, String> publicKeysByUrl = new HashMap<>();
         publicKeysByUrl.put("origin", "0x045d016daba10ba4216c39c9d9f8aa0cae37f5acdbe14b3de78badfff0172f4ac2093896458ed17a28c559d7c915dfaf3d106e821c7415fecffc6c991f155a2c69");
@@ -74,6 +76,22 @@ class JwtTokenProviderTest {
 
         String jwtString = jwtTokenProvider.generateToken(resourceURI);
         System.out.println(jwtString);
+        SignedJWT result = jwtTokenProvider.validateSignedJwt(jwtString,"origin", publicKeysByUrl).block();
+        assert result != null;
+        Assertions.assertEquals(jwtString, result.serialize());
+    }
+
+    @Test
+    void testValidateM2MJwt(){
+        HashMap<String, String> publicKeysByUrl = new HashMap<>();
+        publicKeysByUrl.put("origin", "0x045d016daba10ba4216c39c9d9f8aa0cae37f5acdbe14b3de78badfff0172f4ac2093896458ed17a28c559d7c915dfaf3d106e821c7415fecffc6c991f155a2c69");
+
+
+        String jwtString = "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyLCJleHAiOjMyNDczOTk4NTY0LCJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ijg3NWU4YTQyZjJhNTFlNTVkMGNhN2MwMDg4ZjZjZTU1In0.eyJuYW1lIjoiSm9obiBEb2UiLCJpYXQiOjE1MTYyMzkwMjIsImV4cCI6MzI0NzM5OTg1NjR9.ARzDuqn_wjRSrdsMeT-oSEm9GMD5u6oh8iouNjKwHvcDQbfgLveYU9Y9TxxiZ2d4Sh_AGRE4JSikUrPbuiX55g";
+        System.out.println(jwtString);
+
+        when(verifierService.verifyToken(anyString())).thenReturn(Mono.empty());
+
         SignedJWT result = jwtTokenProvider.validateSignedJwt(jwtString,"origin", publicKeysByUrl).block();
         assert result != null;
         Assertions.assertEquals(jwtString, result.serialize());
