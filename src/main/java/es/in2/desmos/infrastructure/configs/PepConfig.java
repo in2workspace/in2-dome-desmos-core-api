@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Configuration;
 public class PepConfig {
     private final PepProperties pepProperties;
 
-    public String getExternalDomain() {
-        return pepProperties.externalDomain();
+    public String getUrl() {
+        return pepProperties.externalDomain() + pepProperties.path();
     }
 }

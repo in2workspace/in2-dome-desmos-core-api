@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.reactive.server.WebTestClient;
@@ -43,7 +44,7 @@ class EntitiesControllerTest {
         when(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(anyString(), any(), any()))
                 .thenReturn(Mono.just(expectedEntitiesList));
 
-        when(pepWebClient.doRequest(any(), anyString()))
+        when(pepWebClient.doRequest(any(), any(), any(), any(), any()))
                 .thenReturn(Mono.empty());
 
         webTestClient
@@ -51,12 +52,11 @@ class EntitiesControllerTest {
                 .uri("/api/v1/entities/{id}", id)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer <token>")
-                .header("Custom-Header", "CustomValue")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBodyList(Entity.class)
                 .isEqualTo(expectedEntitiesList);
 
-        verify(pepWebClient).doRequest(any(), eq("/api/v1/entities/urn%3Acatalog%3A1"));
+        verify(pepWebClient).doRequest("/api/v1/entities/urn%3Acatalog%3A1", HttpMethod.GET, null, null, "Bearer <token>");
     }
 }

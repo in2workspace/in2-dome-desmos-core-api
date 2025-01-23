@@ -6,7 +6,7 @@ import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.services.policies.PepWebClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.*;
@@ -31,19 +31,21 @@ public class EntitiesController {
     public Flux<Entity> getEntities(ServerHttpRequest request, @PathVariable String id) {
         String processId = UUID.randomUUID().toString();
 
-        HttpHeaders headers = request.getHeaders();
-        String path = request.getPath().toString();
+        String originalUri = request.getPath().toString();
+        HttpMethod method = request.getMethod();
+        String originalHost = request.getHeaders().getFirst("external-node-url");
+        String authorization = request.getHeaders().getFirst("Authorization");
 
         Mono<List<Id>> idsListMono = Mono.just(List.of(new Id(id)));
 
         //TODO Use pepwebclient response
-        return pepWebClient.doRequest(headers, path)
+        return pepWebClient.doRequest(originalUri, method, null, originalHost, authorization)
                 .onErrorResume(e -> {
                     log.debug("ProcessID: {} - Error connecting with PEP: {}", processId, e.getMessage());
                     return Mono.empty();
                 })
                 .thenMany(brokerPublisherService
-                .findEntitiesAndItsSubentitiesByIdInBase64(processId, idsListMono, new ArrayList<>())
-                .flatMapMany(Flux::fromIterable));
+                        .findEntitiesAndItsSubentitiesByIdInBase64(processId, idsListMono, new ArrayList<>())
+                        .flatMapMany(Flux::fromIterable));
     }
 }

@@ -127,7 +127,8 @@ external-access-nodes:
   urls: "https://desmos.dome-marketplace-sbx.org"
 
 verifier:
-  externalDomain: https://verifier.dome-marketplace-lcl.org
+  externalDomain: "https://verifier.dome-marketplace-lcl.org"
 
 pep:
-  externalDomain:
+  externalDomain: "http://pdp.evidenceledger.eu:8888/"
+  path: "/authorize/v1/policies/authz"
