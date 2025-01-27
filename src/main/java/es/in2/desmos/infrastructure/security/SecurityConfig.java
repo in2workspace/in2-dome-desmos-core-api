@@ -78,7 +78,7 @@ public class SecurityConfig {
         ReactiveAuthenticationManager authManager;
         authManager = new BearerTokenReactiveAuthenticationManager();
         bearerAuthenticationFilter = new AuthenticationWebFilter(authManager);
-        bearerConverter = new ServerHttpBearerAuthenticationConverter(trustFrameworkConfig, jwtVerifier);
+        bearerConverter = new ServerHttpBearerAuthenticationConverter(jwtVerifier);
         bearerAuthenticationFilter
                 .setAuthenticationConverter(bearerConverter);
         bearerAuthenticationFilter
