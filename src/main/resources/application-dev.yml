@@ -127,6 +127,7 @@ access-node:
 external-access-nodes:
   urls: "https://desmos.dome-marketplace-sbx.org"
 
+#TODO change to SBX
 verifier:
   externalDomain: "https://verifier.dome-marketplace-lcl.org"
 
