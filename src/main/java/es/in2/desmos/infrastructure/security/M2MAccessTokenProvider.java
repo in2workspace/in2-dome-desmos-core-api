@@ -75,7 +75,6 @@ public class M2MAccessTokenProvider {
                     "exp", exp,
                     "iat", iat,
                     "jti", UUID.randomUUID()
-//                    "vp_token", vpTokenJWTString
             ));
 
             return jwtTokenProvider.generateTokenWithPayload(payload.toString());
