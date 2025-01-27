@@ -104,4 +104,20 @@ class M2MAccessTokenProviderTest {
                 .expectErrorMatches(JwtException.class::isInstance)
                 .verify();
     }
+
+    @Test
+    void itShouldHandleErrorWhenGetSignedJwtThrowJOSEExceptionException2() throws ParseException, JOSEException {
+        when(jwtTokenProvider.getSignedJWT(any())).thenReturn(signedJWT);
+        when(learCredentialMachineConfig.getClientAssertionExpiration()).thenReturn("5");
+        when(learCredentialMachineConfig.getClientAssertionExpirationUnitTime()).thenReturn("MINUTES");
+        when(jwtTokenProvider.getClaimFromPayload(any(), any())).thenReturn("test-client-id");
+        when(verifierConfig.getExternalDomain()).thenReturn("https://test-verifier.com");
+        when(jwtTokenProvider.generateTokenWithPayload(any()))
+                .thenReturn("mocked-client-assertion")
+                .thenThrow(JOSEException.class);
+
+        StepVerifier.create(m2mAccessTokenProvider.getM2MAccessToken())
+                .expectErrorMatches(JwtException.class::isInstance)
+                .verify();
+    }
 }
