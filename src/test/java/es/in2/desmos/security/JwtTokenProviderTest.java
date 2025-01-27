@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 
@@ -39,7 +40,7 @@ class JwtTokenProviderTest {
     @Mock
     private SecurityProperties securityProperties;
 
-    @Mock
+    @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @Mock
@@ -63,6 +64,20 @@ class JwtTokenProviderTest {
     void testGenerateToken() throws JOSEException {
         String resourceURI = "https://demos.example.org/api/v1/entities/12345678";
         String token = jwtTokenProvider.generateToken(resourceURI);
+        Assertions.assertNotNull(token);
+    }
+
+    @Test
+    void testGenerateTokenWithPayload() throws JOSEException {
+        String payload = """
+                 {
+                   "sub": "1234567890",
+                   "name": "John Doe",
+                   "iat": 1516239022
+                 }
+                 """;
+
+        String token = jwtTokenProvider.generateTokenWithPayload(payload);
         Assertions.assertNotNull(token);
     }
 
