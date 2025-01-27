@@ -117,6 +117,7 @@ tx-subscription:
 
 security:
   privateKey: "0xd1d346bbb4e3748b370c5985face9a4e5b402dcf41d3f715a455d08144b2327f"
+  learCredentialMachineInBase64:
 
 # Access Node
 access-node:
