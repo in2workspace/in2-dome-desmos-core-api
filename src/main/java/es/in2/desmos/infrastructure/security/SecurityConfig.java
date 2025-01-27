@@ -1,6 +1,5 @@
 package es.in2.desmos.infrastructure.security;
 
-import es.in2.desmos.infrastructure.configs.TrustFrameworkConfig;
 import es.in2.desmos.infrastructure.security.filters.BearerTokenReactiveAuthenticationManager;
 import es.in2.desmos.infrastructure.security.filters.ServerHttpBearerAuthenticationConverter;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,6 @@ import java.util.function.Function;
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtVerifier;
-    private final TrustFrameworkConfig trustFrameworkConfig;
     private final CorsConfig corsConfig;
 
 
@@ -67,7 +65,7 @@ public class SecurityConfig {
      * Use the already implemented logic by AuthenticationWebFilter and set a custom
      * converter that will handle requests containing a Bearer token inside
      * the HTTP Authorization header.
-     * Set a dummy authentication manager to this filter, it's not needed because
+     * Set a stub authentication manager to this filter, it's unnecessary because
      * the converter handles this.
      *
      * @return bearerAuthenticationFilter that will authorize requests containing a JWT

@@ -54,15 +54,6 @@ public class TrustFrameworkConfig {
                 });
     }
 
-    public HashMap<String, String> getPublicKeysByUrl() {
-        var publicKeysByUrl = publicKeysByUrlRef.get();
-        if (publicKeysByUrl == null || publicKeysByUrl.isEmpty()) {
-            return null;
-        } else {
-            return publicKeysByUrl;
-        }
-    }
-
     public HashSet<String> getDltAddresses() {
         HashSet<String> dltAddresses = dltAddressesRef.get();
         if (dltAddresses == null || dltAddresses.isEmpty()) {
