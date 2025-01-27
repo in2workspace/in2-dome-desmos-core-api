@@ -1,5 +1,6 @@
 package es.in2.desmos.security;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.oauth2.jwt.JwtException;
 import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
@@ -79,6 +81,22 @@ class JwtTokenProviderTest {
 
         String token = jwtTokenProvider.generateTokenWithPayload(payload);
         Assertions.assertNotNull(token);
+    }
+
+    @Test
+    void testGenerateTokenWithPayloadThrowJwtException() throws JsonProcessingException {
+        String payload = """
+                 {
+                   "sub": "1234567890",
+                   "name": "John Doe",
+                   "iat": 1516239022
+                 }
+                 """;
+
+        when(objectMapper.readTree(anyString())).thenThrow(JsonProcessingException.class);
+
+
+        assertThrows(JwtException.class, () -> jwtTokenProvider.generateTokenWithPayload(payload));
     }
 
     @Test
