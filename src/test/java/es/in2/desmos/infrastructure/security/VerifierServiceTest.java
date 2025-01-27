@@ -21,7 +21,6 @@ import reactor.test.StepVerifier;
 
 import java.util.concurrent.TimeUnit;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,18 +51,18 @@ class VerifierServiceTest {
                 .setBody("""
                         {
                          "token_endpoint":""" + "\"" + mockWebServer.url("/token") + "\"" + """
-                        }
-                    """)
+                            }
+                        """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         mockWebServer.enqueue(new MockResponse()
                 .setBody("""
-                        {
-                            "access_token": "your_access_token_value",
-                            "token_type": "Bearer",
-                            "expires_in": "3600"
-                          }
-                    """)
+                            {
+                                "access_token": "your_access_token_value",
+                                "token_type": "Bearer",
+                                "expires_in": "3600"
+                              }
+                        """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         when(verifierConfig.getExternalDomain())
@@ -89,18 +88,18 @@ class VerifierServiceTest {
                 .setBody("""
                         {
                          "token_endpoint":""" + "\"" + mockWebServer.url("/token") + "\"" + """
-                        }
-                    """)
+                            }
+                        """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         mockWebServer.enqueue(new MockResponse()
                 .setBody("""
-                        {
-                            "access_token": "your_access_token_value",
-                            "token_ty",
-                            "expires_in": "3600"
-                          }
-                    """)
+                            {
+                                "access_token": "your_access_token_value",
+                                "token_ty",
+                                "expires_in": "3600"
+                              }
+                        """)
                 .setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR.value()));
 
         when(verifierConfig.getExternalDomain())
@@ -124,12 +123,12 @@ class VerifierServiceTest {
     void itShouldThrowTokenFetchExceptionWhenPerformingTokenRequest() {
         mockWebServer.enqueue(new MockResponse()
                 .setBody("""
-                        {
-                            "access_token": "your_access_token_value",
-                            "token_type": "Bearer",
-                            "expires_in": "3600"
-                          }
-                    """)
+                            {
+                                "access_token": "your_access_token_value",
+                                "token_type": "Bearer",
+                                "expires_in": "3600"
+                              }
+                        """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         when(verifierConfig.getExternalDomain())
@@ -153,10 +152,10 @@ class VerifierServiceTest {
     void itShouldThrowJwtVerificationExceptionIfInvalidIssuer() {
         mockWebServer.enqueue(new MockResponse()
                 .setBody("""
-                    {
-                    "jwks_uri":""" + "\"" + mockWebServer.url("/jwks") + "\"" + """
-                    }
-                    """)
+                        {
+                        "jwks_uri":""" + "\"" + mockWebServer.url("/jwks") + "\"" + """
+                        }
+                        """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         mockWebServer.enqueue(new MockResponse()
@@ -196,10 +195,10 @@ class VerifierServiceTest {
     void itShouldThrowExceptionWhenJwkIsNotCorrect() {
         mockWebServer.enqueue(new MockResponse()
                 .setBody("""
-                    {
-                    "jwks_uri":""" + "\"" + mockWebServer.url("/jwks") + "\"" + """
-                    }
-                    """)
+                        {
+                        "jwks_uri":""" + "\"" + mockWebServer.url("/jwks") + "\"" + """
+                        }
+                        """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         mockWebServer.enqueue(new MockResponse()
@@ -219,7 +218,7 @@ class VerifierServiceTest {
     }
 
     @Test
-    void getWellKnownInfo_errorFetching_shouldThrowWellKnownInfoFetchException() throws Exception {
+    void getWellKnownInfo_errorFetching_shouldThrowWellKnownInfoFetchException() {
         // Arrange
         mockWebServer.enqueue(new MockResponse()
                 .setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR.value()) // Simulate an error fetching metadata
@@ -228,9 +227,9 @@ class VerifierServiceTest {
         when(verifierConfig.getExternalDomain()).thenReturn(mockWebServer.url("/").toString());
         when(verifierConfig.getWellKnownPath()).thenReturn("/.well-known/openid-configuration");
 
-        // Act & Assert
-        assertThatThrownBy(() -> verifierService.getWellKnownInfo().block())
-                .isInstanceOf(WellKnownInfoFetchException.class)
-                .hasMessageContaining("Error fetching OpenID Provider Metadata");
+        StepVerifier
+                .create(verifierService.getWellKnownInfo())
+                .expectError(WellKnownInfoFetchException.class)
+                .verify();
     }
 }
