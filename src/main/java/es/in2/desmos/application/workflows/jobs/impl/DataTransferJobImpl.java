@@ -5,8 +5,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonParser;
+import es.in2.desmos.application.workflows.jobs.DataPublicationJob;
 import es.in2.desmos.application.workflows.jobs.DataTransferJob;
-import es.in2.desmos.application.workflows.jobs.DataVerificationJob;
 import es.in2.desmos.domain.exceptions.InvalidSyncResponseException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
@@ -16,7 +16,6 @@ import es.in2.desmos.domain.utils.Base64Converter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
@@ -32,7 +31,7 @@ import java.util.stream.Stream;
 public class DataTransferJobImpl implements DataTransferJob {
     public static final String INVALID_ENTITY_SYNC_RESPONSE = "Invalid EntitySync response.";
     private final EntitySyncWebClient entitySyncWebClient;
-    private final DataVerificationJob dataVerificationJob;
+    private final DataPublicationJob dataPublicationJob;
     private final ObjectMapper objectMapper;
     private final AuditRecordService auditRecordService;
 
@@ -88,14 +87,14 @@ public class DataTransferJobImpl implements DataTransferJob {
                                                             Mono.just(result.existingEntitiesToSync())
                                                     );
 
-                                                    return createReceivedAuditRecords(processId, issuer, decodedEntitySyncResponseMono)
-                                                            .then(getInvalidIntegrityEntitiesIds(entitiesByIdMono, entitiesHashAndHashlinkById))
+                                                    return createReceivedAuditRecords(processId, issuer, mvEntities4DataNegotiation)
+                                                            .then(getInvalidIntegrityEntitiesIds(processId, entitiesByIdMono, entitiesHashAndHashlinkById))
                                                             .flatMap(invalidIntegrityEntitiesIds -> {
                                                                 Mono<List<Id>> invalidIntegrityEntitiesIdsMono = Mono.just(invalidIntegrityEntitiesIds);
                                                                 return filterEntitiesById(entitiesByIdMono, invalidIntegrityEntitiesIdsMono)
                                                                         .flatMap(filteredEntitiesById -> {
                                                                             Mono<Map<Id, Entity>> filteredEntitiesByIdMono = Mono.just(filteredEntitiesById);
-                                                                            return dataVerificationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, mvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
+                                                                            return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, mvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
 
                                                                         });
                                                             });
@@ -108,45 +107,26 @@ public class DataTransferJobImpl implements DataTransferJob {
         });
     }
 
-    private Mono<Void> createReceivedAuditRecords(String processId, Mono<String> issuerMono, Mono<String> entitiesArrayJsonMono) {
-        return entitiesArrayJsonMono
-                .flatMap(entitiesArrayJson -> {
-                    try {
-                        JsonNode entitiesJsonNode = objectMapper.readTree(entitiesArrayJson);
+    private Mono<Void> createReceivedAuditRecords(String processId, Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> mvEntities4DataNegotiation) {
+        return mvEntities4DataNegotiation
+                .flatMapIterable(x -> x)
+                .concatMap(x -> {
+                    var mvAuditService = new MVAuditServiceEntity4DataNegotiation(
+                            x.id(),
+                            x.type(),
+                            "",
+                            "");
 
-                        if (!entitiesJsonNode.isArray()) {
-                            return Mono.error(new InvalidSyncResponseException(INVALID_ENTITY_SYNC_RESPONSE));
-                        }
-
-                        return Flux.fromIterable(entitiesJsonNode)
-                                .concatMap(entityNode -> {
-                                    if (!entityNode.has("id") || !entityNode.has("type")) {
-                                        return Mono.error(new InvalidSyncResponseException(INVALID_ENTITY_SYNC_RESPONSE));
-                                    }
-
-                                    String entityId = entityNode.get("id").asText();
-                                    String entityType = entityNode.get("type").asText();
-
-                                    var mvAuditService = new MVAuditServiceEntity4DataNegotiation(
-                                            entityId,
-                                            entityType,
-                                            "",
-                                            "");
-
-                                    return issuerMono.flatMap(issuer ->
-                                            auditRecordService
-                                                    .buildAndSaveAuditRecordFromDataSync(
-                                                            processId,
-                                                            issuer,
-                                                            mvAuditService,
-                                                            AuditRecordStatus.RECEIVED));
-                                })
-                                .collectList()
-                                .then();
-                    } catch (JsonProcessingException e) {
-                        return Mono.error(e);
-                    }
-                });
+                    return issuerMono.flatMap(issuer ->
+                            auditRecordService
+                                    .buildAndSaveAuditRecordFromDataSync(
+                                            processId,
+                                            issuer,
+                                            mvAuditService,
+                                            AuditRecordStatus.RECEIVED));
+                })
+                .collectList()
+                .then();
     }
 
     private Mono<String> decodeEntitySyncResponse(Mono<List<String>> entitySyncResponseMono) {
@@ -222,7 +202,7 @@ public class DataTransferJobImpl implements DataTransferJob {
                 });
     }
 
-    private Mono<List<Id>> getInvalidIntegrityEntitiesIds(Mono<Map<Id, Entity>> entitiesByIdMono, Mono<Map<Id, HashAndHashLink>> allEntitiesExistingValidationDataById) {
+    private Mono<List<Id>> getInvalidIntegrityEntitiesIds(String processId, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<Map<Id, HashAndHashLink>> allEntitiesExistingValidationDataById) {
         return allEntitiesExistingValidationDataById
                 .flatMapIterable(Map::entrySet)
                 .flatMap(entry -> {
@@ -236,6 +216,9 @@ public class DataTransferJobImpl implements DataTransferJob {
                                         if (calculatedHash.equals(hashValue)) {
                                             return Mono.empty();
                                         } else {
+                                            log.warn("ProcessID: {} - P2P replication attempt failed for entity '{}' " +
+                                                    "due to hash mismatch: received hash does not match the " +
+                                                    "calculated hash of the entity", processId, id);
                                             log.debug("Expected hash: {}\nCurrent hash: {}", hashValue, calculatedHash);
                                             return Mono.just(id);
                                         }

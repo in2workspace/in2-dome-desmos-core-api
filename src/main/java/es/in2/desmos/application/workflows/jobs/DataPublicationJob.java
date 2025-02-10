@@ -9,6 +9,6 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.Map;
 
-public interface DataVerificationJob {
+public interface DataPublicationJob {
     Mono<Void> verifyData(String processId, Mono<String> issuer, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<List<MVEntity4DataNegotiation>> allMVEntity4DataNegotiation, Mono<Map<Id, HashAndHashLink>> existingEntitiesOriginalValidationDataById);
 }
