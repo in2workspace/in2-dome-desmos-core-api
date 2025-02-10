@@ -65,7 +65,8 @@ public class ApplicationRunner {
                         .doOnError(error -> finishApplication("Blockchain Subscription", error)))
                 .then(setAccessNodePublicKeysFromExternalYaml(processId)
                         .doOnError(error -> finishApplication("Access Node Public Keys Getting", error)))
-                .thenMany(initializeDataSync(processId))
+                .thenMany(initializeDataSync(processId)
+                        .doOnError(error -> finishApplication("Initialize Data Sync", error)))
                 .then();
     }
 
