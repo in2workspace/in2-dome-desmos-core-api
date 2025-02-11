@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry mechanism for Blockchain Adapter and Context Broker.
 - Recover after a failure mechanism for Blockchain Adapter and Context Broker.
 
+## [Released]: v1.0.7
+- Fix entity updates to Scorpio during the synchronization process.
+- Terminate the application if startup fails to complete successfully.
+- Remove hash link validation in P2P synchronization.
+- Add a warning log when an entity fails to synchronize in P2P due to an invalid integrity check.
+
 ## [Released]: v1.0.6
 - Fix slow synchronization
 

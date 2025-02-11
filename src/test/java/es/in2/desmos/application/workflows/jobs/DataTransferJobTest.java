@@ -33,7 +33,7 @@ class DataTransferJobTest {
     private EntitySyncWebClient entitySyncWebClient;
 
     @Mock
-    private DataVerificationJob dataVerificationJob;
+    private DataPublicationJob dataPublicationJob;
 
     @Mock
     private AuditRecordService auditRecordService;
@@ -88,7 +88,7 @@ class DataTransferJobTest {
                 });
 
         when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
-        when(dataVerificationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         Mono<Void> result = dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults));
 
@@ -147,7 +147,7 @@ class DataTransferJobTest {
 
         when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
 
-        when(dataVerificationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         Mono<Void> result = dataTransferJob.syncData(processId, dataNegotiationResultMono);
 
@@ -185,7 +185,7 @@ class DataTransferJobTest {
 
         when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
 
-        when(dataVerificationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         List<Id> expectedEntitiesById = List.of(
                 new Id(MVEntity4DataNegotiationMother.sample2().id()),
@@ -199,7 +199,7 @@ class DataTransferJobTest {
                 .create(result)
                 .verifyComplete();
 
-        verify(dataVerificationJob, times(1)).verifyData(any(), any(), entitiesByIdCaptor.capture(), any(), any());
+        verify(dataPublicationJob, times(1)).verifyData(any(), any(), entitiesByIdCaptor.capture(), any(), any());
 
         Mono<Map<Id, Entity>> entitiesByIdCaptured = entitiesByIdCaptor.getValue();
 
@@ -226,7 +226,7 @@ class DataTransferJobTest {
 
         when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
 
-        when(dataVerificationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         Mono<Void> result = dataTransferJob.syncData(processId, dataNegotiationResultMono);
 
@@ -234,8 +234,8 @@ class DataTransferJobTest {
                 create(result)
                 .verifyComplete();
 
-        verify(dataVerificationJob, times(1)).verifyData(eq(processId), any(), any(), mvEntities4DataNegotiationCaptor.capture(), any());
-        verifyNoMoreInteractions(dataVerificationJob);
+        verify(dataPublicationJob, times(1)).verifyData(eq(processId), any(), any(), mvEntities4DataNegotiationCaptor.capture(), any());
+        verifyNoMoreInteractions(dataPublicationJob);
 
         Mono<List<MVEntity4DataNegotiation>> monoDataVerificationJobCaptured = mvEntities4DataNegotiationCaptor.getValue();
 
@@ -258,7 +258,7 @@ class DataTransferJobTest {
                 .verifyComplete();
 
         verifyNoInteractions(entitySyncWebClient);
-        verifyNoInteractions(dataVerificationJob);
+        verifyNoInteractions(dataPublicationJob);
         verifyNoInteractions(objectMapper);
     }
 
@@ -272,7 +272,7 @@ class DataTransferJobTest {
 
         when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
 
-        when(dataVerificationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
 
@@ -307,7 +307,7 @@ class DataTransferJobTest {
 
         when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
 
-        when(dataVerificationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sampleBadHash2();
 
@@ -319,7 +319,7 @@ class DataTransferJobTest {
 
         dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)).block();
 
-        verify(dataVerificationJob, times(1))
+        verify(dataPublicationJob, times(1))
                 .verifyData(
                         any(),
                         any(),
@@ -356,7 +356,7 @@ class DataTransferJobTest {
 
         when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
 
-        when(dataVerificationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
 
@@ -370,7 +370,7 @@ class DataTransferJobTest {
 
         dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)).block();
 
-        verify(dataVerificationJob, times(1))
+        verify(dataPublicationJob, times(1))
                 .verifyData(
                         any(),
                         any(),

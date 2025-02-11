@@ -1,5 +1,6 @@
 package es.in2.desmos.application.runners;
 
+import es.in2.desmos.DesmosApiApplication;
 import es.in2.desmos.application.workflows.DataSyncWorkflow;
 import es.in2.desmos.application.workflows.PublishWorkflow;
 import es.in2.desmos.application.workflows.SubscribeWorkflow;
@@ -14,6 +15,7 @@ import es.in2.desmos.infrastructure.configs.BlockchainConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
@@ -23,6 +25,7 @@ import org.springframework.retry.annotation.Retryable;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,9 +60,13 @@ public class ApplicationRunner {
         String processId = UUID.randomUUID().toString();
         log.info("ProcessID: {} - Setting initial configurations...", processId);
         return setBrokerSubscription(processId)
-                .then(setBlockchainSubscription(processId))
-                .then(setAccessNodePublicKeysFromExternalYaml(processId))
-                .thenMany(initializeDataSync(processId))
+                .doOnError(error -> finishApplication("Broker Subscription", error))
+                .then(setBlockchainSubscription(processId)
+                        .doOnError(error -> finishApplication("Blockchain Subscription", error)))
+                .then(setAccessNodePublicKeysFromExternalYaml(processId)
+                        .doOnError(error -> finishApplication("Access Node Public Keys Getting", error)))
+                .thenMany(initializeDataSync(processId)
+                        .doOnError(error -> finishApplication("Initialize Data Sync", error)))
                 .then();
     }
 
@@ -181,5 +188,15 @@ public class ApplicationRunner {
                         error -> log.error("ProcessID: {} - Error occurred during Subscribe Workflow", processId, error),
                         () -> log.info("ProcessID: {} - Subscribe Workflow completed", processId)
                 );
+    }
+
+    private void finishApplication(String step, Throwable error) {
+        log.error("Error in {}: {}", step, error.getMessage(), error);
+
+        Mono.fromRunnable(() -> {
+            int exitCode = SpringApplication.exit(DesmosApiApplication.getContext(), () -> 0);
+            log.info("Application exiting with code {}", exitCode);
+            System.exit(exitCode);
+        }).subscribeOn(Schedulers.boundedElastic()).subscribe();
     }
 }
