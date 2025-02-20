@@ -10,6 +10,7 @@ import es.in2.desmos.infrastructure.configs.TrustFrameworkConfig;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.BlockchainConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -59,6 +60,9 @@ class ApplicationRunnerTests {
     @Mock
     private TrustFrameworkConfig trustFrameworkConfig;
 
+    @Mock
+    private Flyway flyway;
+
     @InjectMocks
     private ApplicationRunner applicationRunner;
 
@@ -82,7 +86,7 @@ class ApplicationRunnerTests {
     void whenDisposeIsActive() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         // Arrange
         String getCurrentEnvironment = "dev";
-        ApplicationRunner localApplicationRunner  = new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig, brokerListenerService, blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow, publishWorkflow, subscribeWorkflow, getCurrentEnvironment);
+        ApplicationRunner localApplicationRunner  = new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig, brokerListenerService, blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow, publishWorkflow, subscribeWorkflow, getCurrentEnvironment, flyway);
         Method disposeIfActive = ApplicationRunner.class.getDeclaredMethod("disposeIfActive", Disposable.class);
         disposeIfActive.setAccessible(true);
         Disposable disposable = mock(Disposable.class);

@@ -12,6 +12,7 @@ spring:
   flyway:
     url:
     locations: classpath:db/migration
+    default-schema: desmos
 
 # Spring Logging Configuration
 logging:

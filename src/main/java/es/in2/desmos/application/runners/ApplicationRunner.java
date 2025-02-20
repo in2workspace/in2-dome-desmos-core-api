@@ -15,6 +15,7 @@ import es.in2.desmos.infrastructure.configs.BlockchainConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.flywaydb.core.Flyway;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
@@ -28,6 +29,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,9 +56,13 @@ public class ApplicationRunner {
     private final String getCurrentEnvironment;
     private Disposable publishQueueDisposable;
     private Disposable subscribeQueueDisposable;
+    private final Flyway flyway;
 
     @EventListener(ApplicationReadyEvent.class)
     public Mono<Void> onApplicationReady() {
+        System.out.println("HOLAAA2: "  + flyway.getConfiguration().getUrl());
+        System.out.println("HOLAAA: "  + flyway.getConfiguration().getDefaultSchema());
+        System.out.println("HOLAAA: "  + Arrays.toString(flyway.getConfiguration().getSchemas()));
         String processId = UUID.randomUUID().toString();
         log.info("ProcessID: {} - Setting initial configurations...", processId);
         return setBrokerSubscription(processId)

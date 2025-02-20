@@ -5,13 +5,14 @@ spring:
   main:
     web-application-type: reactive
   r2dbc:
-    url: "r2dbc:postgresql://localhost:5433/it_db?schema=wallet"
+    url: "r2dbc:postgresql://localhost:5433/it_db?schema=desmos"
     username: "postgres"
     password: "postgres"
     generate-unique-name: true
   flyway:
-    url: "jdbc:postgresql://localhost:5433/it_db?schema=wallet"
+    url: "jdbc:postgresql://localhost:5433/it_db"
     locations: classpath:db/migration
+    default-schema: desmos
 
 # Spring Logging Configuration
 logging:
