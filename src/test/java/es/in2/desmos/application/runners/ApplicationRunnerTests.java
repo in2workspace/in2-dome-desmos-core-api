@@ -60,9 +60,6 @@ class ApplicationRunnerTests {
     @Mock
     private TrustFrameworkConfig trustFrameworkConfig;
 
-    @Mock
-    private Flyway flyway;
-
     @InjectMocks
     private ApplicationRunner applicationRunner;
 
@@ -86,7 +83,7 @@ class ApplicationRunnerTests {
     void whenDisposeIsActive() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         // Arrange
         String getCurrentEnvironment = "dev";
-        ApplicationRunner localApplicationRunner  = new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig, brokerListenerService, blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow, publishWorkflow, subscribeWorkflow, getCurrentEnvironment, flyway);
+        ApplicationRunner localApplicationRunner  = new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig, brokerListenerService, blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow, publishWorkflow, subscribeWorkflow, getCurrentEnvironment);
         Method disposeIfActive = ApplicationRunner.class.getDeclaredMethod("disposeIfActive", Disposable.class);
         disposeIfActive.setAccessible(true);
         Disposable disposable = mock(Disposable.class);
