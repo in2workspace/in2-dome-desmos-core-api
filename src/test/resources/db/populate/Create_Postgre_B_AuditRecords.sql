@@ -1,6 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE SCHEMA IF NOT EXISTS desmos;
 
-CREATE TABLE IF NOT EXISTS audit_records
+CREATE TABLE IF NOT EXISTS desmos.audit_records
 (
     id              uuid PRIMARY KEY UNIQUE DEFAULT uuid_generate_v4(),
     process_id      varchar(256),
@@ -16,7 +17,7 @@ CREATE TABLE IF NOT EXISTS audit_records
     hashlink        varchar(256)
 );
 
-INSERT INTO audit_records (id, process_id, created_at, entity_id, entity_type, entity_hash, entity_hashlink, data_location, status, trader, hash, hashlink)
+INSERT INTO desmos.audit_records (id, process_id, created_at, entity_id, entity_type, entity_hash, entity_hashlink, data_location, status, trader, hash, hashlink)
 VALUES
     ('721421a4-d333-40fe-a192-af4265a3eedb', '0', '2024-05-09 16:51:40.403246', 'urn:ProductOffering:ed9c56c8-a5ab-42cc-bc62-0fca69a30c87', 'ProductOffering', '3f3bb615ef60734421911d86e83b30acbee562b44987efe3202420da6b47a982', 'a0f5aba1ec869f49bce6d1f1dbfdb4f222f3d5a45ec7c13320224a88b0221b17', 'http://localhost:55555/ngsi-ld/v1/entities/urn:ProductOffering:ed9c56c8-a5ab-42cc-bc62-0fca69a30c87?7b1f2e439e03fdc0d1d8ab65b0408c55c42d5e120c6f1f8f71a06aa287b8f056', 'PUBLISHED', 'CONSUMER', '605285d9d71387727dfcfbc2acf8b02a23f57b9857f33ad61bb96c1cf72c9502', 'b0703853ec9dcc1b7f13f7995ce3091efbf79820f694c3024fb64750aa4c23eb'),
     ('fd1421a4-d333-40fe-a192-af4265a3eedb', '0', '2024-05-09 16:51:40.403241', 'urn:ProductOfferingPrice:912efae1-7ff6-4838-89f3-cfedfdfa1c52', 'ProductOfferingPrice', '17d7658f62b491fd58cc38066532620838c1b063fc3a8fe74d813d187f2ad6c3', '17d7658f62b491fd58cc38066532620838c1b063fc3a8fe74d813d187f2ad6c3', 'http://localhost:55555/ngsi-ld/v1/entities/ProductOfferingPrice:912efae1-7ff6-4838-89f3-cfedfdfa1c5b?9a69533ae44995f511c926b6f443e9e9738041421cf5ddf0c8f5b31ffde310cf', 'PUBLISHED', 'CONSUMER', '605285d9d71387727dfcfbc2acf8b02a23f57b9857f33ad61bb96c1cf72c9502', 'b0703853ec9dcc1b7f13f7995ce3091efbf79820f694c3024fb64750aa4c23eb'),
