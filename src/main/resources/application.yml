@@ -12,7 +12,6 @@ spring:
   flyway:
     url: "jdbc:postgresql://localhost:5433/it_db"
     locations: classpath:db/migration
-    default-schema: desmos
 
 # Spring Logging Configuration
 logging:
