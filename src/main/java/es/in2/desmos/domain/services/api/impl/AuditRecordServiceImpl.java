@@ -262,7 +262,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
         return auditRecordRepository.findMostRecentAuditRecord()
                 .switchIfEmpty(Mono.defer(() -> auditRecordRepository.count().flatMap(count ->
                         count == 0 ? Mono.just(AuditRecord.builder().build())
-                        : Mono.error(new NoSuchElementException()))));
+                                : Mono.error(new NoSuchElementException()))));
     }
 
     /**
@@ -319,7 +319,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                             .collectMap(AuditRecord::getEntityId)
                             .flatMap(auditRecordMap ->
                                     Flux.fromIterable(entityIds)
-                                            .concatMap(id -> {
+                                            .flatMap(id -> {
                                                 Mono<String> entityHashMono = getEntityHash(processId, Mono.just(id));
 
                                                 return entityHashMono.flatMap(entityHash -> {
@@ -328,6 +328,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                     if (auditRecord != null) {
                                                         log.debug("ProcessID: {} - AuditId: {}", processId, id);
                                                         return findOrUpdateAuditRecord(processId, entityHash, auditRecord);
+
                                                     } else {
                                                         return buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity(
                                                                 processId,
