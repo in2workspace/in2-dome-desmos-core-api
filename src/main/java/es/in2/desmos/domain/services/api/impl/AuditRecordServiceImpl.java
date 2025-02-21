@@ -327,8 +327,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
                                                     if (auditRecord != null) {
                                                         log.debug("ProcessID: {} - AuditId: {}", processId, id);
-                                                        return findOrUpdateAuditRecord(processId, entityHash, auditRecord);
 
+                                                        return findOrUpdateAuditRecord(processId, entityHash, auditRecord);
                                                     } else {
                                                         return buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity(
                                                                 processId,
