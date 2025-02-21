@@ -5,7 +5,7 @@ spring:
   main:
     web-application-type: reactive
   r2dbc:
-    url: "r2dbc:postgresql://localhost:5433/it_db?schema=desmos"
+    url: "r2dbc:postgresql://localhost:5433/it_db"
     username: "postgres"
     password: "postgres"
     generate-unique-name: true

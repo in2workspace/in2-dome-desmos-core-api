@@ -111,7 +111,7 @@ public class ContainerManager {
                 .withExposedPorts(8080)
                 .withEnv("SPRING_PROFILES_ACTIVE", "test")
                 .withEnv("LOGGING_LEVEL_ES_IN2_DESMOS", "DEBUG")
-                .withEnv("SPRING_R2DBC_URL", "r2dbc:postgresql://postgres-node-b:5432/it_db?schema=desmos")
+                .withEnv("SPRING_R2DBC_URL", "r2dbc:postgresql://postgres-node-b:5432/it_db")
                 .withEnv("SPRING_R2DBC_USERNAME", "postgres")
                 .withEnv("SPRING_R2DBC_PASSWORD", "postgres")
                 .withEnv("SPRING_FLYWAY_URL", "jdbc:postgresql://postgres-node-b:5432/it_db")
@@ -141,7 +141,7 @@ public class ContainerManager {
     @DynamicPropertySource
     public static void postgresqlProperties(DynamicPropertyRegistry registry) {
         // Node A
-        registry.add("spring.r2dbc.url", () -> String.format("r2dbc:pool:postgresql://%s:%s/it_db?schema=desmos",
+        registry.add("spring.r2dbc.url", () -> String.format("r2dbc:pool:postgresql://%s:%s/it_db",
                 postgresContainerA.getHost(),
                 postgresContainerA.getFirstMappedPort()));
         registry.add("spring.r2dbc.username", postgresContainerA::getUsername);
