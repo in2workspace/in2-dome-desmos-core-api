@@ -260,7 +260,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     @Override
     public Mono<AuditRecord> fetchMostRecentAuditRecord() {
         return auditRecordRepository.findMostRecentAuditRecord()
-                .switchIfEmpty(Mono.defer(() -> auditRecordRepository.count().flatMap(count -> count == 0 ? Mono.just(AuditRecord.builder().build())
+                .switchIfEmpty(Mono.defer(() -> auditRecordRepository.count().flatMap(count ->
+                        count == 0 ? Mono.just(AuditRecord.builder().build())
                         : Mono.error(new NoSuchElementException()))));
     }
 
