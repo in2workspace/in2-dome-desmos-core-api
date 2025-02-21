@@ -260,9 +260,11 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     @Override
     public Mono<AuditRecord> fetchMostRecentAuditRecord() {
         return auditRecordRepository.findMostRecentAuditRecord()
-                .switchIfEmpty(Mono.defer(() -> auditRecordRepository.count().flatMap(count ->
-                        count == 0 ? Mono.just(AuditRecord.builder().build())
-                                : Mono.error(new NoSuchElementException()))));
+                .switchIfEmpty(Mono.defer(() -> auditRecordRepository.count().flatMap(count -> {
+                    System.out.println("El count es: " + count);
+                    return count == 0 ? Mono.just(AuditRecord.builder().build())
+                            : Mono.error(new NoSuchElementException());
+                })));
     }
 
     /**
@@ -328,9 +330,10 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
                                                     if (auditRecord != null) {
                                                         log.debug("ProcessID: {} - AuditId: {}", processId, id);
-
+                                                        System.out.println("Holaaaaa, aquiii audit not null");
                                                         return findOrUpdateAuditRecord(processId, entityHash, auditRecord);
                                                     } else {
+                                                        System.out.println("Holaaaaa, aquiii audit nullissiiim");
                                                         return buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity(
                                                                 processId,
                                                                 new MVAuditServiceEntity4DataNegotiation(
@@ -381,6 +384,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     private Mono<MVAuditServiceEntity4DataNegotiation> buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity(String processId, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation, AuditRecordTrader trader, String dataLocation) {
+        System.out.println("Abans del fetchfrom unregisteredoudated i tal");
         return fetchMostRecentAuditRecord()
                 .flatMap(lastAuditRecordRegistered -> {
                     String newDataLocation = Objects.requireNonNullElseGet(
