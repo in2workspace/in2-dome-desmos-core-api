@@ -320,6 +320,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                             .flatMap(auditRecordMap ->
                                     Flux.fromIterable(entityIds)
                                             .concatMap(id -> {
+                                                System.out.println("Holaaaaa, aquiii");
                                                 Mono<String> entityHashMono = getEntityHash(processId, Mono.just(id));
 
                                                 return entityHashMono.flatMap(entityHash -> {
