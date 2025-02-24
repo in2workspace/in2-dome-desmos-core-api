@@ -16,7 +16,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table("audit_records")
+@Table(name = "audit_records", schema = "desmos")
 public class AuditRecord implements Persistable<UUID> {
 
     @Id

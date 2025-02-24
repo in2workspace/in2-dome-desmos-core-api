@@ -13,7 +13,7 @@ import java.util.UUID;
 @Repository
 public interface AuditRecordRepository extends ReactiveCrudRepository<AuditRecord, UUID> {
 
-    @Query("SELECT * FROM audit_records WHERE id=:uuid")
+    @Query("SELECT * FROM desmos.audit_records WHERE id=:uuid")
     Mono<AuditRecord> findByUUID(UUID uuid);
 
     /**
@@ -22,7 +22,7 @@ public interface AuditRecordRepository extends ReactiveCrudRepository<AuditRecor
      * @return A Mono emitting the latest AuditRecord based on the creation timestamp,
      * or Mono.empty() if no records are found.
      */
-    @Query("SELECT * FROM audit_records ORDER BY created_at DESC LIMIT 1")
+    @Query("SELECT * FROM desmos.audit_records ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findMostRecentAuditRecord();
 
     /**
@@ -32,18 +32,18 @@ public interface AuditRecordRepository extends ReactiveCrudRepository<AuditRecor
      * @param entityId The ID of the entity for which the audit record is being searched.
      * @return A Mono that emits the most recent published or deleted audit record for the specified entity ID, if found.
      */
-    @Query("SELECT * FROM audit_records WHERE entity_id = :entityId AND status = 'RETRIEVED' OR status = 'DELETED' ORDER BY created_at DESC LIMIT 1")
+    @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId AND status = 'RETRIEVED' OR status = 'DELETED' ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findMostRecentRetrievedOrDeletedByEntityId(String entityId);
 
-    @Query("SELECT * FROM audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1")
+    @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findMostRecentPublishedAuditRecordByEntityId(String entityId);
 
     @Query("""
        SELECT ar.*
-       FROM audit_records ar
+       FROM desmos.audit_records ar
        INNER JOIN (
            SELECT entity_id, MAX(created_at) AS max_created_at
-           FROM audit_records
+           FROM desmos.audit_records
            WHERE entity_id IN (:entityIds) AND status = 'PUBLISHED'
            GROUP BY entity_id
        ) AS latest_records
@@ -52,21 +52,21 @@ public interface AuditRecordRepository extends ReactiveCrudRepository<AuditRecor
        """)
     Flux<AuditRecord> findMostRecentPublishedAuditRecordsByEntityIds(List<String> entityIds);
 
-    @Query("SELECT * FROM audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' AND trader = 'PRODUCER' ORDER BY created_at DESC LIMIT 1")
+    @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' AND trader = 'PRODUCER' ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findLatestPublishedAuditRecordForProducerByEntityId(String entityId);
 
-    @Query("SELECT * FROM audit_records WHERE entity_id = :entityId ORDER BY created_at DESC LIMIT 1")
+    @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId ORDER BY created_at DESC LIMIT 1")
     Flux<AuditRecord> findLastTransactionByEntityId(String entityId);
 
     Flux<AuditRecord> findByEntityId(final String entityId);
 
-    @Query("SELECT * FROM audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' AND trader = 'CONSUMER' ORDER BY created_at DESC LIMIT 1")
+    @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' AND trader = 'CONSUMER' ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findLastPublishedConsumerAuditRecordByEntityId(String entityId);
 
-    @Query("SELECT * FROM audit_records WHERE status = 'PUBLISHED' AND trader = 'CONSUMER' ORDER BY created_at DESC LIMIT 1")
+    @Query("SELECT * FROM desmos.audit_records WHERE status = 'PUBLISHED' AND trader = 'CONSUMER' ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findLastPublishedConsumerAuditRecord();
 
-    @Query("SELECT * FROM audit_records ORDER BY created_at DESC LIMIT 1 OFFSET 1")
+    @Query("SELECT * FROM desmos.audit_records ORDER BY created_at DESC LIMIT 1 OFFSET 1")
     Mono<AuditRecord> findPreviousTransaction();
 
 }
