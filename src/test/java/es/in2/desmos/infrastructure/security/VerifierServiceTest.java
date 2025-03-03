@@ -37,7 +37,7 @@ class VerifierServiceTest {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
         mockWebServer.takeRequest(1, TimeUnit.SECONDS);
-        verifierService = new VerifierService(WebClient.builder().build(), verifierConfig);
+        verifierService = new VerifierServiceImpl(WebClient.builder().build(), verifierConfig);
     }
 
     @AfterEach
