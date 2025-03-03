@@ -72,7 +72,8 @@ public class TrustFrameworkConfig {
                     .get()
                     .uri(trustedAccessNodesListUri)
                     .retrieve()
-                    .bodyToMono(String.class);
+                    .bodyToMono(String.class)
+                    .retry(3);
         } catch (URISyntaxException e) {
             return Mono.error(new RuntimeException(e));
         }

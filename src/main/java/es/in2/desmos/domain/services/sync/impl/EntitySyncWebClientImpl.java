@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
@@ -25,18 +26,20 @@ public class EntitySyncWebClientImpl implements EntitySyncWebClient {
 
     public Flux<String> makeRequest(String processId, Mono<String> issuerMono, Mono<Id[]> entitySyncRequest) {
         log.info("ProcessID: {} - Making a Entity Sync Web Client request", processId);
-
         return m2MAccessTokenProvider.getM2MAccessToken()
                 .flatMapMany(accessToken ->
                         issuerMono.flatMapMany(issuer -> webClient
-                        .post()
-                        .uri(issuer + "/api/v1/sync/p2p/entities")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .body(entitySyncRequest, Id[].class)
-                        .retrieve()
-                        .bodyToFlux(Entity.class)
-                        .retryWhen(Retry.backoff(3, Duration.ofSeconds(2)))
-                        .flatMap(x -> Flux.just(x.value()))));
+                                .post()
+                                .uri(UriComponentsBuilder.fromHttpUrl(issuer)
+                                        .path("/api/v1/sync/p2p/entities")
+                                        .build()
+                                        .toUriString())
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(entitySyncRequest, Id[].class)
+                                .retrieve()
+                                .bodyToFlux(Entity.class)
+                                .retryWhen(Retry.backoff(3, Duration.ofSeconds(2)))
+                                .flatMap(x -> Flux.just(x.value()))));
     }
 }

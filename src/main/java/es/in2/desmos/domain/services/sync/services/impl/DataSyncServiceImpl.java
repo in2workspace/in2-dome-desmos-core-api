@@ -86,15 +86,13 @@ public class DataSyncServiceImpl implements DataSyncService {
                                             log.debug("ProcessID: {} - Entity retrieved successfully from the external broker", processId);
                                             return Mono.empty();
                                         })
-                                .onStatus(status -> status != null && status.is4xxClientError(),
-                                        clientResponse -> {
-                                            throw new BrokerEntityRetrievalException("Error occurred while retrieving entity from the external broker");
-                                        })
                                 .onStatus(status -> status != null && status.is5xxServerError(),
-                                        clientResponse -> {
-                                            throw new BrokerEntityRetrievalException("Error occurred while retrieving entity from the external broker");
-                                        })
+                                        clientResponse ->
+                                                Mono.error(new BrokerEntityRetrievalException(
+                                                        "Error occurred while retrieving entity from the external" +
+                                                                " broker")))
                                 .bodyToFlux(Entity.class)
+                                .retry(3)
                                 .map(Entity::value)
                                 .map(Base64Converter::convertBase64ToString));
     }

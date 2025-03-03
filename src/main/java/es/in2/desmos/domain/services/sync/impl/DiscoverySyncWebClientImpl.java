@@ -10,6 +10,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -27,7 +28,10 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                 .flatMap(tuple ->
                         webClient
                                 .post()
-                                .uri(tuple.getT1() + "/api/v1/sync/p2p/discovery")
+                                .uri(UriComponentsBuilder.fromHttpUrl(tuple.getT1())
+                                        .path("/api/v1/sync/p2p/discovery")
+                                        .build()
+                                        .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .body(discoverySyncRequest, DiscoverySyncRequest.class)
