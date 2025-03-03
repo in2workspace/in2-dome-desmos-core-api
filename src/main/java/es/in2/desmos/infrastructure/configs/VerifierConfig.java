@@ -3,6 +3,7 @@ package es.in2.desmos.infrastructure.configs;
 import es.in2.desmos.infrastructure.configs.properties.VerifierProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Slf4j
@@ -19,14 +20,17 @@ public class VerifierConfig {
         return verifierProperties.externalDomain();
     }
 
+    @Bean
     public String getWellKnownPath() {
         return WELL_KNOWN_PATH;
     }
 
+    @Bean
     public String getWellKnownContentType() {
         return WELL_KNOWN_CONTENT_TYPE;
     }
 
+    @Bean
     public String getWellKnownContentTypeUrlEncodedForm() {
         return WELL_KNOWN_CONTENT_TYPE_URL_ENCODED_FORM;
     }
