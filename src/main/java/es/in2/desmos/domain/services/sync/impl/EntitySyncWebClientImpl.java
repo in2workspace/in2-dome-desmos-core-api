@@ -40,6 +40,6 @@ public class EntitySyncWebClientImpl implements EntitySyncWebClient {
                                 .retrieve()
                                 .bodyToFlux(Entity.class)
                                 .retryWhen(Retry.backoff(3, Duration.ofSeconds(2)))
-                                .flatMap(x -> Flux.just(x.value()))));
+                                .map(Entity::value)));
     }
 }
