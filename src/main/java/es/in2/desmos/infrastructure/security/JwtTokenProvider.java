@@ -21,7 +21,6 @@ import org.bouncycastle.jce.spec.ECPrivateKeySpec;
 import org.bouncycastle.math.ec.ECCurve;
 import org.bouncycastle.math.ec.ECPoint;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -34,9 +33,7 @@ import java.security.spec.ECPublicKeySpec;
 import java.security.spec.EllipticCurve;
 import java.security.spec.InvalidKeySpecException;
 import java.text.ParseException;
-import java.util.Date;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @Component
@@ -92,34 +89,6 @@ public class JwtTokenProvider {
                 .privateKey(privateKey)
                 .keyUse(KeyUse.SIGNATURE)
                 .build();
-    }
-
-    // Generate JWT + SEP256R1 signature
-    // https://connect2id.com/products/nimbus-jose-jwt/examples/jwt-with-es256-signature
-    public String generateToken(String resourceURI) throws JOSEException {
-
-        // Sample JWT claims
-        JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()
-                .jwtID(UUID.randomUUID().toString())
-                .claim("htm", HttpMethod.POST.name())
-                .claim("htu", resourceURI)
-                .issueTime(new Date())
-                .build();
-        // Import new Provider to work with ECDSA and Java 17
-        ECDSASigner signer = new ECDSASigner(ecJWK);
-        signer.getJCAContext().setProvider(BouncyCastleProviderSingleton.getInstance());
-
-        // Create JWT for the ES256 algorithm (P-256)
-        SignedJWT jwt = new SignedJWT(
-                new JWSHeader.Builder(JWSAlgorithm.ES256)  // Changed to ES256
-                        .type(JOSEObjectType.JWT)
-                        .jwk(ecJWK.toPublicJWK())
-                        .build(),
-                claimsSet);
-
-        // Sign with a private EC key
-        jwt.sign(signer);
-        return jwt.serialize();
     }
 
     public String generateTokenWithPayload(String payload) throws JOSEException {

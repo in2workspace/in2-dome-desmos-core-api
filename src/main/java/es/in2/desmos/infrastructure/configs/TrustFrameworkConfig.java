@@ -30,8 +30,6 @@ public class TrustFrameworkConfig {
 
     private final Scheduler scheduler = Schedulers.boundedElastic();
 
-    private final AtomicReference<HashMap<String, String>> publicKeysByUrlRef = new AtomicReference<>();
-
     private final AtomicReference<HashSet<String>> dltAddressesRef = new AtomicReference<>();
 
     @Bean
@@ -45,9 +43,6 @@ public class TrustFrameworkConfig {
 
         return getAccessNodesListContent()
                 .flatMap(yamlAccessNodesList -> {
-                    HashMap<String, String> publicKeysByUrl = deserializePublicKeysByUrl(yamlAccessNodesList);
-                    savePublicKeysByUrlRef(Mono.just(publicKeysByUrl));
-
                     HashSet<String> dltAddresses = deserializeDltAddress(yamlAccessNodesList);
                     saveDltAddressesRef(Mono.just(dltAddresses));
                     return Mono.empty();
@@ -61,12 +56,6 @@ public class TrustFrameworkConfig {
         } else {
             return dltAddresses;
         }
-    }
-
-    private void savePublicKeysByUrlRef(Mono<HashMap<String, String>> publicKeysByUrl) {
-        publicKeysByUrl
-                .publishOn(scheduler)
-                .subscribe(publicKeysByUrlRef::set);
     }
 
     private void saveDltAddressesRef(Mono<HashSet<String>> dltAddresses) {
@@ -86,29 +75,6 @@ public class TrustFrameworkConfig {
                     .bodyToMono(String.class);
         } catch (URISyntaxException e) {
             return Mono.error(new RuntimeException(e));
-        }
-    }
-
-    private HashMap<String, String> deserializePublicKeysByUrl(String yamlContent) {
-        try {
-            JsonNode rootNode = yamlMapper.readTree(yamlContent);
-
-            HashMap<String, String> resultMap = new HashMap<>();
-
-            JsonNode organizations = rootNode.path("organizations");
-            if (organizations.isArray()) {
-                for (JsonNode organization : organizations) {
-                    String url = organization.path("url").asText();
-                    String publicKeyDecimalString = organization.path("publicKey").asText();
-                    String hexString = decimalToHex64(publicKeyDecimalString, 130);
-                    resultMap.put(url, hexString);
-                }
-            }
-
-            return resultMap;
-
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
         }
     }
 

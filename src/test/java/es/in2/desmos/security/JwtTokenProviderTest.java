@@ -63,13 +63,6 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    void testGenerateToken() throws JOSEException {
-        String resourceURI = "https://demos.example.org/api/v1/entities/12345678";
-        String token = jwtTokenProvider.generateToken(resourceURI);
-        Assertions.assertNotNull(token);
-    }
-
-    @Test
     void testGenerateTokenWithPayload() throws JOSEException {
         String payload = """
                  {
