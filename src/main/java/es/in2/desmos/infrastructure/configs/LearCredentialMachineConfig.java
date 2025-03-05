@@ -15,22 +15,18 @@ public class LearCredentialMachineConfig {
 
     private final SecurityProperties securityProperties;
 
-    @Bean
     public String getClientCredentialsGrantTypeValue() {
         return CLIENT_CREDENTIALS_GRANT_TYPE_VALUE;
     }
 
-    @Bean
     public String getClientAssertionTypeValue() {
         return CLIENT_ASSERTION_TYPE_VALUE;
     }
 
-    @Bean
     public String getClientAssertionExpiration() {
         return CLIENT_ASSERTION_EXPIRATION;
     }
 
-    @Bean
     public String getClientAssertionExpirationUnitTime() {
         return CLIENT_ASSERTION_EXPIRATION_UNIT_TIME;
     }

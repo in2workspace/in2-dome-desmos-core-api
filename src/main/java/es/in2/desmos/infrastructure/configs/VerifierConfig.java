@@ -20,17 +20,14 @@ public class VerifierConfig {
         return verifierProperties.url();
     }
 
-    @Bean
     public String getWellKnownPath() {
         return WELL_KNOWN_PATH;
     }
 
-    @Bean
     public String getWellKnownContentType() {
         return WELL_KNOWN_CONTENT_TYPE;
     }
 
-    @Bean
     public String getWellKnownContentTypeUrlEncodedForm() {
         return WELL_KNOWN_CONTENT_TYPE_URL_ENCODED_FORM;
     }
