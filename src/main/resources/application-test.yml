@@ -128,4 +128,4 @@ external-access-nodes:
   urls: "https://desmos.dome-marketplace-dev2.org"
 
 verifier:
-  url:
+  url: "https://verifier.dome-marketplace-dev2.org"
