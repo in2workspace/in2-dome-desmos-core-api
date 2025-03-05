@@ -20,11 +20,11 @@ class VerifierConfigTest {
     private VerifierConfig verifierConfig;
 
     @Test
-    void getExternalDomain_shouldReturnExternalDomainFromProperties() {
+    void getExternalDomain_shouldReturnExternalUrlFromProperties() {
         String externalDomain = "https://example.com";
-        when(verifierProperties.externalDomain()).thenReturn(externalDomain);
+        when(verifierProperties.url()).thenReturn(externalDomain);
 
-        String result = verifierConfig.getExternalDomain();
+        String result = verifierConfig.getExternalUrl();
 
         assertThat(result).isEqualTo(externalDomain);
     }

@@ -76,7 +76,7 @@ class M2MAccessTokenProviderTest {
         when(verifierService.performTokenRequest(any())).thenReturn(Mono.just(new VerifierOauth2AccessToken(expectedAccessToken, "", "")));
         when(learCredentialMachineConfig.getClientAssertionExpiration()).thenReturn("5");
         when(learCredentialMachineConfig.getClientAssertionExpirationUnitTime()).thenReturn("MINUTES");
-        when(verifierConfig.getExternalDomain()).thenReturn("https://test-verifier.com");
+        when(verifierConfig.getExternalUrl()).thenReturn("https://test-verifier.com");
 
         StepVerifier.create(m2mAccessTokenProvider.getM2MAccessToken())
                 .assertNext(accessToken -> assertThat(accessToken).isEqualTo(expectedAccessToken))
@@ -111,7 +111,7 @@ class M2MAccessTokenProviderTest {
         when(learCredentialMachineConfig.getClientAssertionExpiration()).thenReturn("5");
         when(learCredentialMachineConfig.getClientAssertionExpirationUnitTime()).thenReturn("MINUTES");
         when(jwtTokenProvider.getClaimFromPayload(any(), any())).thenReturn("test-client-id");
-        when(verifierConfig.getExternalDomain()).thenReturn("https://test-verifier.com");
+        when(verifierConfig.getExternalUrl()).thenReturn("https://test-verifier.com");
         when(jwtTokenProvider.generateTokenWithPayload(any()))
                 .thenReturn("mocked-client-assertion")
                 .thenThrow(JOSEException.class);

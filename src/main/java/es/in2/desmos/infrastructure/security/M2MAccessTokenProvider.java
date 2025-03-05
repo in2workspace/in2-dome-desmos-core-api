@@ -68,7 +68,7 @@ public class M2MAccessTokenProvider {
             String vpTokenJWTString = createVPTokenJWT(vcMachineString, clientId, iat, exp);
 
             Payload payload = new Payload(Map.of(
-                    "aud", verifierConfig.getExternalDomain(),
+                    "aud", verifierConfig.getExternalUrl(),
                     "sub", clientId,
                     "vp_token", vpTokenJWTString,
                     "iss", clientId,

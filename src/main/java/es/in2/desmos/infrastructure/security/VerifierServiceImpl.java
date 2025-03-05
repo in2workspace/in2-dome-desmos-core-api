@@ -55,7 +55,7 @@ public class VerifierServiceImpl implements VerifierService {
                         JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
 
                         // Validate the issuer
-                        if (!verifierConfig.getExternalDomain().equals(claims.getIssuer())) {
+                        if (!verifierConfig.getExternalUrl().equals(claims.getIssuer())) {
                             return Mono.error(new JWTVerificationException("Invalid issuer"));
                         }
 
@@ -123,7 +123,7 @@ public class VerifierServiceImpl implements VerifierService {
 
     @Override
     public Mono<OpenIDProviderMetadata> getWellKnownInfo() {
-        String wellKnownInfoEndpoint = verifierConfig.getExternalDomain() + verifierConfig.getWellKnownPath();
+        String wellKnownInfoEndpoint = verifierConfig.getExternalUrl() + verifierConfig.getWellKnownPath();
 
         return oauth2VerifierWebClient.get()
                 .uri(wellKnownInfoEndpoint)

@@ -127,4 +127,4 @@ external-access-nodes:
   urls: ""
 
 verifier:
-  externalDomain:
+  url:

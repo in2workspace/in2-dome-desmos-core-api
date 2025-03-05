@@ -128,5 +128,5 @@ external-access-nodes:
   urls: "https://desmos.dome-marketplace-sbx.org"
 
 verifier:
-  externalDomain: "https://verifier.dome-marketplace-sbx.org"
+  url: "https://verifier.dome-marketplace-sbx.org"
 

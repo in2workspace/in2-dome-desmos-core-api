@@ -65,7 +65,7 @@ class VerifierServiceTest {
                         """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
-        when(verifierConfig.getExternalDomain())
+        when(verifierConfig.getExternalUrl())
                 .thenReturn(mockWebServer.url("/").toString());
 
         when(verifierConfig.getWellKnownPath())
@@ -102,7 +102,7 @@ class VerifierServiceTest {
                         """)
                 .setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR.value()));
 
-        when(verifierConfig.getExternalDomain())
+        when(verifierConfig.getExternalUrl())
                 .thenReturn(mockWebServer.url("/").toString());
 
         when(verifierConfig.getWellKnownPath())
@@ -131,7 +131,7 @@ class VerifierServiceTest {
                         """)
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
-        when(verifierConfig.getExternalDomain())
+        when(verifierConfig.getExternalUrl())
                 .thenReturn(mockWebServer.url("/").toString());
 
         when(verifierConfig.getWellKnownPath())
@@ -180,7 +180,7 @@ class VerifierServiceTest {
                           }""")
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
-        when(verifierConfig.getExternalDomain())
+        when(verifierConfig.getExternalUrl())
                 .thenReturn(mockWebServer.url("/").toString());
 
         when(verifierConfig.getWellKnownPath())
@@ -206,7 +206,7 @@ class VerifierServiceTest {
                         {"hello":"world"}""")
                 .setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
-        when(verifierConfig.getExternalDomain())
+        when(verifierConfig.getExternalUrl())
                 .thenReturn(mockWebServer.url("/").toString());
 
         when(verifierConfig.getWellKnownPath())
@@ -224,7 +224,7 @@ class VerifierServiceTest {
                 .setResponseCode(HttpStatus.INTERNAL_SERVER_ERROR.value()) // Simulate an error fetching metadata
                 .setBody(""));
 
-        when(verifierConfig.getExternalDomain()).thenReturn(mockWebServer.url("/").toString());
+        when(verifierConfig.getExternalUrl()).thenReturn(mockWebServer.url("/").toString());
         when(verifierConfig.getWellKnownPath()).thenReturn("/.well-known/openid-configuration");
 
         StepVerifier

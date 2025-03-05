@@ -16,8 +16,8 @@ public class VerifierConfig {
 
     private final VerifierProperties verifierProperties;
 
-    public String getExternalDomain() {
-        return verifierProperties.externalDomain();
+    public String getExternalUrl() {
+        return verifierProperties.url();
     }
 
     @Bean

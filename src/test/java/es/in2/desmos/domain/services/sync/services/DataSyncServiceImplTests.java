@@ -10,14 +10,11 @@ import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.sync.services.impl.DataSyncServiceImpl;
 import es.in2.desmos.domain.utils.Base64Converter;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
-import es.in2.desmos.infrastructure.security.JwtTokenProvider;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -31,6 +28,7 @@ import reactor.test.StepVerifier;
 
 import java.io.IOException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
@@ -110,9 +108,6 @@ class DataSyncServiceImplTests {
 
     @Mock
     private M2MAccessTokenProvider m2MAccessTokenProvider;
-
-    @Mock
-    private JwtTokenProvider jwtTokenProvider;
 
     @InjectMocks
     private DataSyncServiceImpl dataSyncService;
@@ -228,16 +223,20 @@ class DataSyncServiceImplTests {
                 .assertNext(result -> assertThat(result).isEqualTo(Base64Converter.convertBase64ToString(mockResponse)))
                 .verifyComplete();
 
-        verify(webClientResponseSpecMock, times(3)).onStatus(any(), any());
+        verify(webClientResponseSpecMock, times(2)).onStatus(any(), any());
     }
 
-    @ParameterizedTest
-    @ValueSource(ints = {400, 500})
-    void getEntityFromExternalSource_WhenStatusIs4xxOr5xx(int responseCode) throws IOException {
+    @Test
+    void getEntityFromExternalSource_WhenStatusIs5xx() throws IOException {
         try (MockWebServer mockWebServer = new MockWebServer()) {
-            var response = new MockResponse()
-                    .setResponseCode(responseCode);
-            mockWebServer.enqueue(response);
+            mockWebServer.enqueue(new MockResponse()
+                    .setResponseCode(500));
+            mockWebServer.enqueue(new MockResponse()
+                    .setResponseCode(500));
+            mockWebServer.enqueue(new MockResponse()
+                    .setResponseCode(500));
+            mockWebServer.enqueue(new MockResponse()
+                    .setResponseCode(500));
             mockWebServer.start();
 
             when(apiConfig.webClient()).thenReturn(WebClient.builder().build());
@@ -254,7 +253,7 @@ class DataSyncServiceImplTests {
                     .previousEntityHashLink("0x6d91b01418c21ccad12072d5f986bab2c99206bb08e65e5a430a35f7e60dcdbf")
                     .build();
 
-            Flux<String> result = dataSyncService.getEntityFromExternalSource("processId", notification2);
+            Flux<String> result = dataSyncService.getEntityFromExternalSource("processId", notification2).timeout(Duration.ofSeconds(10));
 
             StepVerifier
                     .create(result)

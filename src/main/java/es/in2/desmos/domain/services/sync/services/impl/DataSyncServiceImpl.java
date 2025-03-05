@@ -92,8 +92,8 @@ public class DataSyncServiceImpl implements DataSyncService {
                                                         "Error occurred while retrieving entity from the external" +
                                                                 " broker")))
                                 .bodyToFlux(Entity.class)
-                                .retry(3)
                                 .map(Entity::value)
+                                .retry(3)
                                 .map(Base64Converter::convertBase64ToString));
     }
 
