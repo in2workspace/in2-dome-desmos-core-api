@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -116,8 +117,8 @@ public class M2MAccessTokenProvider {
     }
 
     private String getVCinJWTDecodedFromBase64() {
-        String vcTokenBase64 = learCredentialMachineConfig.getLearCredentialMachineInBase64();
-        byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64);
+        String vcTokenBase64 =  learCredentialMachineConfig.getLearCredentialMachineInBase64();
+        byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64.getBytes(StandardCharsets.UTF_8));
         return new String(vcTokenDecoded);
     }
 }

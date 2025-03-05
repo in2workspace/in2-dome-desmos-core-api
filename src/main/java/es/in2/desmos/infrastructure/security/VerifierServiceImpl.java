@@ -9,6 +9,7 @@ import com.nimbusds.jose.jwk.*;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import es.in2.desmos.domain.exceptions.JWTVerificationException;
+import es.in2.desmos.domain.exceptions.PerformTokenRequestException;
 import es.in2.desmos.domain.exceptions.TokenFetchException;
 import es.in2.desmos.domain.exceptions.WellKnownInfoFetchException;
 import es.in2.desmos.domain.models.OpenIDProviderMetadata;
@@ -148,7 +149,7 @@ public class VerifierServiceImpl implements VerifierService {
                                         HttpStatusCode::isError,
                                         response -> response.bodyToMono(String.class)
                                                 .flatMap(errorBody ->
-                                                        Mono.error(new Throwable(
+                                                        Mono.error(new PerformTokenRequestException(
                                                                 "Error fetching the token: " + errorBody))))
                                 .bodyToMono(OIDCAccessTokenResponse.class)
                                 .onErrorMap(e -> new TokenFetchException("Error fetching the token", e)));
