@@ -39,7 +39,7 @@ public class VerifierServiceImpl implements VerifierService {
     @Override
     public Mono<Void> verifyToken(String accessToken) {
         return parseAndValidateJwt(accessToken)
-                .doOnSuccess(unused -> log.info("VereifyToken -- IS VALID"))
+                .doOnSuccess(unused -> log.info("VerifyToken -- IS VALID"))
                 .onErrorResume(e -> {
                     log.error("Error while verifying token", e);
                     return Mono.error(e);
