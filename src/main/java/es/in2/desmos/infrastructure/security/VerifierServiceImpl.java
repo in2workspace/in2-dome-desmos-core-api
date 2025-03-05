@@ -12,7 +12,7 @@ import es.in2.desmos.domain.exceptions.JWTVerificationException;
 import es.in2.desmos.domain.exceptions.TokenFetchException;
 import es.in2.desmos.domain.exceptions.WellKnownInfoFetchException;
 import es.in2.desmos.domain.models.OpenIDProviderMetadata;
-import es.in2.desmos.domain.models.VerifierOauth2AccessToken;
+import es.in2.desmos.domain.models.OIDCAccessTokenResponse;
 import es.in2.desmos.infrastructure.configs.VerifierConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -133,7 +133,7 @@ public class VerifierServiceImpl implements VerifierService {
     }
 
     @Override
-    public Mono<VerifierOauth2AccessToken> performTokenRequest(String body) {
+    public Mono<OIDCAccessTokenResponse> performTokenRequest(String body) {
         return getWellKnownInfo()
                 .flatMap(metadata ->
                         oauth2VerifierWebClient
@@ -150,7 +150,7 @@ public class VerifierServiceImpl implements VerifierService {
                                                 .flatMap(errorBody ->
                                                         Mono.error(new Throwable(
                                                                 "Error fetching the token: " + errorBody))))
-                                .bodyToMono(VerifierOauth2AccessToken.class)
+                                .bodyToMono(OIDCAccessTokenResponse.class)
                                 .onErrorMap(e -> new TokenFetchException("Error fetching the token", e)));
     }
 }

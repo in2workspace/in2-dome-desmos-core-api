@@ -3,7 +3,7 @@ package es.in2.desmos.infrastructure.security;
 import es.in2.desmos.domain.exceptions.JWTVerificationException;
 import es.in2.desmos.domain.exceptions.TokenFetchException;
 import es.in2.desmos.domain.exceptions.WellKnownInfoFetchException;
-import es.in2.desmos.domain.models.VerifierOauth2AccessToken;
+import es.in2.desmos.domain.models.OIDCAccessTokenResponse;
 import es.in2.desmos.infrastructure.configs.VerifierConfig;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -78,7 +78,7 @@ class VerifierServiceTest {
                 .thenReturn("application/x-www-form-urlencoded");
         StepVerifier
                 .create(verifierService.performTokenRequest("{\"hello\":\"world\"}"))
-                .expectNext(new VerifierOauth2AccessToken("your_access_token_value", "Bearer", "3600"))
+                .expectNext(new OIDCAccessTokenResponse("your_access_token_value", "Bearer", "3600"))
                 .verifyComplete();
     }
 

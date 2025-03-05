@@ -3,7 +3,7 @@ package es.in2.desmos.infrastructure.security;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.Payload;
 import com.nimbusds.jwt.SignedJWT;
-import es.in2.desmos.domain.models.VerifierOauth2AccessToken;
+import es.in2.desmos.domain.models.OIDCAccessTokenResponse;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.LearCredentialMachineConfig;
 import es.in2.desmos.infrastructure.configs.VerifierConfig;
@@ -68,12 +68,12 @@ class M2MAccessTokenProviderTest {
     void itShouldReturnAccessToken() throws ParseException, JOSEException {
         String expectedAccessToken = "mocked-access-token";
 
-        when(verifierService.performTokenRequest(any())).thenReturn(Mono.just(new VerifierOauth2AccessToken("", "", "")));
+        when(verifierService.performTokenRequest(any())).thenReturn(Mono.just(new OIDCAccessTokenResponse("", "", "")));
         when(signedJWT.getPayload()).thenReturn(new Payload(Map.of("sub", "test-client-id")));
         when(jwtTokenProvider.getClaimFromPayload(any(), any())).thenReturn("test-client-id");
         when(jwtTokenProvider.getSignedJWT(any())).thenReturn(signedJWT);
         when(jwtTokenProvider.generateTokenWithPayload(any())).thenReturn("mocked-client-assertion");
-        when(verifierService.performTokenRequest(any())).thenReturn(Mono.just(new VerifierOauth2AccessToken(expectedAccessToken, "", "")));
+        when(verifierService.performTokenRequest(any())).thenReturn(Mono.just(new OIDCAccessTokenResponse(expectedAccessToken, "", "")));
         when(learCredentialMachineConfig.getClientAssertionExpiration()).thenReturn("5");
         when(learCredentialMachineConfig.getClientAssertionExpirationUnitTime()).thenReturn("MINUTES");
         when(verifierConfig.getExternalUrl()).thenReturn("https://test-verifier.com");
