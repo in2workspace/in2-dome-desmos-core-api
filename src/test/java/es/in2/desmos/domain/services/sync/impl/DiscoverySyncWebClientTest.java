@@ -1,14 +1,18 @@
 package es.in2.desmos.domain.services.sync.impl;
 
+import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.DiscoverySyncResponse;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import es.in2.desmos.objectmothers.DiscoverySyncRequestMother;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import org.json.JSONException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,6 +21,9 @@ import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+
+import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -84,5 +91,34 @@ class DiscoverySyncWebClientTest {
         assertThat(recordedRequest.getPath()).isEqualTo("/api/v1/sync/p2p/discovery");
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
         assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {400, 500})
+    void itShouldThrowExceptionWhenStatusIs4xxOr5xx(int responseCode) throws IOException {
+        try (MockWebServer mockWebServer1 = new MockWebServer()) {
+            mockWebServer1.enqueue(new MockResponse()
+                    .setResponseCode(responseCode));
+            mockWebServer1.enqueue(new MockResponse()
+                    .setResponseCode(responseCode));
+            mockWebServer1.enqueue(new MockResponse()
+                    .setResponseCode(responseCode));
+            mockWebServer1.enqueue(new MockResponse()
+                    .setResponseCode(responseCode));
+            mockWebServer1.start();
+
+            String mockAccessToken = "mock-access-token";
+            when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
+
+            Mono<String> url = Mono.just(mockWebServer1.url("/").toString());
+            Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url, Mono.just(DiscoverySyncRequestMother.list1And2()));
+
+            StepVerifier
+                    .create(result)
+                    .expectError(DiscoverySyncException.class)
+                    .verify();
+        } catch (JSONException | NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

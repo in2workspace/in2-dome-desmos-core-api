@@ -46,7 +46,9 @@ class GlobalExceptionHandlerTests {
                 BrokerEntityRetrievalException.class,
                 BrokerNotificationSelfGeneratedException.class,
                 UnauthorizedDomeParticipantException.class,
-                UnauthorizedBrokerSubscriptionException.class
+                UnauthorizedBrokerSubscriptionException.class,
+                EntitySyncException.class,
+                DiscoverySyncException.class
         ));
         List<String> messages = new ArrayList<>(List.of(
                 "SubscriptionCreationException",
@@ -59,7 +61,9 @@ class GlobalExceptionHandlerTests {
                 "BrokerEntityRetrievalException",
                 "BrokerNotificationSelfGeneratedException",
                 "UnauthorizedDomeParticipantException",
-                "UnauthorizedBrokerSubscriptionException"
+                "UnauthorizedBrokerSubscriptionException",
+                "EntitySyncException",
+                "DiscoverySyncException"
         ));
         List<Throwable> nullCauseThrowableList = new ArrayList<>();
         List<Throwable> exceptionCauseThrowableList = new ArrayList<>();
@@ -83,7 +87,9 @@ class GlobalExceptionHandlerTests {
                 (ex, req) -> globalExceptionHandler.handleBrokerEntityRetrievalException((BrokerEntityRetrievalException) ex, req),
                 (ex, req) -> globalExceptionHandler.handleBrokerNotificationSelfGeneratedException((BrokerNotificationSelfGeneratedException) ex, req),
                 (ex, req) -> globalExceptionHandler.handleUnauthorizedDomeParticipantException((UnauthorizedDomeParticipantException) ex, req),
-                (ex, req) -> globalExceptionHandler.handleUnauthorizedBrokerSubscriptionException((UnauthorizedBrokerSubscriptionException) ex, req)
+                (ex, req) -> globalExceptionHandler.handleUnauthorizedBrokerSubscriptionException((UnauthorizedBrokerSubscriptionException) ex, req),
+                (ex, req) -> globalExceptionHandler.handleEntitySyncException((EntitySyncException) ex, req),
+                (ex, req) -> globalExceptionHandler.handleDiscoverySyncException((DiscoverySyncException) ex, req)
         ));
         classes.addAll(new ArrayList<>(classes));
         messages.addAll(new ArrayList<>(messages));
