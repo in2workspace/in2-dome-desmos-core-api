@@ -15,6 +15,8 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -223,20 +225,21 @@ class DataSyncServiceImplTests {
                 .assertNext(result -> assertThat(result).isEqualTo(Base64Converter.convertBase64ToString(mockResponse)))
                 .verifyComplete();
 
-        verify(webClientResponseSpecMock, times(2)).onStatus(any(), any());
+        verify(webClientResponseSpecMock, times(3)).onStatus(any(), any());
     }
 
-    @Test
-    void getEntityFromExternalSource_WhenStatusIs5xx() throws IOException {
+    @ParameterizedTest
+    @ValueSource(ints = {400, 500})
+    void getEntityFromExternalSource_WhenStatusIs4xxOr5xx(int responseCode) throws IOException {
         try (MockWebServer mockWebServer = new MockWebServer()) {
             mockWebServer.enqueue(new MockResponse()
-                    .setResponseCode(500));
+                    .setResponseCode(responseCode));
             mockWebServer.enqueue(new MockResponse()
-                    .setResponseCode(500));
+                    .setResponseCode(responseCode));
             mockWebServer.enqueue(new MockResponse()
-                    .setResponseCode(500));
+                    .setResponseCode(responseCode));
             mockWebServer.enqueue(new MockResponse()
-                    .setResponseCode(500));
+                    .setResponseCode(responseCode));
             mockWebServer.start();
 
             when(apiConfig.webClient()).thenReturn(WebClient.builder().build());
