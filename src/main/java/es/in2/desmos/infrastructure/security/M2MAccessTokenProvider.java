@@ -119,6 +119,7 @@ public class M2MAccessTokenProvider {
 
     private String getVCinJWTDecodedFromBase64() {
         String vcTokenBase64 =  learCredentialMachineConfig.getLearCredentialMachineInBase64();
+        System.out.println("Loriginal: " + vcTokenBase64);
         byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64.getBytes(StandardCharsets.UTF_8));
         return new String(vcTokenDecoded);
     }
