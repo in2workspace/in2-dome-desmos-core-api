@@ -273,7 +273,7 @@ class AuditRecordRepositoryIT {
         }
 
         Flux<AuditRecord> receivedAuditRecordFlux = auditRecordRepository
-                .findMostRecentPublishedAuditRecordsByEntityIds(entityIds);
+                .findMostRecentPublishedAuditRecordsByEntityIds(entityIds.toArray(new String[0]));
 
         List<AuditRecord> receivedAuditRecords = receivedAuditRecordFlux.collectList().block();
 
