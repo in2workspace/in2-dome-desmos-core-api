@@ -2,7 +2,6 @@ package es.in2.desmos.infrastructure.configs;
 
 import es.in2.desmos.infrastructure.configs.properties.SecurityProperties;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
