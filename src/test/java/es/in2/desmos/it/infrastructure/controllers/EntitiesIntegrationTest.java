@@ -45,6 +45,7 @@ class EntitiesIntegrationTest {
     @Autowired
     ObjectMapper objectMapper;
 
+
     private WebTestClient webTestClient;
 
     private static final String BROKER_ENTITIES_JSON =

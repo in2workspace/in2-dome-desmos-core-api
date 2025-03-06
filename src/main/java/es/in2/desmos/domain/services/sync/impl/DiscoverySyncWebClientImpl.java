@@ -1,18 +1,18 @@
 package es.in2.desmos.domain.services.sync.impl;
 
-import com.nimbusds.jose.JOSEException;
-import es.in2.desmos.domain.exceptions.InvalidTokenException;
+import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.DiscoverySyncRequest;
 import es.in2.desmos.domain.models.DiscoverySyncResponse;
 import es.in2.desmos.domain.services.sync.DiscoverySyncWebClient;
-import es.in2.desmos.infrastructure.configs.ApiConfig;
-import es.in2.desmos.infrastructure.security.JwtTokenProvider;
+import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -20,29 +20,37 @@ import reactor.core.publisher.Mono;
 @RequiredArgsConstructor
 public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
     private final WebClient webClient;
-    private final JwtTokenProvider jwtTokenProvider;
-    private final ApiConfig apiConfig;
+    private final M2MAccessTokenProvider m2MAccessTokenProvider;
 
     @Override
     public Mono<DiscoverySyncResponse> makeRequest(String processId, Mono<String> externalAccessNodeMono, Mono<DiscoverySyncRequest> discoverySyncRequest) {
         log.debug("ProcessID: {} - Making a Discovery Sync Web Client request", processId);
-
-        String token;
-        try {
-            token = jwtTokenProvider.generateToken("/api/v1/sync/p2p/discovery");
-        } catch (JOSEException e) {
-            throw new InvalidTokenException(e.getMessage());
-        }
-
-        return externalAccessNodeMono.flatMap(externalAccessNode -> webClient
-                .post()
-                .uri(externalAccessNode + "/api/v1/sync/p2p/discovery")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .header("external-node-url", apiConfig.getExternalDomain())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(discoverySyncRequest, DiscoverySyncRequest.class)
-                .retrieve()
-                .bodyToMono(DiscoverySyncResponse.class)
-                .retry(3));
+        return externalAccessNodeMono
+                .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
+                .flatMap(tuple ->
+                        webClient
+                                .post()
+                                .uri(UriComponentsBuilder.fromHttpUrl(tuple.getT1())
+                                        .path("/api/v1/sync/p2p/discovery")
+                                        .build()
+                                        .toUriString())
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body(discoverySyncRequest, DiscoverySyncRequest.class)
+                                .retrieve()
+                                .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
+                                        clientResponse -> {
+                                            log.debug("ProcessID: {} - Discovery sync successfully", processId);
+                                            return Mono.empty();
+                                        })
+                                .onStatus(status -> status != null && status.is4xxClientError(),
+                                        clientResponse ->
+                                            Mono.error(new DiscoverySyncException("Error occurred while discovery sync")))
+                                .onStatus(status -> status != null && status.is5xxServerError(),
+                                        clientResponse ->
+                                                Mono.error(new DiscoverySyncException(
+                                                        "Error occurred while discovery sync")))
+                                .bodyToMono(DiscoverySyncResponse.class)
+                                .retry(3));
     }
 }

@@ -118,6 +118,7 @@ tx-subscription:
 
 security:
   privateKey: "0x1aff50dca1ac463a5af99a858c2eef7517b8e46d3bf84723ff6dcfead7dc8db6"
+  learCredentialMachineInBase64:
 
 # Access Node
 access-node:
@@ -125,3 +126,6 @@ access-node:
 
 external-access-nodes:
   urls: "https://desmos.dome-marketplace-dev2.org"
+
+verifier:
+  url: "https://verifier.dome-marketplace-dev2.org"

@@ -1,7 +1,6 @@
 package es.in2.desmos.infrastructure.security.filters;
 
 import com.nimbusds.jwt.SignedJWT;
-import es.in2.desmos.infrastructure.configs.TrustFrameworkConfig;
 import es.in2.desmos.infrastructure.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +13,6 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -31,21 +29,16 @@ public class ServerHttpBearerAuthenticationConverter implements Function<ServerW
     private static final String BEARER = "Bearer ";
     private static final Predicate<String> matchBearerLength = authValue -> authValue.length() > BEARER.length();
     private static final Function<String, Mono<String>> isolateBearerValue = authValue -> Mono.justOrEmpty(authValue.substring(BEARER.length()));
-    private final TrustFrameworkConfig trustFrameworkConfig;
 
     private final JwtTokenProvider jwtVerifier;
 
     @Override
     public Mono<Authentication> apply(ServerWebExchange serverWebExchange) {
-
-        HashMap<String, String> publicKeysByUrl = trustFrameworkConfig.getPublicKeysByUrl();
-
         return Mono.justOrEmpty(serverWebExchange)
                 .flatMap(ServerHttpBearerAuthenticationConverter::extract)
                 .filter(matchBearerLength)
                 .flatMap(isolateBearerValue)
-                .flatMap(jwtString ->
-                        jwtVerifier.validateSignedJwt(jwtString, serverWebExchange.getRequest().getHeaders().getFirst("external-node-url"), publicKeysByUrl))
+                .flatMap(jwtVerifier::validateSignedJwt)
                 .flatMap(ServerHttpBearerAuthenticationConverter::create).log();
     }
 

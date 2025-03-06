@@ -1,11 +1,9 @@
 package es.in2.desmos.domain.services.sync.services.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.nimbusds.jose.JOSEException;
 import es.in2.desmos.application.workflows.jobs.P2PDataSyncJob;
 import es.in2.desmos.domain.exceptions.BrokerEntityRetrievalException;
 import es.in2.desmos.domain.exceptions.HashLinkException;
-import es.in2.desmos.domain.exceptions.InvalidTokenException;
 import es.in2.desmos.domain.models.AuditRecord;
 import es.in2.desmos.domain.models.BlockchainNotification;
 import es.in2.desmos.domain.models.Entity;
@@ -14,7 +12,7 @@ import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.sync.services.DataSyncService;
 import es.in2.desmos.domain.utils.Base64Converter;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
-import es.in2.desmos.infrastructure.security.JwtTokenProvider;
+import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
@@ -37,7 +35,7 @@ public class DataSyncServiceImpl implements DataSyncService {
     private final AuditRecordService auditRecordService;
     private final P2PDataSyncJob p2PDataSyncJob;
     private final QueueService queueServiceImpl;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final M2MAccessTokenProvider m2MAccessTokenProvider;
 
     /*
      *  Workflow steps:
@@ -71,42 +69,36 @@ public class DataSyncServiceImpl implements DataSyncService {
     @Override
     public Flux<String> getEntityFromExternalSource(String processId, BlockchainNotification blockchainNotification) {
         log.debug("ProcessID: {} - Retrieving entity from the external broker...", processId);
-        // Get the External Broker URL from the dataLocation
+
         String externalBrokerURL = extractContextBrokerUrlFromDataLocation(blockchainNotification.dataLocation());
         log.debug("ProcessID: {} - External Broker URL: {}", processId, externalBrokerURL);
-        // Retrieve entity from the External Broker
 
-        String token;
-        try {
-            token = jwtTokenProvider.generateToken("/api/v1/sync/p2p/entities");
-        } catch (JOSEException e) {
-            throw new InvalidTokenException(e.getMessage());
-        }
-
-        return apiConfig.webClient()
-                .get()
-                .uri(externalBrokerURL)
-                .accept(MediaType.APPLICATION_JSON)
-                // todo: need to add authorization header to the request when it will be implemented in DOME (M2M Communication)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .header("external-node-url", apiConfig.getExternalDomain())
-                .retrieve()
-                .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
-                        clientResponse -> {
-                            log.debug("ProcessID: {} - Entity retrieved successfully from the external broker", processId);
-                            return Mono.empty();
-                        })
-                .onStatus(status -> status != null && status.is4xxClientError(),
-                        clientResponse -> {
-                            throw new BrokerEntityRetrievalException("Error occurred while retrieving entity from the external broker");
-                        })
-                .onStatus(status -> status != null && status.is5xxServerError(),
-                        clientResponse -> {
-                            throw new BrokerEntityRetrievalException("Error occurred while retrieving entity from the external broker");
-                        })
-                .bodyToFlux(Entity.class)
-                .map(Entity::value)
-                .map(Base64Converter::convertBase64ToString);
+        return m2MAccessTokenProvider.getM2MAccessToken()
+                .flatMapMany(accessToken ->
+                        apiConfig.webClient()
+                                .get()
+                                .uri(externalBrokerURL)
+                                .accept(MediaType.APPLICATION_JSON)
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                                .retrieve()
+                                .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
+                                        clientResponse -> {
+                                            log.debug("ProcessID: {} - Entity retrieved successfully from the external broker", processId);
+                                            return Mono.empty();
+                                        })
+                                .onStatus(status -> status != null && status.is4xxClientError(),
+                                        clientResponse ->
+                                                Mono.error(new BrokerEntityRetrievalException("Error occurred while " +
+                                                        "retrieving entity from the external broker")))
+                                .onStatus(status -> status != null && status.is5xxServerError(),
+                                        clientResponse ->
+                                                Mono.error(new BrokerEntityRetrievalException(
+                                                        "Error occurred while retrieving entity from the external" +
+                                                                " broker")))
+                                .bodyToFlux(Entity.class)
+                                .retry(3)
+                                .map(Entity::value)
+                                .map(Base64Converter::convertBase64ToString));
     }
 
     @Override
