@@ -54,6 +54,7 @@ public class M2MAccessTokenProvider {
     private String createClientAssertion() {
         try {
             String vcMachineString = getVCinJWTDecodedFromBase64();
+            System.out.println("La M2M: "  + vcMachineString);
             SignedJWT vcMachineJWT = jwtTokenProvider.getSignedJWT(vcMachineString);
 
             Payload vcMachinePayload = vcMachineJWT.getPayload();
