@@ -315,7 +315,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         return Mono.empty();
                     }
 
-                    return auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(entityIds)
+                    return auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(
+                                    entityIds.toArray(new String[0]))
                             .collectMap(AuditRecord::getEntityId)
                             .flatMap(auditRecordMap ->
                                     Flux.fromIterable(entityIds)
