@@ -52,11 +52,13 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
 
         log.info("ProcessID: {} - Starting Data Negotiation Job", processId);
 
-        Mono<List<MVEntity4DataNegotiation>> externalMVEntities4DataNegotiationMono = dataNegotiationEvent.externalEntitiesInfo();
-        Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono = dataNegotiationEvent.localEntitiesInfo();
-
-        return getDataNegotiationResultMono(processId, localMVEntities4DataNegotiationMono, dataNegotiationEvent.issuer(), externalMVEntities4DataNegotiationMono)
-                .flatMap(dataNegotiationResults -> dataTransferJob.syncData(processId, Mono.just(dataNegotiationResults)));
+        return getDataNegotiationResultMono(
+                processId,
+                dataNegotiationEvent.localEntitiesInfo(),
+                dataNegotiationEvent.issuer(),
+                dataNegotiationEvent.externalEntitiesInfo())
+                .flatMap(dataNegotiationResult ->
+                        dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)));
     }
 
     private Mono<DataNegotiationResult> getDataNegotiationResultMono(String processId, Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono, Mono<String> externalIssuerMono, Mono<List<MVEntity4DataNegotiation>> externalMVEntities4DataNegotiation) {
