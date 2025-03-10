@@ -27,4 +27,9 @@ public record MVEntity4DataNegotiation(
     public Instant getInstantLastUpdate() {
         return Instant.parse(lastUpdate);
     }
+
+    @JsonIgnore
+    public boolean hasVersion() {
+        return version != null && !version.isBlank();
+    }
 }

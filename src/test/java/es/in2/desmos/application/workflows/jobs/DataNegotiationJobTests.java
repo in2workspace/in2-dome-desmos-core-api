@@ -79,7 +79,7 @@ class DataNegotiationJobTests {
 
         Mono<List<DataNegotiationResult>> dataNegotiationResultsCaptured = dataNegotiationResultsCaptor.getValue();
 
-        List<DataNegotiationResult> expectedDataNegotiationResults = DataNegotiationResultMother.listNewToSync4AndExistingToSync2(issuer1.value(), issuer2.value());
+        List<DataNegotiationResult> expectedDataNegotiationResults = DataNegotiationResultMother.listNewToSync2and4(issuer1.value(), issuer2.value());
         StepVerifier
                 .create(dataNegotiationResultsCaptured)
                 .consumeNextWith(captured -> assertThat(captured).hasSameElementsAs(expectedDataNegotiationResults))

@@ -65,7 +65,7 @@ class DataTransferJobTest {
         String issuer1 = "https://example1.org";
         String issuer2 = "https://example2.org";
 
-        List<DataNegotiationResult> dataNegotiationResults = DataNegotiationResultMother.listNewToSync4AndExistingToSync2(issuer1, issuer2);
+        List<DataNegotiationResult> dataNegotiationResults = DataNegotiationResultMother.listNewToSync2and4(issuer1, issuer2);
 
         Id[] entitySyncRequest1 = EntitySyncRequestMother.createFromDataNegotiationResult(dataNegotiationResults.get(0));
         Id[] entitySyncRequest2 = EntitySyncRequestMother.createFromDataNegotiationResult(dataNegotiationResults.get(1));

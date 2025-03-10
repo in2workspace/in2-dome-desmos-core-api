@@ -11,10 +11,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -87,57 +84,87 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     }
 
     private Mono<List<MVEntity4DataNegotiation>> getEntitiesToAdd(
-            Mono<List<MVEntity4DataNegotiation>> externalEntityIds,
-            Mono<List<MVEntity4DataNegotiation>> localEntityIds) {
-        return externalEntityIds.zipWith(localEntityIds)
+            Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono,
+            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
+        return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
                 .map(tuple -> {
 
-                    List<MVEntity4DataNegotiation> originalList = tuple.getT1();
-                    Set<String> idsToCheck = tuple.getT2().stream()
-                            .map(MVEntity4DataNegotiation::id)
-                            .collect(Collectors.toSet());
+                    List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
+                    List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
 
-                    return originalList.stream()
-                            .filter(entity -> !idsToCheck.contains(entity.id()))
+                    Map<String, Set<Float>> localEntitiesVersionsByIds = localEntitiesInfo.stream()
+                            .collect(Collectors.groupingBy(
+                                    MVEntity4DataNegotiation::id,
+                                    Collectors.mapping(MVEntity4DataNegotiation::getFloatVersion, Collectors.toSet())
+                            ));
+
+                    return externalEntitiesInfo
+                            .stream()
+                            .filter(externalEntityInfo -> {
+                                List<Float> localVersions =
+                                        localEntitiesInfo
+                                                .stream()
+                                                .filter(localEntityInfo ->
+                                                        Objects.equals(localEntityInfo.id(), externalEntityInfo.id()))
+                                                .map(MVEntity4DataNegotiation::getFloatVersion)
+                                                .toList();
+                                boolean localEntityMissing = localVersions.isEmpty();
+
+                                if (localEntityMissing) {
+                                    return true;
+                                } else {
+                                    boolean isExternalEntityVersionNewer =
+                                            localVersions
+                                                    .stream()
+                                                    .allMatch(localVersion ->
+                                                            isExternalEntityVersionNewer(
+                                                                    externalEntityInfo.getFloatVersion(),
+                                                                    localVersion));
+                                    return externalEntityInfo.hasVersion() &&
+                                            isExternalEntityVersionNewer;
+                                }
+                            })
                             .toList();
                 });
     }
 
-
     private Mono<List<MVEntity4DataNegotiation>> getEntitiesToUpdate(
-            Mono<List<MVEntity4DataNegotiation>> externalEntityIds,
-            Mono<List<MVEntity4DataNegotiation>> localEntityIds) {
-        return externalEntityIds.zipWith(localEntityIds)
+            Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono,
+            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
+        return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
                 .map(tuple -> {
-                    List<MVEntity4DataNegotiation> externalList = tuple.getT1();
-                    List<MVEntity4DataNegotiation> localList = tuple.getT2();
 
-                    return externalList
+                    List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
+                    List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
+
+                    return externalEntitiesInfo
                             .stream()
-                            .filter(externalEntity ->
-                                    localList
+                            .filter(externalEntityInfo -> {
+                                boolean localHasEntity =
+                                        localEntitiesInfo
+                                                .stream()
+                                                .anyMatch(localEntityInfo ->
+                                                        Objects.equals(localEntityInfo.id(), externalEntityInfo.id()));
+
+                                if (localHasEntity) {
+                                    return localEntitiesInfo
                                             .stream()
                                             .filter(localEntity ->
-                                                    localEntity.id().equals(externalEntity.id()) &&
-                                                            localEntity.version() != null && !localEntity.version().isBlank() &&
-                                                            localEntity.lastUpdate() != null && !localEntity.lastUpdate().isBlank())
+                                                    Objects.equals(localEntity.id(), externalEntityInfo.id()) &&
+                                                            (!externalEntityInfo.hasVersion() ||
+                                                                    Objects.equals(
+                                                                            localEntity.version(),
+                                                                            externalEntityInfo.version())))
                                             .findFirst()
-                                            .map(sameLocalEntity ->
-                                                    {
-                                                        Float externalEntityVersion = externalEntity.getFloatVersion();
-                                                        Float sameLocalEntityVersion = sameLocalEntity.getFloatVersion();
-                                                        return isExternalEntityVersionNewer(
-                                                                externalEntityVersion,
-                                                                sameLocalEntityVersion) ||
-                                                                (isVersionEqual(
-                                                                        externalEntityVersion,
-                                                                        sameLocalEntityVersion) &&
-                                                                        isExternalEntityLastUpdateNewer(
-                                                                                externalEntity.getInstantLastUpdate(),
-                                                                                sameLocalEntity.getInstantLastUpdate()));
-                                                    }
-                                            )
-                                            .orElse(false))
+                                            .map(sameLocalEntityInfo ->
+                                                    isExternalEntityLastUpdateNewer(
+                                                            externalEntityInfo.getInstantLastUpdate(),
+                                                            sameLocalEntityInfo.getInstantLastUpdate()))
+                                            .orElse(false);
+                                } else {
+                                    return false;
+                                }
+                            })
                             .toList();
                 });
     }
@@ -146,15 +173,14 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
         return externalEntityVersion > sameLocalEntityVersion;
     }
 
-    private boolean isVersionEqual(Float externalEntityVersion, Float sameLocalEntityVersion) {
-        return Objects.equals(externalEntityVersion, sameLocalEntityVersion);
-    }
 
-    private boolean isExternalEntityLastUpdateNewer(Instant externalEntityLastUpdate, Instant sameLocalEntityLastUpdate) {
+    private boolean isExternalEntityLastUpdateNewer(Instant externalEntityLastUpdate, Instant
+            sameLocalEntityLastUpdate) {
         return externalEntityLastUpdate.isAfter(sameLocalEntityLastUpdate);
     }
 
-    private Mono<DataNegotiationResult> createDataNegotiationResult(Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> newEntitiesToSync, Mono<List<MVEntity4DataNegotiation>> existingEntitiesToSync) {
+    private Mono<DataNegotiationResult> createDataNegotiationResult
+            (Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> newEntitiesToSync, Mono<List<MVEntity4DataNegotiation>> existingEntitiesToSync) {
         return Mono.zip(issuerMono, newEntitiesToSync, existingEntitiesToSync).map(
                 tuple -> {
                     String issuer = tuple.getT1();
