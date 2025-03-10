@@ -25,16 +25,25 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     private final ReplicationPoliciesService replicationPoliciesService;
 
     @Override
-    public Mono<Void> negotiateDataSyncWithMultipleIssuers(String processId, Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> externalMVEntities4DataNegotiationByIssuerMono, Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono) {
+    public Mono<Void> negotiateDataSyncWithMultipleIssuers(
+            String processId,
+            Mono<Map<Issuer,
+                    List<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
+            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
         log.info("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
 
-        return localMVEntities4DataNegotiationMono.flatMap(localMVEntities4DataNegotiation ->
-                externalMVEntities4DataNegotiationByIssuerMono
+        return localEntitiesInfoMono.flatMap(localEntitiesInfo ->
+                externalEntitiesInfoMono
                         .flatMapIterable(Map::entrySet)
-                        .flatMap(externalMVEntities4DataNegotiationByIssuer ->
-                                getDataNegotiationResultMono(processId, localMVEntities4DataNegotiationMono, Mono.just(externalMVEntities4DataNegotiationByIssuer.getKey().value()), Mono.just(externalMVEntities4DataNegotiationByIssuer.getValue())))
+                        .flatMap(externalEntitiesInfoByIssuer ->
+                                getDataNegotiationResultMono(
+                                        processId,
+                                        localEntitiesInfoMono,
+                                        Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
+                                        Mono.just(externalEntitiesInfoByIssuer.getValue())))
                         .collectList()
-                        .flatMap(dataNegotiationResults -> dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults))));
+                        .flatMap(dataNegotiationResults ->
+                                dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults))));
     }
 
     @Override
@@ -43,8 +52,8 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
 
         log.info("ProcessID: {} - Starting Data Negotiation Job", processId);
 
-        Mono<List<MVEntity4DataNegotiation>> externalMVEntities4DataNegotiationMono = dataNegotiationEvent.externalMVEntities4DataNegotiation();
-        Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono = dataNegotiationEvent.localMVEntities4DataNegotiation();
+        Mono<List<MVEntity4DataNegotiation>> externalMVEntities4DataNegotiationMono = dataNegotiationEvent.externalEntitiesInfo();
+        Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono = dataNegotiationEvent.localEntitiesInfo();
 
         return getDataNegotiationResultMono(processId, localMVEntities4DataNegotiationMono, dataNegotiationEvent.issuer(), externalMVEntities4DataNegotiationMono)
                 .flatMap(dataNegotiationResults -> dataTransferJob.syncData(processId, Mono.just(dataNegotiationResults)));
