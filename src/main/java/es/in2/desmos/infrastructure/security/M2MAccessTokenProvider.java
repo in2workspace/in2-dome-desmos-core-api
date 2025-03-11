@@ -54,6 +54,7 @@ public class M2MAccessTokenProvider {
     private String createClientAssertion() {
         try {
             String vcMachineString = getVCinJWTDecodedFromBase64();
+            System.out.println("Hola 2: " + vcMachineString);
             SignedJWT vcMachineJWT = jwtTokenProvider.getSignedJWT(vcMachineString);
 
             Payload vcMachinePayload = vcMachineJWT.getPayload();
@@ -118,6 +119,7 @@ public class M2MAccessTokenProvider {
 
     private String getVCinJWTDecodedFromBase64() {
         String vcTokenBase64 =  learCredentialMachineConfig.getLearCredentialMachineInBase64();
+        System.out.println("Hola 1: " + vcTokenBase64);
         byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64.getBytes(StandardCharsets.UTF_8));
         return new String(vcTokenDecoded);
     }
