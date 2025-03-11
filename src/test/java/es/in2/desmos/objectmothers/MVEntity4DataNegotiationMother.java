@@ -64,7 +64,7 @@ public final class MVEntity4DataNegotiationMother {
     }
 
     public static @NotNull MVEntity4DataNegotiation withoutVersion() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
-        return createSampleWithSameHashAndHashlink(EntityMother.WithoutVersion);
+        return createSampleWithSameHashAndHashlink(EntityMother.WITHOUT_VERSION);
     }
 
     public static @NotNull MVEntity4DataNegotiation sampleLaunched() {

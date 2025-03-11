@@ -297,7 +297,7 @@ public final class EntityMother {
                 }
             }""";
 
-    public static final String WithoutVersion = """
+    public static final String WITHOUT_VERSION = """
             {
                 "id": "urn:product-offering:5",
                 "type": "product-offering",
