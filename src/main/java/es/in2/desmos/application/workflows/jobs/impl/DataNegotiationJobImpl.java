@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -87,35 +88,27 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     private Mono<List<MVEntity4DataNegotiation>> getEntitiesToAdd(
             Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono,
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
+
         return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
                 .map(tuple -> {
                     List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
                     List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
 
-                    return externalEntitiesInfo
-                            .stream()
-                            .filter(externalEntityInfo -> {
-                                List<Float> localVersionsForSameId =
-                                        localEntitiesInfo
-                                                .stream()
-                                                .filter(localEntityInfo ->
-                                                        Objects.equals(localEntityInfo.id(), externalEntityInfo.id()))
-                                                .map(MVEntity4DataNegotiation::getFloatVersion)
-                                                .toList();
-                                boolean localEntityIdMissing = localVersionsForSameId.isEmpty();
+                    Map<String, List<MVEntity4DataNegotiation>> localEntitiesGroupedById = localEntitiesInfo.stream()
+                            .collect(Collectors.groupingBy(MVEntity4DataNegotiation::id));
 
-                                if (localEntityIdMissing) {
+                    return externalEntitiesInfo.stream()
+                            .filter(externalEntityInfo -> {
+                                List<MVEntity4DataNegotiation> localEntitiesWithSameId = localEntitiesGroupedById.get(externalEntityInfo.id());
+
+                                if (localEntitiesWithSameId == null) {
                                     return true;
                                 } else {
-                                    boolean isExternalEntityVersionNewer =
-                                            localVersionsForSameId
-                                                    .stream()
-                                                    .allMatch(localVersion ->
-                                                            isExternalEntityVersionNewer(
-                                                                    externalEntityInfo.getFloatVersion(),
-                                                                    localVersion));
                                     return externalEntityInfo.hasVersion() &&
-                                            isExternalEntityVersionNewer;
+                                            localEntitiesWithSameId.stream()
+                                                    .allMatch(localEntity -> isExternalEntityVersionNewer(
+                                                            externalEntityInfo.getFloatVersion(),
+                                                            localEntity.getFloatVersion()));
                                 }
                             })
                             .toList();

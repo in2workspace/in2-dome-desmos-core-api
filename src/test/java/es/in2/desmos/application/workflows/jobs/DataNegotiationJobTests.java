@@ -287,4 +287,49 @@ class DataNegotiationJobTests {
                 .expectNext(expectedDataNegotiationResult)
                 .verifyComplete();
     }
+
+    @Test
+    void itShouldNotSaveEntityWithSameIdAndWithoutVersion() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String issuer = "http://example.org";
+        Mono<String> issuerMono = Mono.just(issuer);
+
+        List<MVEntity4DataNegotiation> externalEntitiesInfo = List.of(
+                MVEntity4DataNegotiationMother.sample2(),
+                MVEntity4DataNegotiationMother.withoutVersion()
+        );
+
+        List<MVEntity4DataNegotiation> localEntitiesInfo = List.of(MVEntity4DataNegotiationMother.withoutVersion());
+
+        String processId = "0";
+        DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent(
+                processId,
+                issuerMono,
+                Mono.just(externalEntitiesInfo),
+                Mono.just(localEntitiesInfo));
+
+        DataNegotiationResult expectedDataNegotiationResult = new DataNegotiationResult(
+                issuer,
+                List.of(MVEntity4DataNegotiationMother.sample2()),
+                List.of());
+
+        when(dataTransferJob.syncData(any(), any())).thenReturn(Mono.empty());
+
+        when(replicationPoliciesService.isMVEntityReplicable(any(), any())).thenReturn(Mono.just(true));
+
+        var result = dataNegotiationJob.negotiateDataSyncFromEvent(dataNegotiationEvent);
+
+        StepVerifier
+                .create(result)
+                .verifyComplete();
+
+        verify(dataTransferJob, times(1)).syncData(eq(processId), dataNegotiationResultCaptor.capture());
+        verifyNoMoreInteractions(dataTransferJob);
+
+        Mono<DataNegotiationResult> dataNegotiationResultCaptured = dataNegotiationResultCaptor.getValue();
+
+        StepVerifier
+                .create(dataNegotiationResultCaptured)
+                .expectNext(expectedDataNegotiationResult)
+                .verifyComplete();
+    }
 }
