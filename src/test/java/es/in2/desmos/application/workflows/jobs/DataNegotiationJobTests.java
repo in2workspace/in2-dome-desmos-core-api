@@ -127,21 +127,21 @@ class DataNegotiationJobTests {
     }
 
     @Test
-    void itShouldSyncDataWithExistingEntitiesToAddWhenExternalVersionIsAfter() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+    void itShouldSyncDataWithNewEntitiesToAddWhenExternalVersionIsAfter() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         String issuer = "http://example.org";
         Mono<String> issuerMono = Mono.just(issuer);
 
         List<MVEntity4DataNegotiation> externalEntityIds = MVEntity4DataNegotiationMother.list2And3();
         Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = Mono.just(externalEntityIds);
 
-        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample2VersionOld()));
+        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample3()));
 
         String processId = "0";
         DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent(processId, issuerMono, externalEntityIdsMono, localEntityIdsMono);
 
-        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample3());
+        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample2());
 
-        List<MVEntity4DataNegotiation> expectedExistingEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample2());
+        List<MVEntity4DataNegotiation> expectedExistingEntitiesToSync = List.of();
 
         DataNegotiationResult expectedDataNegotiationResult = new DataNegotiationResult(issuer, expectedNewEntitiesToSync, expectedExistingEntitiesToSync);
 

@@ -11,8 +11,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -88,33 +89,26 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
         return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
                 .map(tuple -> {
-
                     List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
                     List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
-
-                    Map<String, Set<Float>> localEntitiesVersionsByIds = localEntitiesInfo.stream()
-                            .collect(Collectors.groupingBy(
-                                    MVEntity4DataNegotiation::id,
-                                    Collectors.mapping(MVEntity4DataNegotiation::getFloatVersion, Collectors.toSet())
-                            ));
 
                     return externalEntitiesInfo
                             .stream()
                             .filter(externalEntityInfo -> {
-                                List<Float> localVersions =
+                                List<Float> localVersionsForSameId =
                                         localEntitiesInfo
                                                 .stream()
                                                 .filter(localEntityInfo ->
                                                         Objects.equals(localEntityInfo.id(), externalEntityInfo.id()))
                                                 .map(MVEntity4DataNegotiation::getFloatVersion)
                                                 .toList();
-                                boolean localEntityMissing = localVersions.isEmpty();
+                                boolean localEntityIdMissing = localVersionsForSameId.isEmpty();
 
-                                if (localEntityMissing) {
+                                if (localEntityIdMissing) {
                                     return true;
                                 } else {
                                     boolean isExternalEntityVersionNewer =
-                                            localVersions
+                                            localVersionsForSameId
                                                     .stream()
                                                     .allMatch(localVersion ->
                                                             isExternalEntityVersionNewer(
@@ -140,13 +134,13 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                     return externalEntitiesInfo
                             .stream()
                             .filter(externalEntityInfo -> {
-                                boolean localHasEntity =
+                                boolean localHasEntityId =
                                         localEntitiesInfo
                                                 .stream()
                                                 .anyMatch(localEntityInfo ->
                                                         Objects.equals(localEntityInfo.id(), externalEntityInfo.id()));
 
-                                if (localHasEntity) {
+                                if (localHasEntityId) {
                                     return localEntitiesInfo
                                             .stream()
                                             .filter(localEntity ->
