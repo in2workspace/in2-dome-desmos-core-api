@@ -69,6 +69,7 @@ public class M2MAccessTokenProvider {
 
             String vpTokenJWTString = createVPTokenJWT(vcMachineString, clientId, iat, exp);
 
+            // TODO: Remove check when Verifier will be updated
             String vpTokenJWTToPayload;
             if (Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
                 vpTokenJWTToPayload = Base64.getEncoder()
