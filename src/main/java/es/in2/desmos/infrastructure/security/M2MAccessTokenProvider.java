@@ -70,13 +70,10 @@ public class M2MAccessTokenProvider {
             String vpTokenJWTString = createVPTokenJWT(vcMachineString, clientId, iat, exp);
 
             String vpTokenJWTToPayload;
-            if(Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
-                String vpTokenJWTStringBase64 = Base64.getEncoder()
+            if (Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
+                vpTokenJWTToPayload = Base64.getEncoder()
                         .encodeToString(vpTokenJWTString.getBytes(StandardCharsets.UTF_8));
-                System.out.println("Es dev: " + vpTokenJWTStringBase64);
-                vpTokenJWTToPayload = vpTokenJWTStringBase64;
             } else {
-                System.out.println("No es dev: " + vpTokenJWTString);
                 vpTokenJWTToPayload = vpTokenJWTString;
             }
 
@@ -130,7 +127,6 @@ public class M2MAccessTokenProvider {
 
     private String getVCinJWTDecodedFromBase64() {
         String vcTokenBase64 = learCredentialMachineConfig.getLearCredentialMachineInBase64();
-        System.out.println("LEAR 64: " + vcTokenBase64);
         byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64.getBytes(StandardCharsets.UTF_8));
         return new String(vcTokenDecoded);
     }
