@@ -35,7 +35,8 @@ public class M2MAccessTokenProvider {
     public Mono<String> getM2MAccessToken() {
         return Mono.fromCallable(this::getM2MFormUrlEncodeBodyValue)
                 .flatMap(verifierService::performTokenRequest)
-                .flatMap(tokenReponse -> Mono.just(tokenReponse.accessToken()));
+                .flatMap(tokenReponse ->
+                        Mono.just(tokenReponse.accessToken()));
     }
 
     private String getM2MFormUrlEncodeBodyValue() {
