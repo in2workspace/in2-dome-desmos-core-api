@@ -33,8 +33,9 @@ public class M2MAccessTokenProvider {
     public Mono<String> getM2MAccessToken() {
         return Mono.fromCallable(this::getM2MFormUrlEncodeBodyValue)
                 .flatMap(verifierService::performTokenRequest)
-                .flatMap(tokenReponse ->
-                        Mono.just(tokenReponse.accessToken()));
+                .flatMap(tokenReponse -> {
+                    return Mono.just(tokenReponse.accessToken());
+                });
     }
 
     private String getM2MFormUrlEncodeBodyValue() {
@@ -118,6 +119,7 @@ public class M2MAccessTokenProvider {
 
     private String getVCinJWTDecodedFromBase64() {
         String vcTokenBase64 =  learCredentialMachineConfig.getLearCredentialMachineInBase64();
+        System.out.println("LEAR 64: " + vcTokenBase64);
         byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64.getBytes(StandardCharsets.UTF_8));
         return new String(vcTokenDecoded);
     }
