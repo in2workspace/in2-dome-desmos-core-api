@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.env.Environment;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -21,6 +22,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.text.ParseException;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,6 +49,9 @@ class M2MAccessTokenProviderTest {
 
     @Mock
     private SignedJWT signedJWT;
+
+    @Mock
+    Environment environment;
 
     @InjectMocks
     private M2MAccessTokenProvider m2mAccessTokenProvider;
@@ -77,6 +82,7 @@ class M2MAccessTokenProviderTest {
         when(learCredentialMachineConfig.getClientAssertionExpiration()).thenReturn("5");
         when(learCredentialMachineConfig.getClientAssertionExpirationUnitTime()).thenReturn("MINUTES");
         when(verifierConfig.getExternalUrl()).thenReturn("https://test-verifier.com");
+        when(environment.getActiveProfiles()).thenReturn(new String[0]);
 
         StepVerifier.create(m2mAccessTokenProvider.getM2MAccessToken())
                 .assertNext(accessToken -> assertThat(accessToken).isEqualTo(expectedAccessToken))
@@ -115,6 +121,7 @@ class M2MAccessTokenProviderTest {
         when(jwtTokenProvider.generateTokenWithPayload(any()))
                 .thenReturn("mocked-client-assertion")
                 .thenThrow(JOSEException.class);
+        when(environment.getActiveProfiles()).thenReturn(new String[0]);
 
         StepVerifier.create(m2mAccessTokenProvider.getM2MAccessToken())
                 .expectErrorMatches(JwtException.class::isInstance)
