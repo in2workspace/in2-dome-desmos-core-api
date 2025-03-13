@@ -31,18 +31,17 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
         log.info("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
 
-        return localEntitiesInfoMono.flatMap(localEntitiesInfo ->
-                externalEntitiesInfoMono
-                        .flatMapIterable(Map::entrySet)
-                        .flatMap(externalEntitiesInfoByIssuer ->
-                                getDataNegotiationResultMono(
-                                        processId,
-                                        localEntitiesInfoMono,
-                                        Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
-                                        Mono.just(externalEntitiesInfoByIssuer.getValue())))
-                        .collectList()
-                        .flatMap(dataNegotiationResults ->
-                                dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults))));
+        return externalEntitiesInfoMono
+                .flatMapIterable(Map::entrySet)
+                .flatMap(externalEntitiesInfoByIssuer ->
+                        getDataNegotiationResultMono(
+                                processId,
+                                localEntitiesInfoMono,
+                                Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
+                                Mono.just(externalEntitiesInfoByIssuer.getValue())))
+                .collectList()
+                .flatMap(dataNegotiationResults ->
+                        dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults)));
     }
 
     @Override
