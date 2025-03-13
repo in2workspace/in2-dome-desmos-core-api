@@ -45,20 +45,10 @@ public class M2MAccessTokenProvider {
         parameters.put(OAuth2ParameterNames.CLIENT_ASSERTION_TYPE, learCredentialMachineConfig.getClientAssertionTypeValue());
         parameters.put(OAuth2ParameterNames.CLIENT_ASSERTION, createClientAssertion());
 
-        String body = parameters.entrySet()
+        return parameters.entrySet()
                 .stream()
                 .map(entry -> entry.getKey() + "=" + entry.getValue())
                 .collect(Collectors.joining("&"));
-
-        if(Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
-            String base64 = Base64.getEncoder()
-                    .encodeToString(body.getBytes(StandardCharsets.UTF_8));
-            System.out.println("Es dev: " + base64);
-            return base64;
-        } else {
-            System.out.println("No es dev: " + body);
-            return body;
-        }
     }
 
 
@@ -79,10 +69,21 @@ public class M2MAccessTokenProvider {
 
             String vpTokenJWTString = createVPTokenJWT(vcMachineString, clientId, iat, exp);
 
+            String vpTokenJWTToPayload;
+            if(Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
+                String vpTokenJWTStringBase64 = Base64.getEncoder()
+                        .encodeToString(vpTokenJWTString.getBytes(StandardCharsets.UTF_8));
+                System.out.println("Es dev: " + vpTokenJWTStringBase64);
+                vpTokenJWTToPayload = vpTokenJWTStringBase64;
+            } else {
+                System.out.println("No es dev: " + vpTokenJWTString);
+                vpTokenJWTToPayload = vpTokenJWTString;
+            }
+
             Payload payload = new Payload(Map.of(
                     "aud", verifierConfig.getExternalUrl(),
                     "sub", clientId,
-                    "vp_token", vpTokenJWTString,
+                    "vp_token", vpTokenJWTToPayload,
                     "iss", clientId,
                     "exp", exp,
                     "iat", iat,
