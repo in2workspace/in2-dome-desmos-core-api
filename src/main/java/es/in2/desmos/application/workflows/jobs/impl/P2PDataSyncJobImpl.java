@@ -80,13 +80,18 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                     log.debug("ProcessID: {} - External Access Node: {}", processId, externalAccessNode);
                     var discoverySyncRequest = new DiscoverySyncRequest(apiConfig.getExternalDomain(), localMvEntities4DataNegotiation);
 
+                    System.out.println("Hola 1");
                     Mono<DiscoverySyncRequest> discoverySyncRequestMono = Mono.just(discoverySyncRequest);
+                    System.out.println("Hola 2");
 
                     return discoverySyncWebClient.makeRequest(processId, Mono.just(externalAccessNode), discoverySyncRequestMono)
                             .map(resultList -> {
+                                System.out.println("Hola 3");
                                 log.debug("ProcessID: {} - Get DiscoverySync Response. [issuer={}, response={}]", processId, externalAccessNode, resultList);
 
                                 Issuer issuer = new Issuer(externalAccessNode);
+
+                                System.out.println("Hola 3");
 
                                 var filteredEntitiesByType =
                                         resultList
@@ -94,6 +99,8 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                                 .stream()
                                                 .filter(mvEntity4DataNegotiation -> Objects.equals(mvEntity4DataNegotiation.type(), entityType))
                                                 .toList();
+
+                                System.out.println("Hola 3");
 
                                 log.debug("ProcessID: {} - DiscoverySync Response filtered. [issuer={}, response={}]", processId, externalAccessNode, filteredEntitiesByType);
 

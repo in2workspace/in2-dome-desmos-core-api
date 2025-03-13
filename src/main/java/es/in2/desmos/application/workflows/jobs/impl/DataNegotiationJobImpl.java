@@ -33,12 +33,14 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
 
         return externalEntitiesInfoMono
                 .flatMapIterable(Map::entrySet)
-                .flatMap(externalEntitiesInfoByIssuer ->
-                        getDataNegotiationResultMono(
-                                processId,
-                                localEntitiesInfoMono,
-                                Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
-                                Mono.just(externalEntitiesInfoByIssuer.getValue())))
+                .flatMap(externalEntitiesInfoByIssuer -> {
+                    System.out.println("Hola 6: " + externalEntitiesInfoByIssuer.getValue().size());
+                    return getDataNegotiationResultMono(
+                            processId,
+                            localEntitiesInfoMono,
+                            Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
+                            Mono.just(externalEntitiesInfoByIssuer.getValue()));
+                })
                 .collectList()
                 .flatMap(dataNegotiationResults ->
                         dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults)));
@@ -66,8 +68,10 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
             Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono) {
         return externalEntitiesInfoMono
                 .flatMapMany(Flux::fromIterable)
-                .flatMap(entityInfo ->
-                        getReplicableEntity(processId, entityInfo))
+                .flatMap(entityInfo -> {
+                    System.out.println("Hola 7");
+                    return getReplicableEntity(processId, entityInfo);
+                })
                 .collectList()
                 .flatMap(replicableExternalEntitiesInfo -> {
                     var replicableExternalEntitiesInfoMono = Mono.just(replicableExternalEntitiesInfo);
