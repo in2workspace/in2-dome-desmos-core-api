@@ -51,9 +51,12 @@ public class M2MAccessTokenProvider {
                 .collect(Collectors.joining("&"));
 
         if(Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
-            return Base64.getEncoder()
+            String base64 = Base64.getEncoder()
                     .encodeToString(body.getBytes(StandardCharsets.UTF_8));
+            System.out.println("Es dev: " + base64);
+            return base64;
         } else {
+            System.out.println("No es dev: " + body);
             return body;
         }
     }
