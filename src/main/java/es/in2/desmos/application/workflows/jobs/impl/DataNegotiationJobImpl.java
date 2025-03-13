@@ -14,7 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -94,22 +94,21 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                     List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
                     List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
 
-                    Map<String, List<MVEntity4DataNegotiation>> localEntitiesGroupedById = localEntitiesInfo.stream()
-                            .collect(Collectors.groupingBy(MVEntity4DataNegotiation::id));
-
                     return externalEntitiesInfo.stream()
                             .filter(externalEntityInfo -> {
-                                List<MVEntity4DataNegotiation> localEntitiesWithSameId = localEntitiesGroupedById.get(externalEntityInfo.id());
+                                Optional<MVEntity4DataNegotiation> localEntityWithSameIdOptional =
+                                        localEntitiesInfo
+                                                .stream()
+                                                .filter(localEntity ->
+                                                        Objects.equals(localEntity.id(), externalEntityInfo.id()))
+                                                .findFirst();
 
-                                if (localEntitiesWithSameId == null) {
-                                    return true;
-                                } else {
-                                    return externalEntityInfo.hasVersion() &&
-                                            localEntitiesWithSameId.stream()
-                                                    .allMatch(localEntity -> isExternalEntityVersionNewer(
-                                                            externalEntityInfo.getFloatVersion(),
-                                                            localEntity.getFloatVersion()));
-                                }
+                                return localEntityWithSameIdOptional
+                                        .map(localEntityWithSameId ->
+                                                externalEntityInfo.hasVersion() && isExternalEntityVersionNewer(
+                                                        externalEntityInfo.getFloatVersion(),
+                                                        localEntityWithSameId.getFloatVersion()))
+                                        .orElse(true);
                             })
                             .toList();
                 });
