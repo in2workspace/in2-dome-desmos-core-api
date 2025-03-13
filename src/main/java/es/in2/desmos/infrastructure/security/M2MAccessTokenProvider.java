@@ -8,6 +8,7 @@ import es.in2.desmos.infrastructure.configs.LearCredentialMachineConfig;
 import es.in2.desmos.infrastructure.configs.VerifierConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class M2MAccessTokenProvider {
     private final LearCredentialMachineConfig learCredentialMachineConfig;
     private final VerifierConfig verifierConfig;
     private final VerifierService verifierService;
+    private final Environment environment;
 
     public Mono<String> getM2MAccessToken() {
         return Mono.fromCallable(this::getM2MFormUrlEncodeBodyValue)
@@ -118,9 +120,13 @@ public class M2MAccessTokenProvider {
     }
 
     private String getVCinJWTDecodedFromBase64() {
-        String vcTokenBase64 =  learCredentialMachineConfig.getLearCredentialMachineInBase64();
-        System.out.println("LEAR 64: " + vcTokenBase64);
-        byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64.getBytes(StandardCharsets.UTF_8));
-        return new String(vcTokenDecoded);
+        String vcTokenBase64 = learCredentialMachineConfig.getLearCredentialMachineInBase64();
+        if (Arrays.stream(environment.getActiveProfiles()).allMatch(x -> x.equals("dev"))) {
+            return vcTokenBase64;
+        } else {
+            System.out.println("LEAR 64: " + vcTokenBase64);
+            byte[] vcTokenDecoded = Base64.getDecoder().decode(vcTokenBase64.getBytes(StandardCharsets.UTF_8));
+            return new String(vcTokenDecoded);
+        }
     }
 }
