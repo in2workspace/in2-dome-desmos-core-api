@@ -25,7 +25,13 @@ public record MVEntity4DataNegotiation(
 
     @JsonIgnore
     public Instant getInstantLastUpdate() {
-        return Instant.parse(lastUpdate);
+        try {
+            return Instant.parse(lastUpdate);
+        } catch (Exception e) {
+            System.out.println("falla la e: " + e);
+            System.out.println("falla: " + lastUpdate);
+            return null;
+        }
     }
 
     @JsonIgnore
