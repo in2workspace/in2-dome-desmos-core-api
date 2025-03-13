@@ -143,7 +143,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                                             .map(sameLocalEntityInfo -> {
                                                 if (externalEntityInfo.getInstantLastUpdate().isEmpty() ||
                                                         sameLocalEntityInfo.getInstantLastUpdate().isEmpty()) {
-                                                    System.out.println("Falla instant");
+                                                    System.out.println("Falla instant: " + sameLocalEntityInfo.id());
                                                     return false;
                                                 }
                                                 return isExternalEntityLastUpdateNewer(
