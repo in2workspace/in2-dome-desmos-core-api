@@ -125,7 +125,7 @@ access-node:
   trustedAccessNodesList: "https://raw.githubusercontent.com/DOME-Marketplace/trust-framework/refs/heads/main/prd/trusted_access_nodes_list.yaml"
 
 external-access-nodes:
-  urls: "https://desmos.dome-marketplace-prd.org"
+  urls: "https://desmos.dome-marketplace.eu"
 
 verifier:
-  url: "https://verifier.dome-marketplace-prd.org"
+  url: "https://verifier.dome-marketplace.eu"
