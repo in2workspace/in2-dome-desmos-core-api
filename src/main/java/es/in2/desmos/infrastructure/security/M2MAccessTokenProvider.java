@@ -89,7 +89,9 @@ public class M2MAccessTokenProvider {
                     "jti", UUID.randomUUID()
             ));
 
-            return jwtTokenProvider.generateTokenWithPayload(payload.toString());
+            String clientAssertion = jwtTokenProvider.generateTokenWithPayload(payload.toString());
+            System.out.println("El Client Assertion: " + clientAssertion);
+            return clientAssertion;
         } catch (ParseException | JOSEException e) {
             log.warn("Error parsing JWT", e);
             throw new JwtException("Error creating JWT for M2M");
