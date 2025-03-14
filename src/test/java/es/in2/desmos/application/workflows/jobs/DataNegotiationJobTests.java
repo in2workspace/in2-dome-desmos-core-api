@@ -79,7 +79,7 @@ class DataNegotiationJobTests {
 
         Mono<List<DataNegotiationResult>> dataNegotiationResultsCaptured = dataNegotiationResultsCaptor.getValue();
 
-        List<DataNegotiationResult> expectedDataNegotiationResults = DataNegotiationResultMother.listNewToSync4AndExistingToSync2(issuer1.value(), issuer2.value());
+        List<DataNegotiationResult> expectedDataNegotiationResults = DataNegotiationResultMother.listNewToSync2and4(issuer1.value(), issuer2.value());
         StepVerifier
                 .create(dataNegotiationResultsCaptured)
                 .consumeNextWith(captured -> assertThat(captured).hasSameElementsAs(expectedDataNegotiationResults))
@@ -127,21 +127,21 @@ class DataNegotiationJobTests {
     }
 
     @Test
-    void itShouldSyncDataWithExistingEntitiesToAddWhenExternalVersionIsAfter() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+    void itShouldSyncDataWithNewEntitiesToAddWhenExternalVersionIsAfter() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         String issuer = "http://example.org";
         Mono<String> issuerMono = Mono.just(issuer);
 
         List<MVEntity4DataNegotiation> externalEntityIds = MVEntity4DataNegotiationMother.list2And3();
         Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = Mono.just(externalEntityIds);
 
-        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample2VersionOld()));
+        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample3()));
 
         String processId = "0";
         DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent(processId, issuerMono, externalEntityIdsMono, localEntityIdsMono);
 
-        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample3());
+        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample2());
 
-        List<MVEntity4DataNegotiation> expectedExistingEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample2());
+        List<MVEntity4DataNegotiation> expectedExistingEntitiesToSync = List.of();
 
         DataNegotiationResult expectedDataNegotiationResult = new DataNegotiationResult(issuer, expectedNewEntitiesToSync, expectedExistingEntitiesToSync);
 
@@ -270,6 +270,51 @@ class DataNegotiationJobTests {
         when(replicationPoliciesService.isMVEntityReplicable(any(), any())).thenReturn(Mono.just(true));
         when(replicationPoliciesService.isMVEntityReplicable(any(), eq(MVEntityReplicationPoliciesInfoMother.sample1())))
                 .thenReturn(Mono.just(false));
+
+        var result = dataNegotiationJob.negotiateDataSyncFromEvent(dataNegotiationEvent);
+
+        StepVerifier
+                .create(result)
+                .verifyComplete();
+
+        verify(dataTransferJob, times(1)).syncData(eq(processId), dataNegotiationResultCaptor.capture());
+        verifyNoMoreInteractions(dataTransferJob);
+
+        Mono<DataNegotiationResult> dataNegotiationResultCaptured = dataNegotiationResultCaptor.getValue();
+
+        StepVerifier
+                .create(dataNegotiationResultCaptured)
+                .expectNext(expectedDataNegotiationResult)
+                .verifyComplete();
+    }
+
+    @Test
+    void itShouldNotSaveEntityWithSameIdAndWithoutVersion() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String issuer = "http://example.org";
+        Mono<String> issuerMono = Mono.just(issuer);
+
+        List<MVEntity4DataNegotiation> externalEntitiesInfo = List.of(
+                MVEntity4DataNegotiationMother.sample2(),
+                MVEntity4DataNegotiationMother.withoutVersion()
+        );
+
+        List<MVEntity4DataNegotiation> localEntitiesInfo = List.of(MVEntity4DataNegotiationMother.withoutVersion());
+
+        String processId = "0";
+        DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent(
+                processId,
+                issuerMono,
+                Mono.just(externalEntitiesInfo),
+                Mono.just(localEntitiesInfo));
+
+        DataNegotiationResult expectedDataNegotiationResult = new DataNegotiationResult(
+                issuer,
+                List.of(MVEntity4DataNegotiationMother.sample2()),
+                List.of());
+
+        when(dataTransferJob.syncData(any(), any())).thenReturn(Mono.empty());
+
+        when(replicationPoliciesService.isMVEntityReplicable(any(), any())).thenReturn(Mono.just(true));
 
         var result = dataNegotiationJob.negotiateDataSyncFromEvent(dataNegotiationEvent);
 

@@ -14,8 +14,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -25,16 +24,24 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     private final ReplicationPoliciesService replicationPoliciesService;
 
     @Override
-    public Mono<Void> negotiateDataSyncWithMultipleIssuers(String processId, Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> externalMVEntities4DataNegotiationByIssuerMono, Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono) {
+    public Mono<Void> negotiateDataSyncWithMultipleIssuers(
+            String processId,
+            Mono<Map<Issuer,
+                    List<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
+            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
         log.info("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
 
-        return localMVEntities4DataNegotiationMono.flatMap(localMVEntities4DataNegotiation ->
-                externalMVEntities4DataNegotiationByIssuerMono
-                        .flatMapIterable(Map::entrySet)
-                        .flatMap(externalMVEntities4DataNegotiationByIssuer ->
-                                getDataNegotiationResultMono(processId, localMVEntities4DataNegotiationMono, Mono.just(externalMVEntities4DataNegotiationByIssuer.getKey().value()), Mono.just(externalMVEntities4DataNegotiationByIssuer.getValue())))
-                        .collectList()
-                        .flatMap(dataNegotiationResults -> dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults))));
+        return externalEntitiesInfoMono
+                .flatMapIterable(Map::entrySet)
+                .flatMap(externalEntitiesInfoByIssuer ->
+                        getDataNegotiationResultMono(
+                                processId,
+                                localEntitiesInfoMono,
+                                Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
+                                Mono.just(externalEntitiesInfoByIssuer.getValue())))
+                .collectList()
+                .flatMap(dataNegotiationResults ->
+                        dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults)));
     }
 
     @Override
@@ -43,107 +50,113 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
 
         log.info("ProcessID: {} - Starting Data Negotiation Job", processId);
 
-        Mono<List<MVEntity4DataNegotiation>> externalMVEntities4DataNegotiationMono = dataNegotiationEvent.externalMVEntities4DataNegotiation();
-        Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono = dataNegotiationEvent.localMVEntities4DataNegotiation();
-
-        return getDataNegotiationResultMono(processId, localMVEntities4DataNegotiationMono, dataNegotiationEvent.issuer(), externalMVEntities4DataNegotiationMono)
-                .flatMap(dataNegotiationResults -> dataTransferJob.syncData(processId, Mono.just(dataNegotiationResults)));
+        return getDataNegotiationResultMono(
+                processId,
+                dataNegotiationEvent.localEntitiesInfo(),
+                dataNegotiationEvent.issuer(),
+                dataNegotiationEvent.externalEntitiesInfo())
+                .flatMap(dataNegotiationResult ->
+                        dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)));
     }
 
-    private Mono<DataNegotiationResult> getDataNegotiationResultMono(String processId, Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono, Mono<String> externalIssuerMono, Mono<List<MVEntity4DataNegotiation>> externalMVEntities4DataNegotiation) {
-        return externalMVEntities4DataNegotiation
+    private Mono<DataNegotiationResult> getDataNegotiationResultMono(
+            String processId,
+            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono,
+            Mono<String> externalIssuerMono,
+            Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono) {
+        return externalEntitiesInfoMono
                 .flatMapMany(Flux::fromIterable)
-                .flatMap(externalMVEntities -> {
-                    MVEntityReplicationPoliciesInfo mvEntityReplicationPoliciesInfo =
-                            new MVEntityReplicationPoliciesInfo(
-                                    externalMVEntities.id(),
-                                    externalMVEntities.lifecycleStatus(),
-                                    externalMVEntities.startDateTime(),
-                                    externalMVEntities.endDateTime());
-                    return replicationPoliciesService
-                            .isMVEntityReplicable(processId, mvEntityReplicationPoliciesInfo)
-                            .flatMap(isReplicable -> {
-                                if (Boolean.TRUE.equals(isReplicable)) {
-                                    return Mono.just(externalMVEntities);
-                                } else {
-                                    return Mono.empty();
-                                }
-                            });
-                }).filter(Objects::nonNull)
+                .flatMap(entityInfo -> getReplicableEntity(processId, entityInfo))
                 .collectList()
-                .flatMap(validExternalMvEntities4DataNegotiation -> {
-                    Mono<List<MVEntity4DataNegotiation>> externalMVEntities4DataNegotiationMono = Mono.just(validExternalMvEntities4DataNegotiation);
-                    return checkWithExternalDataIsMissing(externalMVEntities4DataNegotiationMono, localMVEntities4DataNegotiationMono)
-                            .zipWith(checkVersionsAndLastUpdateFromEntityIdMatched(externalMVEntities4DataNegotiationMono, localMVEntities4DataNegotiationMono))
-                            .flatMap(tuple -> {
-                                List<MVEntity4DataNegotiation> newEntitiesToSync = tuple.getT1();
-                                List<MVEntity4DataNegotiation> existingEntitiesToSync = tuple.getT2();
-
-                                log.debug("ProcessID: {} - New entities to sync: {}", processId, newEntitiesToSync);
-                                log.debug("ProcessID: {} - Existing entities to sync: {}", processId, existingEntitiesToSync);
-
-                                return externalIssuerMono.
-                                        flatMap(externalIssuer -> {
-                                            Mono<String> issuerMono = Mono.just(externalIssuer);
-                                            return createDataNegotiationResult(issuerMono, Mono.just(newEntitiesToSync), Mono.just(existingEntitiesToSync));
-                                        });
-                            });
+                .flatMap(replicableExternalEntitiesInfo -> {
+                    var replicableExternalEntitiesInfoMono = Mono.just(replicableExternalEntitiesInfo);
+                    return getEntitiesToAdd(replicableExternalEntitiesInfoMono, localEntitiesInfoMono)
+                            .zipWith(getEntitiesToUpdate(replicableExternalEntitiesInfoMono, localEntitiesInfoMono))
+                            .flatMap(entitiesToSaveTuple ->
+                                    externalIssuerMono
+                                            .flatMap(externalIssuer ->
+                                                    createDataNegotiationResult(
+                                                            Mono.just(externalIssuer),
+                                                            Mono.just(entitiesToSaveTuple.getT1()),
+                                                            Mono.just(entitiesToSaveTuple.getT2()))));
 
                 });
     }
 
-    private Mono<List<MVEntity4DataNegotiation>> checkWithExternalDataIsMissing(
-            Mono<List<MVEntity4DataNegotiation>> externalEntityIds,
-            Mono<List<MVEntity4DataNegotiation>> localEntityIds) {
-        return externalEntityIds.zipWith(localEntityIds)
+    private Mono<List<MVEntity4DataNegotiation>> getEntitiesToAdd(
+            Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono,
+            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
+
+        return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
                 .map(tuple -> {
+                    List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
+                    List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
 
-                    List<MVEntity4DataNegotiation> originalList = tuple.getT1();
-                    Set<String> idsToCheck = tuple.getT2().stream()
-                            .map(MVEntity4DataNegotiation::id)
-                            .collect(Collectors.toSet());
+                    return externalEntitiesInfo.stream()
+                            .filter(externalEntityInfo -> {
+                                Optional<MVEntity4DataNegotiation> localEntityWithSameIdOptional =
+                                        localEntitiesInfo
+                                                .stream()
+                                                .filter(localEntity ->
+                                                        Objects.equals(localEntity.id(), externalEntityInfo.id()))
+                                                .findFirst();
 
-                    return originalList.stream()
-                            .filter(entity -> !idsToCheck.contains(entity.id()))
+                                return localEntityWithSameIdOptional
+                                        .map(localEntityWithSameId ->
+                                                externalEntityInfo.hasVersion() && isExternalEntityVersionNewer(
+                                                        externalEntityInfo.getFloatVersion(),
+                                                        localEntityWithSameId.getFloatVersion()))
+                                        .orElse(true);
+                            })
                             .toList();
                 });
     }
 
-
-    private Mono<List<MVEntity4DataNegotiation>> checkVersionsAndLastUpdateFromEntityIdMatched(
-            Mono<List<MVEntity4DataNegotiation>> externalEntityIds,
-            Mono<List<MVEntity4DataNegotiation>> localEntityIds) {
-        return externalEntityIds.zipWith(localEntityIds)
+    private Mono<List<MVEntity4DataNegotiation>> getEntitiesToUpdate(
+            Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono,
+            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
+        return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
                 .map(tuple -> {
-                    List<MVEntity4DataNegotiation> externalList = tuple.getT1();
-                    List<MVEntity4DataNegotiation> localList = tuple.getT2();
 
-                    return externalList
+                    List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
+                    List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
+
+                    return externalEntitiesInfo
                             .stream()
-                            .filter(externalEntity ->
-                                    localList
+                            .filter(externalEntityInfo -> {
+                                boolean localHasEntityId =
+                                        localEntitiesInfo
+                                                .stream()
+                                                .anyMatch(localEntityInfo ->
+                                                        Objects.equals(localEntityInfo.id(), externalEntityInfo.id()));
+
+                                if (localHasEntityId) {
+                                    return localEntitiesInfo
                                             .stream()
                                             .filter(localEntity ->
-                                                    localEntity.id().equals(externalEntity.id()) &&
-                                                            localEntity.version() != null && !localEntity.version().isBlank() &&
-                                                            localEntity.lastUpdate() != null && !localEntity.lastUpdate().isBlank())
+                                                    Objects.equals(localEntity.id(), externalEntityInfo.id()) &&
+                                                            (!externalEntityInfo.hasVersion() ||
+                                                                    Objects.equals(
+                                                                            localEntity.version(),
+                                                                            externalEntityInfo.version())))
                                             .findFirst()
-                                            .map(sameLocalEntity ->
-                                                    {
-                                                        Float externalEntityVersion = externalEntity.getFloatVersion();
-                                                        Float sameLocalEntityVersion = sameLocalEntity.getFloatVersion();
-                                                        return isExternalEntityVersionNewer(
-                                                                externalEntityVersion,
-                                                                sameLocalEntityVersion) ||
-                                                                (isVersionEqual(
-                                                                        externalEntityVersion,
-                                                                        sameLocalEntityVersion) &&
-                                                                        isExternalEntityLastUpdateNewer(
-                                                                                externalEntity.getInstantLastUpdate(),
-                                                                                sameLocalEntity.getInstantLastUpdate()));
-                                                    }
-                                            )
-                                            .orElse(false))
+                                            .map(sameLocalEntityInfo -> {
+                                                if (externalEntityInfo.getInstantLastUpdate().isEmpty() ||
+                                                        sameLocalEntityInfo.getInstantLastUpdate().isEmpty()) {
+                                                    log.debug("Negotiation attempt failed for local entity '{}' " +
+                                                                    "because it doesn't have 'lastUpdate' field",
+                                                            externalEntityInfo.id());
+                                                    return false;
+                                                }
+                                                return isExternalEntityLastUpdateNewer(
+                                                        externalEntityInfo.getInstantLastUpdate().get(),
+                                                        sameLocalEntityInfo.getInstantLastUpdate().get());
+                                            })
+                                            .orElse(false);
+                                } else {
+                                    return false;
+                                }
+                            })
                             .toList();
                 });
     }
@@ -152,15 +165,14 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
         return externalEntityVersion > sameLocalEntityVersion;
     }
 
-    private boolean isVersionEqual(Float externalEntityVersion, Float sameLocalEntityVersion) {
-        return Objects.equals(externalEntityVersion, sameLocalEntityVersion);
-    }
 
-    private boolean isExternalEntityLastUpdateNewer(Instant externalEntityLastUpdate, Instant sameLocalEntityLastUpdate) {
+    private boolean isExternalEntityLastUpdateNewer(Instant externalEntityLastUpdate, Instant
+            sameLocalEntityLastUpdate) {
         return externalEntityLastUpdate.isAfter(sameLocalEntityLastUpdate);
     }
 
-    private Mono<DataNegotiationResult> createDataNegotiationResult(Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> newEntitiesToSync, Mono<List<MVEntity4DataNegotiation>> existingEntitiesToSync) {
+    private Mono<DataNegotiationResult> createDataNegotiationResult
+            (Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> newEntitiesToSync, Mono<List<MVEntity4DataNegotiation>> existingEntitiesToSync) {
         return Mono.zip(issuerMono, newEntitiesToSync, existingEntitiesToSync).map(
                 tuple -> {
                     String issuer = tuple.getT1();
@@ -170,5 +182,18 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                     return new DataNegotiationResult(issuer, newEntitiesToSyncValue, existingEntitiesToSyncValue);
                 }
         );
+    }
+
+    private Mono<MVEntity4DataNegotiation> getReplicableEntity(
+            String processId,
+            MVEntity4DataNegotiation externalEntitiesInfo) {
+        return replicationPoliciesService
+                .isMVEntityReplicable(processId, new MVEntityReplicationPoliciesInfo(
+                        externalEntitiesInfo.id(),
+                        externalEntitiesInfo.lifecycleStatus(),
+                        externalEntitiesInfo.startDateTime(),
+                        externalEntitiesInfo.endDateTime()))
+                .filter(Boolean.TRUE::equals)
+                .map(isReplicable -> externalEntitiesInfo);
     }
 }

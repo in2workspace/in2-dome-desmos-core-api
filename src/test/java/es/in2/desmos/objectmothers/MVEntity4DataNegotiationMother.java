@@ -63,6 +63,10 @@ public final class MVEntity4DataNegotiationMother {
         return createSampleWithSameHashAndHashlink(EntityMother.PRODUCT_OFFERING_4);
     }
 
+    public static @NotNull MVEntity4DataNegotiation withoutVersion() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        return createSampleWithSameHashAndHashlink(EntityMother.WITHOUT_VERSION);
+    }
+
     public static @NotNull MVEntity4DataNegotiation sampleLaunched() {
         return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, "1.9", "2024-06-02T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, null, null);
     }
@@ -88,7 +92,7 @@ public final class MVEntity4DataNegotiationMother {
     }
 
     public static @NotNull MVEntity4DataNegotiation category1() {
-        return new MVEntity4DataNegotiation("urn:" + CATEGORY_TYPE_NAME + ":1", CATEGORY_TYPE_NAME, "1.2", "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME,"prova", "prova");
+        return new MVEntity4DataNegotiation("urn:" + CATEGORY_TYPE_NAME + ":1", CATEGORY_TYPE_NAME, "1.2", "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
     }
 
     public static @NotNull MVEntity4DataNegotiation category2() {
@@ -185,16 +189,22 @@ public final class MVEntity4DataNegotiationMother {
     }
 
 
-
     private static MVEntity4DataNegotiation createSampleWithSameHashAndHashlink(String entityMotherJson) throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         JSONObject jsonObject = new JSONObject(entityMotherJson);
         String id = jsonObject.getString("id");
         String type = jsonObject.getString("type");
-        String version = jsonObject.getJSONObject("version").getString("value");
+
+        String version;
+        if(jsonObject.has("version")){
+            version = jsonObject.getJSONObject("version").getString("value");
+        } else {
+            version = null;
+        }
+
         String lastUpdate = jsonObject.getJSONObject("lastUpdate").getString("value");
 
         String lifecycleStatus;
-        if(jsonObject.has("lifecycleStatus")){
+        if (jsonObject.has("lifecycleStatus")) {
             lifecycleStatus = jsonObject.getJSONObject("lifecycleStatus").getString("value");
         } else {
             lifecycleStatus = null;

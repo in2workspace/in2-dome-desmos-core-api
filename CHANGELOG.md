@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry mechanism for Blockchain Adapter and Context Broker.
 - Recover after a failure mechanism for Blockchain Adapter and Context Broker.
 
+## [Released]: v1.1.2
+- Fix the way that Desmos detects existing entities in P2P synchronization.
+
 ## [Released]: v1.1.1
 - Optimize repository query.
 

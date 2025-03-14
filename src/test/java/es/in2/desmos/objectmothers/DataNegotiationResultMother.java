@@ -57,9 +57,9 @@ public final class DataNegotiationResultMother {
         return new DataNegotiationResult(issuer, newEntitiesToSync, existingEntitiesToSync);
     }
 
-    public static List<DataNegotiationResult> listNewToSync4AndExistingToSync2(String issuerExistingToSync2, String issuerNewToSync4) throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+    public static List<DataNegotiationResult> listNewToSync2and4(String issuerExistingToSync2, String issuerNewToSync4) throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         List<DataNegotiationResult> dataNegotiationResults = new ArrayList<>();
-        dataNegotiationResults.add(existingToScorpioSync2(issuerExistingToSync2));
+        dataNegotiationResults.add(newToScorpioSync2(issuerExistingToSync2));
         dataNegotiationResults.add(newToScorpioSync4(issuerNewToSync4));
         return dataNegotiationResults;
     }
@@ -76,9 +76,9 @@ public final class DataNegotiationResultMother {
         return new DataNegotiationResult("http://example.org", newEntitiesToSync, existingEntitiesToSync);
     }
 
-    public static DataNegotiationResult existingToScorpioSync2(String issuer) throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
-        List<MVEntity4DataNegotiation> newEntitiesToSync = new ArrayList<>();
-        List<MVEntity4DataNegotiation> existingEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample2());
+    public static DataNegotiationResult newToScorpioSync2(String issuer) throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        List<MVEntity4DataNegotiation> newEntitiesToSync = List.of(MVEntity4DataNegotiationMother.sample2());
+        List<MVEntity4DataNegotiation> existingEntitiesToSync = new ArrayList<>();
         return new DataNegotiationResult(issuer, newEntitiesToSync, existingEntitiesToSync);
     }
 

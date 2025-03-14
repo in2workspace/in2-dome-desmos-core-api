@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 
 import java.time.Instant;
+import java.util.Optional;
 
 public record MVEntity4DataNegotiation(
         @JsonProperty("id") @NotBlank String id,
@@ -24,7 +25,16 @@ public record MVEntity4DataNegotiation(
     }
 
     @JsonIgnore
-    public Instant getInstantLastUpdate() {
-        return Instant.parse(lastUpdate);
+    public Optional<Instant> getInstantLastUpdate() {
+        try {
+            return Optional.of(Instant.parse(lastUpdate));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    @JsonIgnore
+    public boolean hasVersion() {
+        return version != null && !version.isBlank();
     }
 }

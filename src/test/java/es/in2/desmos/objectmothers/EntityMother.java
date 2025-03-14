@@ -297,6 +297,38 @@ public final class EntityMother {
                 }
             }""";
 
+    public static final String WITHOUT_VERSION = """
+            {
+                "id": "urn:product-offering:5",
+                "type": "product-offering",
+                "lifecycleStatus": {
+                    "type": "Property",
+                    "value": "Launched"
+                },
+                "validFor": {
+                    "type": "Property",
+                    "value": {
+                        "startDateTime": "2024-01-01T00:00:00.000Z",
+                        "endDateTime": "2099-01-01T00:00:00.000Z"
+                    }
+                },
+                "lastUpdate": {
+                    "type": "Property",
+                    "value": "2024-09-05T12:00:00Z"
+                },
+                "productOfferingPrice": {
+                    "type": "Relationship",
+                    "object": "urn:912efae1-7ff6-4838-89f3-cfedfdfa1c54"
+                },
+                "productSpecification": {
+                    "type": "Property",
+                    "value": {
+                        "name": "1Gbps Broadband Spec",
+                        "id": "spec-broadband-001"
+                    }
+                }
+            }""";
+
     public static final String CATEGORY = """
             {
                 "id": "urn:category:1",
