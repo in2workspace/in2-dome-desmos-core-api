@@ -8,7 +8,6 @@ import es.in2.desmos.infrastructure.configs.LearCredentialMachineConfig;
 import es.in2.desmos.infrastructure.configs.VerifierConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.env.Environment;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
@@ -30,7 +29,6 @@ public class M2MAccessTokenProvider {
     private final LearCredentialMachineConfig learCredentialMachineConfig;
     private final VerifierConfig verifierConfig;
     private final VerifierService verifierService;
-    private final Environment environment;
 
     public Mono<String> getM2MAccessToken() {
         return Mono.fromCallable(this::getM2MFormUrlEncodeBodyValue)
@@ -70,19 +68,13 @@ public class M2MAccessTokenProvider {
 
             String vpTokenJWTString = createVPTokenJWT(vcMachineString, clientId, iat, exp);
 
-            // TODO: Remove check when Verifier will be updated
-            String vpTokenJWTToPayload;
-            if (Arrays.asList(environment.getActiveProfiles()).contains("dev")) {
-                vpTokenJWTToPayload = Base64.getEncoder()
+            String vpTokenJWTBase64 = Base64.getEncoder()
                         .encodeToString(vpTokenJWTString.getBytes(StandardCharsets.UTF_8));
-            } else {
-                vpTokenJWTToPayload = vpTokenJWTString;
-            }
 
             Payload payload = new Payload(Map.of(
                     "aud", verifierConfig.getExternalUrl(),
                     "sub", clientId,
-                    "vp_token", vpTokenJWTToPayload,
+                    "vp_token", vpTokenJWTBase64,
                     "iss", clientId,
                     "exp", exp,
                     "iat", iat,
