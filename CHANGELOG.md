@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry mechanism for Blockchain Adapter and Context Broker.
 - Recover after a failure mechanism for Blockchain Adapter and Context Broker.
 
+## [Released]: v1.2.0
+- Add PEP call
+
 ## [Released]: v1.1.3
 - Fix web buffer problems communicating with Scorpio with many entities.
 
