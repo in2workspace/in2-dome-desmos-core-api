@@ -212,7 +212,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
     }
 
     @Override
-    public <T extends BrokerEntityWithIdAndType> Mono<T[]> findAllIdTypeAndAttributesByType(String processId, String type, String firstAttribute, String secondAttribute, String thirdAttribute, String forthAttribute, Class<T[]> responseClass) {
+    public <T extends BrokerEntityWithIdAndType> Flux<T> findAllIdTypeAndAttributesByType(String processId, String type, String firstAttribute, String secondAttribute, String thirdAttribute, String forthAttribute, Class<T> responseClass) {
         log.info("ProcessID: {} - Getting Entities With Version And Last Update", processId);
 
         String uri = brokerConfig.getEntitiesPath() + "/" + String.format("?type=%s&options=keyValues&limit=1000", type);
@@ -222,7 +222,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
                 .uri(uri)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
-                .bodyToMono(responseClass)
+                .bodyToFlux(responseClass)
                 .retry(3);
     }
 
