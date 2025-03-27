@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Released]: v1.1.3
 - Fix web buffer problems communicating with Scorpio with many entities.
 
+## [Released]: v1.1.2
+- Fix the way that Desmos detects existing entities in P2P synchronization.
+
 ## [Released]: v1.1.1
 - Optimize repository query.
 
