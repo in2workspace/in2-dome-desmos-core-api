@@ -130,3 +130,6 @@ external-access-nodes:
 verifier:
   url: "https://verifier.dome-marketplace-sbx.org"
 
+pep:
+  externalDomain: "http://pdp.evidenceledger.eu:8888/"
+  path: "/authorize/v1/policies/authz"
