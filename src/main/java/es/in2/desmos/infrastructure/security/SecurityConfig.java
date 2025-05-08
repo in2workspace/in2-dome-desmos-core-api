@@ -43,7 +43,7 @@ public class SecurityConfig {
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/health").permitAll()
+                        .pathMatchers("/health", "/prometheus", "/api/v1/sync/p2p/data").permitAll()
                         .pathMatchers("/api/v1/notifications/broker", "/api/v1/notifications/dlt").permitAll()
                         .pathMatchers("/api/v1/entities/*").authenticated() //replication endpoint
                         .pathMatchers("/api/v1/sync/p2p/*").authenticated() //synchronization endpoint
