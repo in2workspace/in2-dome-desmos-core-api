@@ -2,9 +2,8 @@ package es.in2.desmos.infrastructure.controllers;
 
 import es.in2.desmos.application.workflows.jobs.P2PDataSyncJob;
 import es.in2.desmos.domain.models.*;
-import es.in2.desmos.domain.services.sync.services.DataSyncService;
+import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
-import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -14,34 +13,24 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/sync/p2p")
 @RequiredArgsConstructor
 public class DataSyncController {
 
-    private final DataSyncService dataSyncService;
-    private final P2PDataSyncJob p2PDataSyncJob;
-    private final BrokerConfig brokerConfig;
     private final ApiConfig apiConfig;
+    private final P2PDataSyncJob p2PDataSyncJob;
+    private final BrokerPublisherService brokerPublisherService;
 
-    @GetMapping("/data")
-    public Mono<Void> synchronizeData() {
-        String processId = UUID.randomUUID().toString();
-        log.info("ProcessID: {} - Starting Data Synchronization...", processId);
-
-        return dataSyncService.synchronizeData(processId);
-    }
-
-    @PostMapping("/discovery")
+    @PostMapping("/api/v1/sync/p2p/discovery")
     @ResponseStatus(HttpStatus.OK)
     public Mono<DiscoverySyncResponse> discoverySync(@RequestBody @Valid Mono<DiscoverySyncRequest> discoverySyncRequest) {
         String processId = UUID.randomUUID().toString();
         log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Controller", processId);
-
         return discoverySyncRequest.flatMap(request -> {
                     log.debug("ProcessID: {} - Starting P2P Data Synchronization Discovery: {}", processId, request);
                     Mono<List<MVEntity4DataNegotiation>> externalMvEntities4DataNegotiationMono = Mono.just(request.externalMVEntities4DataNegotiation());
@@ -58,7 +47,7 @@ public class DataSyncController {
                 .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Data Synchronization Discovery Controller: {}", processId, error.getMessage()));
     }
 
-    @PostMapping(value = "/entities")
+    @PostMapping(value = "/api/v1/sync/p2p/entities")
     @ResponseStatus(HttpStatus.OK)
     public Flux<Entity> entitiesSync(@RequestBody @Valid Mono<@NotNull Id[]> entitySyncRequest) {
         String processId = UUID.randomUUID().toString();
@@ -75,6 +64,16 @@ public class DataSyncController {
                 })
                 .doOnComplete(() -> log.info("ProcessID: {} - P2P Entities Synchronization successfully.", processId))
                 .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Entities Synchronization Controller: {}", processId, error.getMessage()));
+    }
+
+    @GetMapping("/api/v1/entities/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    public Flux<Entity> getEntities(@PathVariable String id) {
+        String processId = UUID.randomUUID().toString();
+        Mono<List<Id>> idsListMono = Mono.just(List.of(new Id(id)));
+        return brokerPublisherService
+                .findEntitiesAndItsSubentitiesByIdInBase64(processId, idsListMono, new ArrayList<>())
+                .flatMapMany(Flux::fromIterable);
     }
 
 }

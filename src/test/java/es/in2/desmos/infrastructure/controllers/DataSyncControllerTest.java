@@ -18,9 +18,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
-@WebFluxTest(EntitiesController.class)
+@WebFluxTest(DataSyncController.class)
 @WithMockUser
-class EntitiesControllerTest {
+class DataSyncControllerTest {
 
     @MockBean
     private BrokerPublisherService brokerPublisherService;
