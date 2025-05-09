@@ -1,7 +1,10 @@
 package es.in2.desmos.infrastructure.controllers;
 
+import es.in2.desmos.application.workflows.jobs.P2PDataSyncJob;
 import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
+import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.ApiConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
@@ -23,6 +26,12 @@ import static org.mockito.Mockito.when;
 class DataSyncControllerTest {
 
     @MockBean
+    private ApiConfig apiConfig;
+
+    @MockBean
+    private P2PDataSyncJob p2PDataSyncJob;
+
+    @MockBean
     private BrokerPublisherService brokerPublisherService;
 
     @Autowired
@@ -41,7 +50,7 @@ class DataSyncControllerTest {
 
         webTestClient
                 .get()
-                .uri("/api/v1/entities/{id}", id)
+                .uri(EndpointsConstants.GET_ENTITY + "/{id}", id)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer <token>")
                 .exchange()

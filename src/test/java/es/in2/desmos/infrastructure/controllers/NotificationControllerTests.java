@@ -4,6 +4,7 @@ import es.in2.desmos.domain.models.BlockchainNotification;
 import es.in2.desmos.domain.models.BrokerNotification;
 import es.in2.desmos.domain.services.blockchain.BlockchainListenerService;
 import es.in2.desmos.domain.services.broker.BrokerListenerService;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -48,7 +49,7 @@ class NotificationControllerTests {
         WebTestClient.bindToController(notificationController)
                 .build()
                 .post()
-                .uri("/api/v1/notifications/broker")
+                .uri(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(brokerNotification)
                 .exchange()
@@ -78,7 +79,7 @@ class NotificationControllerTests {
         WebTestClient.bindToController(notificationController)
                 .build()
                 .post()
-                .uri("/api/v1/notifications/dlt")
+                .uri(EndpointsConstants.DLT_ADAPTER_NOTIFICATION)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(blockchainNotification)
                 .exchange()
@@ -93,7 +94,7 @@ class NotificationControllerTests {
         WebTestClient.bindToController(notificationController)
                 .build()
                 .post()
-                .uri("/api/v1/notifications/broker")
+                .uri(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(invalidNotification)
                 .exchange()
@@ -108,7 +109,7 @@ class NotificationControllerTests {
         WebTestClient.bindToController(notificationController)
                 .build()
                 .post()
-                .uri("/api/v1/notifications/dlt")
+                .uri(EndpointsConstants.DLT_ADAPTER_NOTIFICATION)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(invalidNotification)
                 .exchange()

@@ -1,5 +1,6 @@
 package es.in2.desmos.infrastructure.security;
 
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.filters.BearerTokenReactiveAuthenticationManager;
 import es.in2.desmos.infrastructure.security.filters.ServerHttpBearerAuthenticationConverter;
 import lombok.RequiredArgsConstructor;
@@ -43,14 +44,14 @@ public class SecurityConfig {
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers("/health", "/prometheus", "/api/v1/sync/p2p/data").permitAll()
-                        .pathMatchers("/api/v1/notifications/broker", "/api/v1/notifications/dlt").permitAll()
-                        .pathMatchers("/api/v1/entities/*").authenticated() //replication endpoint
-                        .pathMatchers("/api/v1/sync/p2p/*").authenticated() //synchronization endpoint
+                        .pathMatchers(EndpointsConstants.HEALTH, EndpointsConstants.PROMETHEUS, EndpointsConstants.P2P_DATA_SYNC).permitAll()
+                        .pathMatchers(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION, EndpointsConstants.DLT_ADAPTER_NOTIFICATION).permitAll()
+                        .pathMatchers(EndpointsConstants.GET_ENTITY + "/*").authenticated() //replication endpoint
+                        .pathMatchers(EndpointsConstants.P2P_DATA_SYNC + "/*").authenticated() //synchronization endpoint
                         .anyExchange().authenticated()
                 )
                 .csrf(csrf -> csrf
-                        .requireCsrfProtectionMatcher(ServerWebExchangeMatchers.pathMatchers("/api/v1/**"))
+                        .requireCsrfProtectionMatcher(ServerWebExchangeMatchers.pathMatchers(EndpointsConstants.API_V1_PREFIX + "/**"))
                         .csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse())
                         .disable() // Disable CSRF protection for specific paths
                 )
@@ -80,7 +81,7 @@ public class SecurityConfig {
         bearerAuthenticationFilter
                 .setAuthenticationConverter(bearerConverter);
         bearerAuthenticationFilter
-                .setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.pathMatchers("/api/v1/**"));
+                .setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.pathMatchers(EndpointsConstants.API_V1_PREFIX + "/**"));
         return bearerAuthenticationFilter;
     }
 }

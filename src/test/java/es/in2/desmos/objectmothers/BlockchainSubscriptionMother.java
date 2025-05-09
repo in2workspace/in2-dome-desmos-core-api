@@ -1,6 +1,7 @@
 package es.in2.desmos.objectmothers;
 
 import es.in2.desmos.domain.models.BlockchainSubscription;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 
 import java.util.List;
 
@@ -25,9 +26,7 @@ public final class BlockchainSubscriptionMother {
 
         List<String> metadata = List.of("dev");
 
-        String notificationEndpoint = "/api/v1/notifications/dlt";
-
-        return new BlockchainSubscription(eventTypes, metadata, notificationEndpoint);
+        return new BlockchainSubscription(eventTypes, metadata, EndpointsConstants.DLT_ADAPTER_NOTIFICATION);
     }
 
     public static BlockchainSubscription otherEventTypesSubscription() {
@@ -50,8 +49,7 @@ public final class BlockchainSubscriptionMother {
 
         List<String> metadata = List.of("local");
 
-        String notificationEndpoint = "http://localhost:8081/api/v1/notifications/dlt";
-
+        String notificationEndpoint = "http://localhost:8081" + EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
         return new BlockchainSubscription(eventTypes, metadata, notificationEndpoint);
     }
 }

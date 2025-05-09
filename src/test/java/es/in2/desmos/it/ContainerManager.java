@@ -1,5 +1,6 @@
 package es.in2.desmos.it;
 
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -63,7 +64,7 @@ public class ContainerManager {
                 .withEnv("ISS", "0x9eb763b0a6b7e617d56b85f1df943f176018c8eedb2dd9dd37c0bd77496833fe")
                 .withNetwork(testNetworkA)
                 .withNetworkAliases("dlt-adapter-node-a")
-                .waitingFor(Wait.forHttp("/health").forStatusCode(200));
+                .waitingFor(Wait.forHttp(EndpointsConstants.HEALTH).forStatusCode(200));
         blockchainAdapterContainerA.start();
     }
 
@@ -104,7 +105,7 @@ public class ContainerManager {
                 .withEnv("ISS", "0x9eb763b0a6b7e617d56b85f1df943f176018c8eedb2dd9dd37c0bd77496833fe")
                 .withNetwork(testNetworkB)
                 .withNetworkAliases("dlt-adapter-node-b")
-                .waitingFor(Wait.forHttp("/health").forStatusCode(200));
+                .waitingFor(Wait.forHttp(EndpointsConstants.HEALTH).forStatusCode(200));
         blockchainAdapterContainerB.start();
 
         desmosContainerB = new GenericContainer<>(DockerImageName.parse("in2workspace/in2-desmos-api:v1.0.0-snapshot"))
@@ -119,12 +120,12 @@ public class ContainerManager {
                 .withEnv("DLT_ADAPTER_PROVIDER", "digitelts")
                 .withEnv("DLT_ADAPTER_INTERNAL_DOMAIN", "http://dlt-adapter-node-b:8080")
                 .withEnv("DLT_ADAPTER_EXTERNAL_DOMAIN", "http://dlt-adapter-node-b:8080")
-                .withEnv("TX_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080/api/v1/notifications/dlt")
+                .withEnv("TX_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080" + EndpointsConstants.DLT_ADAPTER_NOTIFICATION)
                 .withEnv("TX_SUBSCRIPTION_ENTITY_TYPES", "ProductOffering,Category,Catalogue")
                 .withEnv("BROKER_PROVIDER", "scorpio")
                 .withEnv("BROKER_INTERNAL_DOMAIN", "http://scorpio-node-b:9090")
                 .withEnv("BROKER_EXTERNAL_DOMAIN", "http://scorpio-node-b:9090")
-                .withEnv("NGSI_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080/api/v1/notifications/broker")
+                .withEnv("NGSI_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080" + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
                 .withEnv("NGSI_SUBSCRIPTION_ENTITY_TYPES", "ProductOffering,Category,Catalogue")
                 .dependsOn(blockchainAdapterContainerB)
                 .dependsOn(scorpioContainerB)

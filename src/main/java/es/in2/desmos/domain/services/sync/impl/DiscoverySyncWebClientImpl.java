@@ -4,6 +4,7 @@ import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.DiscoverySyncRequest;
 import es.in2.desmos.domain.models.DiscoverySyncResponse;
 import es.in2.desmos.domain.services.sync.DiscoverySyncWebClient;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,7 +32,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                         webClient
                                 .post()
                                 .uri(UriComponentsBuilder.fromHttpUrl(tuple.getT1())
-                                        .path("/api/v1/sync/p2p/discovery")
+                                        .path(EndpointsConstants.P2P_DISCOVERY_SYNC)
                                         .build()
                                         .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())

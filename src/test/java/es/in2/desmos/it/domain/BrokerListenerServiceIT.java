@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
 import es.in2.desmos.domain.services.broker.adapter.factory.BrokerAdapterFactory;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.it.ContainerManager;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,7 +62,7 @@ class BrokerListenerServiceIT {
                         BrokerSubscription.Entity.builder().type("Catalogue").build()))
                 .notification(BrokerSubscription.SubscriptionNotification.builder()
                         .subscriptionEndpoint(BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.builder()
-                                .uri("http://localhost:8080/api/v1/notifications/broker")
+                                .uri("http://localhost:8080" + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
                                 .accept("application/json")
                                 .receiverInfo(List.of(
                                         BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.RetrievalInfoContentType.builder()
