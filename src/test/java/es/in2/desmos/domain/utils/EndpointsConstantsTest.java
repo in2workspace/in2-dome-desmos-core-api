@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class EndpointsConstantsTest {
     @Test
@@ -14,6 +14,7 @@ class EndpointsConstantsTest {
 
         constructor.setAccessible(true);
 
-        assertThrows(InvocationTargetException.class, constructor::newInstance);
+        assertThatThrownBy(constructor::newInstance)
+                .isInstanceOf(InvocationTargetException.class);
     }
 }
