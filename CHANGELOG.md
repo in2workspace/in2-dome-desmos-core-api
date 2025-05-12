@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Recover after a failure mechanism for Blockchain Adapter and Context Broker.
 
 ## [Released]: v1.1.4
-- Desecurize "/prometheus" and "/api/v1/sync/p2p/data" endpoints.
+- Desecurize "/prometheus" and "/backoffice/v1/actions/sync" endpoints.
 
 ## [Released]: v1.1.3
 - Fix web buffer problems communicating with Scorpio with many entities.
