@@ -1,5 +1,6 @@
 package es.in2.desmos.infrastructure.security;
 
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -22,20 +23,20 @@ public class CorsConfig {
 
         CorsConfiguration brokerCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(brokerCorsConfig);
-        source.registerCorsConfiguration("/api/v1/notifications/broker", brokerCorsConfig);
+        source.registerCorsConfiguration(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION, brokerCorsConfig);
 
         CorsConfiguration dltAdapterCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(dltAdapterCorsConfig);
-        source.registerCorsConfiguration("/api/v1/notifications/dlt", dltAdapterCorsConfig);
+        source.registerCorsConfiguration(EndpointsConstants.DLT_ADAPTER_NOTIFICATION, dltAdapterCorsConfig);
 
 
         CorsConfiguration githubSyncUrlsCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(githubSyncUrlsCorsConfig);
-        source.registerCorsConfiguration("/api/v1/sync/p2p/**", githubSyncUrlsCorsConfig);
+        source.registerCorsConfiguration(EndpointsConstants.P2P_SYNC_PREFIX + "/**", githubSyncUrlsCorsConfig);
 
         CorsConfiguration githubEntitiesUrlsCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(githubEntitiesUrlsCorsConfig);
-        source.registerCorsConfiguration("/api/v1/entities/**", githubEntitiesUrlsCorsConfig);
+        source.registerCorsConfiguration(EndpointsConstants.GET_ENTITY + "/**", githubEntitiesUrlsCorsConfig);
 
         return source;
     }

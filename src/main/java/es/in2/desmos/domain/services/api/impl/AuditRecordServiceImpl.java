@@ -8,6 +8,7 @@ import es.in2.desmos.domain.repositories.AuditRecordRepository;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.utils.ApplicationUtils;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -243,7 +244,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     private static String getDataLocationForProducedEntity(String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation) {
         return issuer +
-                "/api/v1/entities/" +
+                EndpointsConstants.GET_ENTITY +
+                "/" +
                 mvAuditServiceEntity4DataNegotiation.id() +
                 HASHLINK_PREFIX
                 + mvAuditServiceEntity4DataNegotiation.hashlink();

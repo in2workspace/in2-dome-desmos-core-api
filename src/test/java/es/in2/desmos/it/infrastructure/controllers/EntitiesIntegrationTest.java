@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.utils.Base64Converter;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.inflators.ScorpioInflator;
 import es.in2.desmos.it.ContainerManager;
 import es.in2.desmos.objectmothers.BrokerDataMother;
@@ -89,7 +90,7 @@ class EntitiesIntegrationTest {
 
         webTestClient
                 .get()
-                .uri("/api/v1/entities/{id}", BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID)
+                .uri(EndpointsConstants.GET_ENTITY + "/{id}", BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBodyList(Entity.class)

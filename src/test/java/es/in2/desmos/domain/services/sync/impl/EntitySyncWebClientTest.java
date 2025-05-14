@@ -2,6 +2,7 @@ package es.in2.desmos.domain.services.sync.impl;
 
 import es.in2.desmos.domain.exceptions.EntitySyncException;
 import es.in2.desmos.domain.models.Id;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -86,7 +87,7 @@ class EntitySyncWebClientTest {
                 .verifyComplete();
 
         var recordedRequest = mockWebServer.takeRequest();
-        assertThat(recordedRequest.getPath()).isEqualTo("/api/v1/sync/p2p/entities");
+        assertThat(recordedRequest.getPath()).isEqualTo(EndpointsConstants.P2P_ENTITIES_SYNC);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
         assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
     }

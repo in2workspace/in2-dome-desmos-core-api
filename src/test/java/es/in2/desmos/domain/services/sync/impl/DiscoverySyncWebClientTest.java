@@ -2,6 +2,7 @@ package es.in2.desmos.domain.services.sync.impl;
 
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.DiscoverySyncResponse;
+import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import es.in2.desmos.objectmothers.DiscoverySyncRequestMother;
 import okhttp3.mockwebserver.MockResponse;
@@ -88,7 +89,7 @@ class DiscoverySyncWebClientTest {
                 .verifyComplete();
 
         var recordedRequest = mockWebServer.takeRequest();
-        assertThat(recordedRequest.getPath()).isEqualTo("/api/v1/sync/p2p/discovery");
+        assertThat(recordedRequest.getPath()).isEqualTo(EndpointsConstants.P2P_DISCOVERY_SYNC);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
         assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
     }
