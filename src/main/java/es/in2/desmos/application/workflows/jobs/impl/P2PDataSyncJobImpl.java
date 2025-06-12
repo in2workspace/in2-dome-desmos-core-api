@@ -40,7 +40,23 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     private final ReplicationPoliciesService replicationPoliciesService;
 
-    private static final String[] BROKER_ENTITY_TYPES = {"product-offering", "category", "catalog"};
+    private static final String[] BROKER_ENTITY_TYPES = {
+            "individual",
+            "organization",
+            "catalog",
+            "product-offering",
+            "product-offering-price",
+            "product-specification",
+            "service-specification",
+            "resource-specification",
+            "category",
+            "product-order",
+            "product",
+            "usage",
+            "usage-specification",
+            "applied-customer-bill-rate",
+            "customer-bill"
+    };
 
     @Override
     public Mono<Void> synchronizeData(String processId) {
