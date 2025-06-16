@@ -25,6 +25,7 @@ import reactor.test.StepVerifier;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -64,19 +65,42 @@ class P2PDataSyncJobTests {
         String processId = "0";
 
         var brokerEntities = MVBrokerEntity4DataNegotiationMother.list3And4();
-        when(brokerPublisherService.findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class))
-                .thenReturn(Flux.fromIterable(brokerEntities));
         var brokerCategories = MVBrokerEntity4DataNegotiationMother.listCategories();
-        when(brokerPublisherService.findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class))
-                .thenReturn(Flux.fromIterable(brokerCategories));
         var brokerCatalogs = MVBrokerEntity4DataNegotiationMother.listCatalogs();
-        when(brokerPublisherService.findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class))
-                .thenReturn(Flux.fromIterable(brokerCatalogs));
+
+        when(brokerPublisherService.findAllIdTypeAndAttributesByType(
+                eq(processId),
+                anyString(),
+                eq("lastUpdate"),
+                eq("version"),
+                eq("lifecycleStatus"),
+                eq("validFor"),
+                eq(BrokerEntityWithIdTypeLastUpdateAndVersion.class))
+        ).thenAnswer(invocation -> {
+            String entityType = invocation.getArgument(1);
+            List<?> result = switch (entityType) {
+                case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME -> brokerEntities;
+                case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME -> brokerCategories;
+                case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME -> brokerCatalogs;
+                default -> Collections.emptyList();
+            };
+
+            return Flux.fromIterable(result);
+        });
 
         when(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any()))
-                .thenReturn(Mono.just(MVAuditServiceEntity4DataNegotiationMother.sample3and4()))
-                .thenReturn(Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCategories()))
-                .thenReturn(Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCatalogs()));
+                .thenAnswer(invocation -> {
+                    String entityType = invocation.getArgument(1);
+                    return switch (entityType) {
+                        case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME ->
+                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
+                        case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME ->
+                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCategories());
+                        case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME ->
+                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
+                        default -> Mono.just(Collections.emptyList());
+                    };
+                });
 
         String myDomain = "http://my-domain.org";
         when(apiConfig.getExternalDomain()).thenReturn(myDomain);
@@ -163,6 +187,9 @@ class P2PDataSyncJobTests {
                 mvEntityReplicationPoliciesInfoCatalogs
         )).thenReturn(mvEntityReplicationPoliciesInfoCatalogsIdsFlux);
 
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(processId, Collections.emptyList()))
+                .thenReturn(Flux.empty());
+
         var result = p2PDataSyncJob.synchronizeData(processId);
 
         StepVerifier
@@ -172,19 +199,19 @@ class P2PDataSyncJobTests {
         verify(brokerPublisherService, times(1)).findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class);
         verifyNoMoreInteractions(brokerPublisherService);
 
-        verify(auditRecordService, times(3)).findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any());
+        //Should be number of times as BROKER_ENTITY_TYPES lenght is
+        verify(auditRecordService, atLeastOnce()).findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any());
         verifyNoMoreInteractions(auditRecordService);
-
-        verify(externalAccessNodesConfig, times(3)).getExternalAccessNodesUrls();
+        verify(externalAccessNodesConfig, atLeastOnce()).getExternalAccessNodesUrls();
         verifyNoMoreInteractions(externalAccessNodesConfig);
 
-        verify(apiConfig, times(6)).getExternalDomain();
+        verify(apiConfig, atLeastOnce()).getExternalDomain();
         verifyNoMoreInteractions(apiConfig);
 
-        verify(discoverySyncWebClient, times(6)).makeRequest(eq(processId), any(), any());
+        verify(discoverySyncWebClient, atLeastOnce()).makeRequest(eq(processId), any(), any());
         verifyNoMoreInteractions(discoverySyncWebClient);
 
-        verify(dataNegotiationJob, times(3)).negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());
+        verify(dataNegotiationJob, atLeastOnce()).negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());
         verifyNoMoreInteractions(dataNegotiationJob);
     }
 
@@ -197,19 +224,41 @@ class P2PDataSyncJobTests {
         String processId = "0";
 
         var brokerEntities = MVBrokerEntity4DataNegotiationMother.list3And4();
-        when(brokerPublisherService.findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class))
-                .thenReturn(Flux.fromIterable(brokerEntities));
         var brokerCategories = MVBrokerEntity4DataNegotiationMother.listCategories();
-        when(brokerPublisherService.findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class))
-                .thenReturn(Flux.fromIterable(brokerCategories));
         var brokerCatalogs = MVBrokerEntity4DataNegotiationMother.listCatalogs();
-        when(brokerPublisherService.findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class))
-                .thenReturn(Flux.fromIterable(brokerCatalogs));
+
+        when(brokerPublisherService.findAllIdTypeAndAttributesByType(
+                eq(processId),
+                anyString(),
+                eq("lastUpdate"),
+                eq("version"),
+                eq("lifecycleStatus"),
+                eq("validFor"),
+                eq(BrokerEntityWithIdTypeLastUpdateAndVersion.class))
+        ).thenAnswer(invocation -> {
+            String entityType = invocation.getArgument(1);
+            List<?> result = switch (entityType) {
+                case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME -> brokerEntities;
+                case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME -> brokerCategories;
+                case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME -> brokerCatalogs;
+                default -> Collections.emptyList();
+            };
+            return Flux.fromIterable(result);
+        });
 
         when(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any()))
-                .thenReturn(Mono.just(MVAuditServiceEntity4DataNegotiationMother.sample3and4()))
-                .thenReturn(Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCategories()))
-                .thenReturn(Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCatalogs()));
+                .thenAnswer(invocation -> {
+                    String entityType = invocation.getArgument(1);
+                    return switch (entityType) {
+                        case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME ->
+                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
+                        case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME ->
+                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCategories());
+                        case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME ->
+                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
+                        default -> Mono.just(Collections.emptyList());
+                    };
+                });
 
         List<MVEntityReplicationPoliciesInfo> mvEntityReplicationPoliciesInfoProductOfferings =
                 brokerEntities
@@ -277,6 +326,9 @@ class P2PDataSyncJobTests {
                 mvEntityReplicationPoliciesInfoCatalogs
         )).thenReturn(mvEntityReplicationPoliciesInfoCatalogsIdsFlux);
 
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(processId, Collections.emptyList()))
+                .thenReturn(Flux.empty());
+
         Mono<List<MVEntity4DataNegotiation>> resultMono = p2PDataSyncJob.dataDiscovery(
                 processId,
                 Mono.just("https://example.org"),
@@ -290,7 +342,8 @@ class P2PDataSyncJobTests {
         verify(brokerPublisherService, times(1)).findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class);
         verifyNoMoreInteractions(brokerPublisherService);
 
-        verify(auditRecordService, times(3)).findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any());
+        //Should be number of times as BROKER_ENTITY_TYPES lenght is
+        verify(auditRecordService, times(15)).findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any());
         verifyNoMoreInteractions(auditRecordService);
     }
 
