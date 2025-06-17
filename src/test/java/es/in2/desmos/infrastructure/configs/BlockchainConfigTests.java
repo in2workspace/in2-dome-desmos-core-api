@@ -22,6 +22,22 @@ class BlockchainConfigTests {
     @InjectMocks
     private BlockchainConfig blockchainConfig;
 
+    private final List<String> ENTITIES_LIST = List.of("individual",
+            "organization",
+            "catalog",
+            "product-offering",
+            "product-offering-price",
+            "product-specification",
+            "service-specification",
+            "resource-specification",
+            "category",
+            "product-order",
+            "product",
+            "usage",
+            "usage-specification",
+            "applied-customer-bill-rate",
+            "customer-bill");
+
     @Test
     void getNotificationEndpointReturnsCorrectEndpoint() {
         // Arrange
@@ -35,12 +51,10 @@ class BlockchainConfigTests {
 
     @Test
     void getEntityTypesReturnsCorrectEntities() {
-        // Arrange
-        List<String> expectedEntityTypes = List.of("product-offering", "category", "catalog");
         // Act
         List<String> actualEntityTypes = blockchainConfig.getEntityTypes();
         // Assert
-        assertEquals(expectedEntityTypes, actualEntityTypes, "The entity types should match the expected values");
+        assertEquals(ENTITIES_LIST, actualEntityTypes, "The entity types should match the expected values");
     }
 
 }

@@ -12,7 +12,21 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BlockchainConfig {
 
-    private static final List<String> ENTITY_TYPES = List.of("product-offering", "category", "catalog");
+    private static final List<String> ENTITY_TYPES = List.of("individual",
+            "organization",
+            "catalog",
+            "product-offering",
+            "product-offering-price",
+            "product-specification",
+            "service-specification",
+            "resource-specification",
+            "category",
+            "product-order",
+            "product",
+            "usage",
+            "usage-specification",
+            "applied-customer-bill-rate",
+            "customer-bill");
 
     private final TxSubscriptionProperties txSubscriptionProperties;
 
