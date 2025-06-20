@@ -5,6 +5,8 @@ import es.in2.desmos.domain.models.DiscoverySyncRequest;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -20,7 +22,7 @@ public final class DiscoverySyncRequestMother {
         mVEntity4DataNegotiationIds.add(MVEntity4DataNegotiationMother.sample1());
         mVEntity4DataNegotiationIds.add(MVEntity4DataNegotiationMother.sample2());
 
-        return new DiscoverySyncRequest(issuer, mVEntity4DataNegotiationIds);
+        return new DiscoverySyncRequest(Mono.just(issuer), Flux.fromIterable(mVEntity4DataNegotiationIds));
     }
 
     public static @NotNull DiscoverySyncRequest scorpioFullList(String issuer) throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
@@ -31,6 +33,6 @@ public final class DiscoverySyncRequestMother {
                         MVEntity4DataNegotiationMother.sample3(),
                         MVEntity4DataNegotiationMother.sample4());
 
-        return new DiscoverySyncRequest(issuer, mVEntity4DataNegotiationIds);
+        return new DiscoverySyncRequest(Mono.just(issuer), Flux.fromIterable(mVEntity4DataNegotiationIds));
     }
 }

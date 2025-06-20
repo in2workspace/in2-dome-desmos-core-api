@@ -106,11 +106,11 @@ class P2PDataSyncJobTests {
         when(apiConfig.getExternalDomain()).thenReturn(myDomain);
 
         String externalDomain = "http://external-domain.org";
-        List<MVEntity4DataNegotiation> sample3InList = List.of(MVEntity4DataNegotiationMother.sample3());
-        DiscoverySyncResponse discoverySyncResponse3 = new DiscoverySyncResponse(externalDomain, sample3InList);
+        DiscoverySyncResponse discoverySyncResponse3 = new DiscoverySyncResponse(Mono.just(externalDomain),
+                Flux.just(MVEntity4DataNegotiationMother.sample3()));
 
-        List<MVEntity4DataNegotiation> sample4InList = List.of(MVEntity4DataNegotiationMother.sample4());
-        DiscoverySyncResponse discoverySyncResponse4 = new DiscoverySyncResponse(externalDomain, sample4InList);
+        DiscoverySyncResponse discoverySyncResponse4 = new DiscoverySyncResponse(Mono.just(externalDomain),
+                Flux.just(MVEntity4DataNegotiationMother.sample4()));
 
         when(discoverySyncWebClient.makeRequest(eq(processId), any(), any()))
                 .thenReturn(Mono.just(discoverySyncResponse3))

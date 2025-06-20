@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.DiscoverySyncResponse;
 import org.json.JSONException;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
@@ -16,17 +18,15 @@ public final class DiscoveryResponseMother {
     }
 
     public static String scorpioJson2List() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
-        var mvEntity4DataNegotiations = List.of(MVEntity4DataNegotiationMother.sample2());
-
-        DiscoverySyncResponse discoverySyncResponse = new DiscoverySyncResponse("http://external-domain.org", mvEntity4DataNegotiations);
+        Mono<String> externalDomain = Mono.just("http://external-domain.org");
+        DiscoverySyncResponse discoverySyncResponse = new DiscoverySyncResponse(externalDomain, Flux.just(MVEntity4DataNegotiationMother.sample2()));
 
         return objectMapper.writeValueAsString(discoverySyncResponse);
     }
 
     public static String scorpioJson4List() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
-        var mvEntity4DataNegotiations = List.of(MVEntity4DataNegotiationMother.sample4());
-
-        DiscoverySyncResponse discoverySyncResponse = new DiscoverySyncResponse("http://external-domain.org", mvEntity4DataNegotiations);
+        Mono<String> externalDomain = Mono.just("http://external-domain.org");
+        DiscoverySyncResponse discoverySyncResponse = new DiscoverySyncResponse(externalDomain, Flux.just(MVEntity4DataNegotiationMother.sample4()));
 
         return objectMapper.writeValueAsString(discoverySyncResponse);
     }

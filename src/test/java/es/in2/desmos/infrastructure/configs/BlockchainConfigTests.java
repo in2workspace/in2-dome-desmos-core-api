@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -21,22 +22,6 @@ class BlockchainConfigTests {
 
     @InjectMocks
     private BlockchainConfig blockchainConfig;
-
-    private final List<String> ENTITIES_LIST = List.of("individual",
-            "organization",
-            "catalog",
-            "product-offering",
-            "product-offering-price",
-            "product-specification",
-            "service-specification",
-            "resource-specification",
-            "category",
-            "product-order",
-            "product",
-            "usage",
-            "usage-specification",
-            "applied-customer-bill-rate",
-            "customer-bill");
 
     @Test
     void getNotificationEndpointReturnsCorrectEndpoint() {
@@ -50,11 +35,11 @@ class BlockchainConfigTests {
     }
 
     @Test
-    void getEntityTypesReturnsCorrectEntities() {
+    void getRootObjectsReturnsCorrectEntities() {
         // Act
-        List<String> actualEntityTypes = blockchainConfig.getEntityTypes();
+        List<String> actualEntityTypes = blockchainConfig.getRootObjects();
         // Assert
-        assertEquals(ENTITIES_LIST, actualEntityTypes, "The entity types should match the expected values");
+        assertEquals(ROOT_OBJECTS_LIST, actualEntityTypes, "The entity types should match the expected values");
     }
 
 }
