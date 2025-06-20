@@ -20,6 +20,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -40,29 +42,11 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     private final ReplicationPoliciesService replicationPoliciesService;
 
-    private static final String[] BROKER_ENTITY_TYPES = {
-            "individual",
-            "organization",
-            "catalog",
-            "product-offering",
-            "product-offering-price",
-            "product-specification",
-            "service-specification",
-            "resource-specification",
-            "category",
-            "product-order",
-            "product",
-            "usage",
-            "usage-specification",
-            "applied-customer-bill-rate",
-            "customer-bill"
-    };
-
     @Override
     public Mono<Void> synchronizeData(String processId) {
         log.info("ProcessID: {} - Starting P2P Data Synchronization Workflow", processId);
 
-        return Flux.fromIterable(Arrays.asList(BROKER_ENTITY_TYPES))
+        return Flux.fromIterable(ROOT_OBJECTS_LIST)
                 .concatMap(entityType ->
                         createLocalMvEntitiesByType(processId, entityType)
                                 .switchIfEmpty(Mono.defer(() -> {
@@ -94,26 +78,24 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                 .flatMapIterable(externalAccessNodesList -> externalAccessNodesList)
                 .flatMap(externalAccessNode -> {
                     log.debug("ProcessID: {} - External Access Node: {}", processId, externalAccessNode);
-                    var discoverySyncRequest = new DiscoverySyncRequest(apiConfig.getExternalDomain(), localMvEntities4DataNegotiation);
+                    var discoverySyncRequest = new DiscoverySyncRequest(Mono.just(apiConfig.getExternalDomain()),  Flux.fromIterable(localMvEntities4DataNegotiation));
 
                     Mono<DiscoverySyncRequest> discoverySyncRequestMono = Mono.just(discoverySyncRequest);
 
                     return discoverySyncWebClient.makeRequest(processId, Mono.just(externalAccessNode), discoverySyncRequestMono)
-                            .map(resultList -> {
+                            .flatMap(resultList -> {
                                 log.debug("ProcessID: {} - Get DiscoverySync Response. [issuer={}, response={}]", processId, externalAccessNode, resultList);
 
                                 Issuer issuer = new Issuer(externalAccessNode);
 
-                                var filteredEntitiesByType =
-                                        resultList
-                                                .entities()
-                                                .stream()
-                                                .filter(mvEntity4DataNegotiation -> Objects.equals(mvEntity4DataNegotiation.type(), entityType))
-                                                .toList();
-
-                                log.debug("ProcessID: {} - DiscoverySync Response filtered. [issuer={}, response={}]", processId, externalAccessNode, filteredEntitiesByType);
-
-                                return Map.entry(issuer, filteredEntitiesByType);
+                                return resultList
+                                        .entities()
+                                        .filter(entity -> Objects.equals(entity.type(), entityType))
+                                        .collectList() // volvemos a Mono<List<MVEntity4DataNegotiation>>
+                                        .map(filteredEntities -> {
+                                            log.debug("ProcessID: {} - DiscoverySync Response filtered. [issuer={}, response={}]", processId, externalAccessNode, filteredEntities);
+                                            return Map.entry(issuer, filteredEntities);
+                                        });
                             });
                 })
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
@@ -146,7 +128,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
     public Mono<List<MVEntity4DataNegotiation>> dataDiscovery(String processId, Mono<String> issuer, Mono<List<MVEntity4DataNegotiation>> externalMvEntities4DataNegotiationMono) {
         log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Workflow", processId);
 
-        return Flux.fromIterable(Arrays.asList(BROKER_ENTITY_TYPES))
+        return Flux.fromIterable(ROOT_OBJECTS_LIST)
                 .concatMap(entityType ->
                         createLocalMvEntitiesByType(processId, entityType)
                                 .flatMap(localMvEntities4DataNegotiation -> {

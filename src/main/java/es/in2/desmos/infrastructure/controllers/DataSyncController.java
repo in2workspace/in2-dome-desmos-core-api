@@ -33,14 +33,14 @@ public class DataSyncController {
         log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Controller", processId);
         return discoverySyncRequest.flatMap(request -> {
                     log.debug("ProcessID: {} - Starting P2P Data Synchronization Discovery: {}", processId, request);
-                    Mono<List<MVEntity4DataNegotiation>> externalMvEntities4DataNegotiationMono = Mono.just(request.externalMVEntities4DataNegotiation());
-                    Mono<String> issuerMono = Mono.just(request.issuer());
+                    Mono<List<MVEntity4DataNegotiation>> externalMvEntities4DataNegotiationMono = request.externalMVEntities4DataNegotiation().collectList();
+                    Mono<String> issuerMono = request.issuer();
                     return p2PDataSyncJob.dataDiscovery(processId, issuerMono, externalMvEntities4DataNegotiationMono)
                             .flatMap(localMvEntities4DataNegotiation -> {
                                 Mono<List<MVEntity4DataNegotiation>> localMvEntities4DataNegotiationMono = Mono.just(localMvEntities4DataNegotiation);
 
                                 return localMvEntities4DataNegotiationMono.map(mvEntities4DataNegotiation ->
-                                        new DiscoverySyncResponse(apiConfig.getExternalDomain(), mvEntities4DataNegotiation));
+                                        new DiscoverySyncResponse(Mono.just(apiConfig.getExternalDomain()), Flux.fromIterable(mvEntities4DataNegotiation)));
                             });
                 })
                 .doOnSuccess(success -> log.info("ProcessID: {} - P2P Data Synchronization Discovery successfully.", processId))

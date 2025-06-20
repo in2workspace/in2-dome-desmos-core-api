@@ -106,7 +106,7 @@ public class ApplicationRunner {
         // Check Subscription
         // Create the Blockchain Subscription object
         BlockchainSubscription blockchainSubscription = BlockchainSubscription.builder()
-                .eventTypes(blockchainConfig.getEntityTypes())
+                .eventTypes(blockchainConfig.getRootObjects())
                 .metadata(List.of(getEnvironmentMetadata(apiConfig.getCurrentEnvironment())))
                 .notificationEndpoint(blockchainConfig.getNotificationEndpoint())
                 .build();

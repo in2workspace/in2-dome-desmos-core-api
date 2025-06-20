@@ -7,26 +7,12 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
+
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
 public class BlockchainConfig {
-
-    private static final List<String> ENTITY_TYPES = List.of("individual",
-            "organization",
-            "catalog",
-            "product-offering",
-            "product-offering-price",
-            "product-specification",
-            "service-specification",
-            "resource-specification",
-            "category",
-            "product-order",
-            "product",
-            "usage",
-            "usage-specification",
-            "applied-customer-bill-rate",
-            "customer-bill");
 
     private final TxSubscriptionProperties txSubscriptionProperties;
 
@@ -34,8 +20,8 @@ public class BlockchainConfig {
         return txSubscriptionProperties.notificationEndpoint();
     }
 
-    public List<String> getEntityTypes() {
-        return ENTITY_TYPES;
+    public List<String> getRootObjects() {
+        return ROOT_OBJECTS_LIST;
     }
 
 }
