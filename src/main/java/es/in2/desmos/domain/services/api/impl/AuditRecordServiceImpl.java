@@ -33,6 +33,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private final AuditRecordRepository auditRecordRepository;
     private final BrokerPublisherService brokerPublisherService;
     private final ApiConfig apiConfig;
+    private long start;
 
     /**
      * Create a new AuditRecord with status CREATED or PUBLISHED and trader CONSUMER
@@ -155,6 +156,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     public Mono<Void> buildAndSaveAuditRecordForSubEntity(String processId, String entityId, String entityType,
                                                           String retrievedBrokerEntity,
                                                           AuditRecordStatus status) {
+        start = System.currentTimeMillis();
         // Get the most recent audit record for the entityId and get the most recent audit record overall
         return fetchMostRecentAuditRecord()
                 .flatMap(lastAuditRecordRegistered ->
@@ -194,7 +196,9 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                          NoSuchAlgorithmException e) {
                                                     return Mono.error(e);
                                                 }
-                                            });
+                                            }).doOnSuccess(result ->
+                                                    log.info("ProcessID: {} - buildAndSaveAuditRecordForSubEntity completed in {} ms",
+                                                            processId, System.currentTimeMillis() - start));
                                 }));
     }
 
@@ -243,6 +247,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     private static String getDataLocationForProducedEntity(String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation) {
+        long start = System.currentTimeMillis();
+        log.debug("{} getDataLocationForProducedEntity", start);
         return issuer +
                 EndpointsConstants.GET_ENTITY +
                 "/" +
@@ -310,7 +316,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     public Mono<List<MVAuditServiceEntity4DataNegotiation>> findCreateOrUpdateAuditRecordsByEntityIds(
             String processId,
             String entityType,
-            Mono<List<String>> entityIdsMono) {
+            Mono<List<String>> entityIdsMono) { //TODO: modificar a flux el listado por parametro
+        //añadir CONCURRENCY_LIMIT en los flatmap de acceso a bdd para evitar fallos por  concurrencias
 
         return entityIdsMono.flatMap(entityIds -> {
                     if (entityIds.isEmpty()) {
@@ -324,15 +331,17 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                     Flux.fromIterable(entityIds)
                                             .flatMap(id -> {
                                                 Mono<String> entityHashMono = getEntityHash(processId, Mono.just(id));
-
                                                 return entityHashMono.flatMap(entityHash -> {
                                                     AuditRecord auditRecord = auditRecordMap.get(id);
 
                                                     if (auditRecord != null) {
                                                         log.debug("ProcessID: {} - AuditId: {}", processId, id);
+                                                        start = System.currentTimeMillis();
+                                                        return findOrUpdateAuditRecord(processId, entityHash, auditRecord).doOnSuccess(result ->
+                                                                log.info("ProcessID: {} - findOrUpdateAuditRecord completed in {} ms", processId, System.currentTimeMillis() - start));
 
-                                                        return findOrUpdateAuditRecord(processId, entityHash, auditRecord);
                                                     } else {
+                                                        long startFunction = System.currentTimeMillis();
                                                         return buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity(
                                                                 processId,
                                                                 new MVAuditServiceEntity4DataNegotiation(
@@ -343,7 +352,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                                 ),
                                                                 AuditRecordTrader.PRODUCER,
                                                                 null
-                                                        );
+                                                        ).doOnSuccess(result ->
+                                                                log.info("ProcessID: {} - buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity (on else) completed in {} ms", processId, System.currentTimeMillis() - startFunction));
                                                     }
                                                 });
                                             })
@@ -354,6 +364,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     private Mono<MVAuditServiceEntity4DataNegotiation> findOrUpdateAuditRecord(String processId, String entityHash, AuditRecord auditRecord) {
+        log.info("{} findOrUpdateAuditRecord start", start);
         if (entityHash.equals(auditRecord.getEntityHash())) {
             return Mono.just(new MVAuditServiceEntity4DataNegotiation(
                     auditRecord.getEntityId(),
@@ -366,7 +377,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     .flatMap(calculatedHashLink -> {
                         String newAuditRecordDataLocation =
                                 auditRecord.getTrader().equals(AuditRecordTrader.CONSUMER) ? "" : auditRecord.getDataLocation();
-
+                        long startFunction = System.currentTimeMillis();
                         return buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity(
                                 processId,
                                 new MVAuditServiceEntity4DataNegotiation(
@@ -377,8 +388,10 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                 ),
                                 auditRecord.getTrader(),
                                 newAuditRecordDataLocation
-                        );
+                        ).doOnSuccess(result ->
+                                log.info("ProcessID: {} - buildAndSaveAuditRecord completed in {} ms", processId, System.currentTimeMillis() - startFunction));
                     });
+
         }
     }
 
@@ -410,9 +423,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         String auditRecordHash = calculateSHA256(objectMapper.writeValueAsString(auditRecord));
                         auditRecord.setHash(auditRecordHash);
                         auditRecord.setHashLink(setAuditRecordHashLink(lastAuditRecordRegistered, auditRecordHash));
-
                         log.debug("ProcessID: {} - Audit Record from unregistered or outdated entity to save: {}", processId, auditRecord);
-
                         return auditRecordRepository.save(auditRecord)
                                 .thenReturn(new MVAuditServiceEntity4DataNegotiation(
                                         auditRecord.getEntityId(),
@@ -428,11 +439,15 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     private String setAuditRecordHashLink(AuditRecord lastAuditRecordRegistered, String auditRecordHash)
             throws NoSuchAlgorithmException, JsonProcessingException {
+        start = System.currentTimeMillis();
+        log.info("{} setAuditRecordHashLink start", start);
         return lastAuditRecordRegistered.getHashLink() == null ? auditRecordHash
                 : ApplicationUtils.calculateHashLink(lastAuditRecordRegistered.getHashLink(), auditRecordHash);
     }
 
     private Mono<String> getEntityHash(String processId, Mono<String> entityIdMono) {
+        start = System.currentTimeMillis();
+        log.info("{} getEntityHash start", start);
         return entityIdMono.flatMap(entityId ->
                 brokerPublisherService.getEntityById(processId, entityId)
                         .flatMap(entity -> {
@@ -442,10 +457,12 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                             } catch (NoSuchAlgorithmException | JsonProcessingException e) {
                                 return Mono.error(e);
                             }
-                        }));
+                        })).doOnSuccess(result ->
+                log.info("ProcessID: {} - getEntityHash completed in {} ms", processId, System.currentTimeMillis() - start));
     }
 
     private Mono<String> calculateHashLink(Mono<String> previousHashlink, Mono<String> currentHash) {
+        start = System.currentTimeMillis();
         return previousHashlink
                 .zipWith(currentHash)
                 .flatMap(tuple -> {
@@ -454,7 +471,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     } catch (NoSuchAlgorithmException | JsonProcessingException e) {
                         return Mono.error(e);
                     }
-                });
+                }).doOnSuccess(result ->
+                        log.info("calculateHashLink completed in {} ms", System.currentTimeMillis() - start));
     }
 
     private String calculateHash(String retrievedBrokerEntity) {
