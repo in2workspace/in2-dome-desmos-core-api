@@ -5,10 +5,13 @@ import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.validator.constraints.URL;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -28,23 +31,19 @@ public class DataSyncController {
 
     @PostMapping("/api/v1/sync/p2p/discovery")
     @ResponseStatus(HttpStatus.OK)
-    public Mono<DiscoverySyncResponse> discoverySync(@RequestBody @Valid Mono<DiscoverySyncRequest> discoverySyncRequest) {
-        String processId = UUID.randomUUID().toString();
-        log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Controller", processId);
-        return discoverySyncRequest.flatMap(request -> {
-                    log.debug("ProcessID: {} - Starting P2P Data Synchronization Discovery: {}", processId, request);
-                    Mono<List<MVEntity4DataNegotiation>> externalMvEntities4DataNegotiationMono = request.externalMVEntities4DataNegotiation().collectList();
-                    Mono<String> issuerMono = request.issuer();
-                    return p2PDataSyncJob.dataDiscovery(processId, issuerMono, externalMvEntities4DataNegotiationMono)
-                            .flatMap(localMvEntities4DataNegotiation -> {
-                                Mono<List<MVEntity4DataNegotiation>> localMvEntities4DataNegotiationMono = Mono.just(localMvEntities4DataNegotiation);
+    public Flux<MVEntity4DataNegotiation> discoverySync(
+            @RequestHeader("X-Issuer") @NotBlank String issuer,
+            @RequestBody @Valid Flux<@NotNull MVEntity4DataNegotiation> discoverySyncRequest,
+            ServerHttpResponse response) {
 
-                                return localMvEntities4DataNegotiationMono.map(mvEntities4DataNegotiation ->
-                                        new DiscoverySyncResponse(Mono.just(apiConfig.getExternalDomain()), Flux.fromIterable(mvEntities4DataNegotiation)));
-                            });
-                })
-                .doOnSuccess(success -> log.info("ProcessID: {} - P2P Data Synchronization Discovery successfully.", processId))
-                .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Data Synchronization Discovery Controller: {}", processId, error.getMessage()));
+        String processId = UUID.randomUUID().toString();
+        response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
+        Mono<String> issuerMono = Mono.just(issuer);
+        log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Controller", processId);
+        return p2PDataSyncJob.dataDiscovery(processId, issuerMono, discoverySyncRequest)
+                .doOnComplete(() -> log.info("ProcessID: {} - Discovery completed successfully", processId))
+                .doOnError(error -> log.error("ProcessID: {} - Error during discovery: {}", processId, error.getMessage()));
+
     }
 
     @PostMapping(value = "/api/v1/sync/p2p/entities")

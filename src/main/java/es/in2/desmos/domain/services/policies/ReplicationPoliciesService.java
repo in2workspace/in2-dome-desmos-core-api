@@ -10,7 +10,5 @@ import java.util.List;
 public interface ReplicationPoliciesService {
     Mono<Boolean> isMVEntityReplicable(String processId, MVEntityReplicationPoliciesInfo mvEntity);
 
-    Flux<Id> filterReplicableMvEntitiesList(
-            String processId,
-            List<MVEntityReplicationPoliciesInfo> replicationPoliciesInfoList);
+    Flux<Id> filterReplicableMvEntitiesList( String processId, Flux<MVEntityReplicationPoliciesInfo> replicationPoliciesInfoFlux);
 }

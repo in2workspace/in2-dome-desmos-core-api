@@ -35,6 +35,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         .path(EndpointsConstants.P2P_DISCOVERY_SYNC)
                                         .build()
                                         .toUriString())
+                                //TODO: habría que cambiar los header? añaddir nuevos?
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .body(discoverySyncRequest, DiscoverySyncRequest.class)

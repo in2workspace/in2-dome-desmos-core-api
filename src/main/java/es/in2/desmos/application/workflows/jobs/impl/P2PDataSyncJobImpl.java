@@ -48,27 +48,36 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
         return Flux.fromIterable(ROOT_OBJECTS_LIST)
                 .concatMap(entityType ->
-                        createLocalMvEntitiesByType(processId, entityType)
-                                .switchIfEmpty(Mono.defer(() -> {
-                                    log.debug("ProcessID: {} - No local MV Entities found for entity type: {}", processId, entityType);
-                                    return Mono.just(Collections.emptyList());
-                                }))
-                                .flatMap(localMvEntities4DataNegotiation -> {
-                                    log.debug("ProcessID: {} - Local MV Entities 4 Data Negotiation synchronizing data: {}", processId, localMvEntities4DataNegotiation);
-                                    return filterReplicableMvEntities(processId, localMvEntities4DataNegotiation)
-                                            .switchIfEmpty(Mono.defer(() -> {
-                                                log.debug("ProcessID: {} - No replicable MV Entities found", processId);
-                                                return Mono.just(Collections.emptyList());
-                                            }))
-                                            .flatMap(replicableMvEntities ->
-                                                    getExternalMVEntities4DataNegotiationByIssuer(processId, replicableMvEntities, entityType)
-                                                            .flatMap(mvEntities4DataNegotiationByIssuer -> {
-                                                                Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> externalMVEntities4DataNegotiationByIssuerMono = Mono.just(mvEntities4DataNegotiationByIssuer);
-                                                                Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono = Mono.just(localMvEntities4DataNegotiation);
+                    createLocalMvEntitiesByType(processId, entityType)
+                        .switchIfEmpty(Mono.defer(() -> {
+                            log.debug("ProcessID: {} - No local MV Entities found for entity type: {}", processId, entityType);
+                            return Mono.just(Collections.emptyList());
+                        }))
+                        .flatMap(localMvEntities4DataNegotiation -> {
+                            log.debug("ProcessID: {} - Local MV Entities 4 Data Negotiation synchronizing data: {}", processId, localMvEntities4DataNegotiation);
 
-                                                                return dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(processId, externalMVEntities4DataNegotiationByIssuerMono, localMVEntities4DataNegotiationMono);
-                                                            }));
-                                }))
+                            return filterReplicableMvEntities(processId, Flux.fromIterable(localMvEntities4DataNegotiation))
+                                    .collectList() // <-- ahora agrupas el Flux en List como antes
+                                    .flatMap(replicableMvEntities -> {
+                                        if (replicableMvEntities.isEmpty()) {
+                                            log.debug("ProcessID: {} - No replicable MV Entities found", processId);
+                                            return Mono.empty();
+                                        }
+
+                                        return getExternalMVEntities4DataNegotiationByIssuer(processId, replicableMvEntities, entityType)
+                                                .flatMap(mvEntities4DataNegotiationByIssuer -> {
+                                                    Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> externalMVEntities4DataNegotiationByIssuerMono = Mono.just(mvEntities4DataNegotiationByIssuer);
+                                                    Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono = Mono.just(localMvEntities4DataNegotiation);
+
+                                                    return dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(
+                                                            processId,
+                                                            externalMVEntities4DataNegotiationByIssuerMono,
+                                                            localMVEntities4DataNegotiationMono
+                                                    );
+                                                });
+                                    });
+                        })
+                )
                 .collectList()
                 .then();
     }
@@ -101,59 +110,65 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
 
-    private Mono<List<MVEntity4DataNegotiation>> filterReplicableMvEntities(
-            String processId,
-            List<MVEntity4DataNegotiation> localMvEntities4DataNegotiation) {
+    private Flux<MVEntity4DataNegotiation> filterReplicableMvEntities(String processId,
+                                                                      Flux<MVEntity4DataNegotiation> localMvEntities4DataNegotiationFlux) {
+        return localMvEntities4DataNegotiationFlux
+                .publish(sharedFlux -> {
+                    var policyInfoFlux = sharedFlux.map(mvEntity -> new MVEntityReplicationPoliciesInfo(
+                            mvEntity.id(),
+                            mvEntity.lifecycleStatus(),
+                            mvEntity.startDateTime(),
+                            mvEntity.endDateTime()
+                    ));
 
-        List<MVEntityReplicationPoliciesInfo> replicationPoliciesInfoList = localMvEntities4DataNegotiation.stream()
-                .map(mvEntity -> new MVEntityReplicationPoliciesInfo(
-                        mvEntity.id(),
-                        mvEntity.lifecycleStatus(),
-                        mvEntity.startDateTime(),
-                        mvEntity.endDateTime()))
-                .toList();
+                    var replicableIdsFlux = replicationPoliciesService.filterReplicableMvEntitiesList(processId, policyInfoFlux)
+                            .map(Id::id)
+                            .collectList()
+                            .map(HashSet::new);
 
-        return replicationPoliciesService.filterReplicableMvEntitiesList(processId, replicationPoliciesInfoList)
-                .map(Id::id)
-                .collectList()
-                .flatMap(replicableIds -> {
-                    Set<String> replicableIdsSet = new HashSet<>(replicableIds);
-                    return Flux.fromIterable(localMvEntities4DataNegotiation)
-                            .filter(mvEntity -> replicableIdsSet.contains(mvEntity.id()))
-                            .collectList();
+                    return replicableIdsFlux.flatMapMany(replicableIds ->
+                            sharedFlux.filter(mv -> replicableIds.contains(mv.id()))
+                    );
                 });
     }
 
+
+
     @Override
-    public Mono<List<MVEntity4DataNegotiation>> dataDiscovery(String processId, Mono<String> issuer, Mono<List<MVEntity4DataNegotiation>> externalMvEntities4DataNegotiationMono) {
+    public Flux<MVEntity4DataNegotiation> dataDiscovery(String processId, Mono<String> issuer,
+                                                        Flux<MVEntity4DataNegotiation> externalMvEntities4DataNegotiation) {
         log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Workflow", processId);
 
         return Flux.fromIterable(ROOT_OBJECTS_LIST)
                 .concatMap(entityType ->
                         createLocalMvEntitiesByType(processId, entityType)
-                                .flatMap(localMvEntities4DataNegotiation -> {
-                                    log.debug("ProcessID: {} - Local MV Entities 4 Data Negotiation: {}", processId, localMvEntities4DataNegotiation);
+                                .flatMapMany(localMvEntities4DataNegotiation -> {
+                                    log.debug("ProcessID: {} - Local MV Entities: {}", processId, localMvEntities4DataNegotiation);
 
-                                    return externalMvEntities4DataNegotiationMono
-                                            .flatMap(externalMvEntities4DataNegotiation -> {
-                                                List<MVEntity4DataNegotiation> externalMvEntities4DataNegotiationOfType = externalMvEntities4DataNegotiation
-                                                        .stream()
-                                                        .filter(mvEntity4DataNegotiation -> Objects.equals(mvEntity4DataNegotiation.type(), entityType))
-                                                        .toList();
+                                    Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
+                                            .filter(mv -> Objects.equals(mv.type(), entityType));
 
-                                                var localMvEntities4DataNegotiationMono = Mono.just(localMvEntities4DataNegotiation);
-
-                                                var dataNegotiationEvent = new DataNegotiationEvent(processId, issuer, Mono.just(externalMvEntities4DataNegotiationOfType), localMvEntities4DataNegotiationMono);
+                                    //TODO: OJITO AQUI
+                                    externalFilteredFlux.collectList()
+                                            .zipWith(Mono.just(localMvEntities4DataNegotiation))
+                                            .subscribe(tuple -> {
+                                                var dataNegotiationEvent = new DataNegotiationEvent(
+                                                        processId,
+                                                        issuer,
+                                                        Mono.just(tuple.getT1()),
+                                                        Mono.just(tuple.getT2())
+                                                );
                                                 dataNegotiationEventPublisher.publishEvent(dataNegotiationEvent);
-
-                                                return filterReplicableMvEntities(processId, localMvEntities4DataNegotiation);
                                             });
+
+                                    return filterReplicableMvEntities(processId, Flux.fromIterable(localMvEntities4DataNegotiation));
                                 })
-                                .doOnSuccess(success -> log.info("ProcessID: {} - P2P Data Synchronization Discovery Workflow successfully.", processId))
-                                .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Data Synchronization Discovery Workflow: {}", processId, error.getMessage())))
-                .flatMap(Flux::fromIterable)
-                .collectList();
+                )
+                .doOnNext(mv -> log.debug("ProcessID: {} - Emitting MVEntity: {}", processId, mv))
+                .doOnComplete(() -> log.info("ProcessID: {} - P2P Data Synchronization Discovery Workflow completed successfully.", processId))
+                .doOnError(error -> log.error("ProcessID: {} - Error occurred during P2P Data Synchronization Discovery Workflow: {}", processId, error.getMessage()));
     }
+
 
     @Override
     public Mono<List<Entity>> getLocalEntitiesByIdInBase64(String processId, Mono<List<Id>> ids) {

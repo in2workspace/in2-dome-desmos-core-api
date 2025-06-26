@@ -50,12 +50,12 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
     }
 
     @Override
-    public Flux<Id> filterReplicableMvEntitiesList(String processId, List<MVEntityReplicationPoliciesInfo> replicationPoliciesInfoList) {
-        return Flux.fromIterable(replicationPoliciesInfoList)
+    public Flux<Id> filterReplicableMvEntitiesList(String processId, Flux<MVEntityReplicationPoliciesInfo> replicationPoliciesInfoFlux) {
+        return replicationPoliciesInfoFlux
                 .filterWhen(mvEntity -> isMVEntityReplicable(processId, mvEntity))
-                .map(mvEntityReplicationPoliciesInfo ->
-                        new Id(mvEntityReplicationPoliciesInfo.id()));
+                .map(mvEntity -> new Id(mvEntity.id()));
     }
+
 
     private boolean isLifecycleStatusReplicable(String lifecycleStatus) {
         return lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus);
