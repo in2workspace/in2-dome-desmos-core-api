@@ -57,7 +57,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                             log.debug("ProcessID: {} - Local MV Entities 4 Data Negotiation synchronizing data: {}", processId, localMvEntities4DataNegotiation);
 
                             return filterReplicableMvEntities(processId, Flux.fromIterable(localMvEntities4DataNegotiation))
-                                    .collectList() // <-- ahora agrupas el Flux en List como antes
+                                    .collectList() // <-- agrupamos el Flux en List como antes
                                     .flatMap(replicableMvEntities -> {
                                         if (replicableMvEntities.isEmpty()) {
                                             log.debug("ProcessID: {} - No replicable MV Entities found", processId);
@@ -81,8 +81,9 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                 .collectList()
                 .then();
     }
-
-    private Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> getExternalMVEntities4DataNegotiationByIssuer(String processId, List<MVEntity4DataNegotiation> localMvEntities4DataNegotiation, String entityType) {
+    //TODO: REFACTORIZAR?
+    private Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> getExternalMVEntities4DataNegotiationByIssuer(String processId,
+                                        List<MVEntity4DataNegotiation> localMvEntities4DataNegotiation, String entityType) {
         return externalAccessNodesConfig.getExternalAccessNodesUrls()
                 .flatMapIterable(externalAccessNodesList -> externalAccessNodesList)
                 .flatMap(externalAccessNode -> {
@@ -132,8 +133,6 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                 });
     }
 
-
-
     @Override
     public Flux<MVEntity4DataNegotiation> dataDiscovery(String processId, Mono<String> issuer,
                                                         Flux<MVEntity4DataNegotiation> externalMvEntities4DataNegotiation) {
@@ -148,7 +147,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                     Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
                                             .filter(mv -> Objects.equals(mv.type(), entityType));
 
-                                    //TODO: OJITO AQUI
+                                    //TODO: OJITO AQUI PUEDE DAR PROBLEMAS EL ZIPWITH
                                     externalFilteredFlux.collectList()
                                             .zipWith(Mono.just(localMvEntities4DataNegotiation))
                                             .subscribe(tuple -> {
