@@ -53,7 +53,7 @@ public final class DataNegotiationResultMother {
     public static DataNegotiationResult badHash() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         String issuer = "http://example.org";
         List<MVEntity4DataNegotiation> newEntitiesToSync = MVEntity4DataNegotiationMother.listbadHash1And2();
-        List<MVEntity4DataNegotiation> existingEntitiesToSync = MVEntity4DataNegotiationMother.list3And4();
+        List<MVEntity4DataNegotiation> existingEntitiesToSync = MVEntity4DataNegotiationMother.list3And4().collectList().block(); //TODO: revisar esto
         return new DataNegotiationResult(issuer, newEntitiesToSync, existingEntitiesToSync);
     }
 

@@ -2,7 +2,10 @@ package es.in2.desmos.application.workflows.jobs;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import es.in2.desmos.application.workflows.jobs.impl.DataNegotiationJobImpl;
-import es.in2.desmos.domain.models.*;
+import es.in2.desmos.domain.models.DataNegotiationEvent;
+import es.in2.desmos.domain.models.DataNegotiationResult;
+import es.in2.desmos.domain.models.Issuer;
+import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.services.policies.ReplicationPoliciesService;
 import es.in2.desmos.objectmothers.DataNegotiationResultMother;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
@@ -94,12 +97,12 @@ class DataNegotiationJobTests {
         List<MVEntity4DataNegotiation> externalEntityIds = MVEntity4DataNegotiationMother.fullList();
         Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = Mono.just(externalEntityIds);
 
-        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(MVEntity4DataNegotiationMother.list3And4());
+        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = MVEntity4DataNegotiationMother.list3And4().collectList();
 
         String processId = "0";
         DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent(processId, issuerMono, externalEntityIdsMono, localEntityIdsMono);
 
-        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = MVEntity4DataNegotiationMother.list1And2();
+        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = MVEntity4DataNegotiationMother.list1And2().collectList().block(); //TODO: REVISAR ESTO
 
         List<MVEntity4DataNegotiation> expectedExistingEntitiesToSync = new ArrayList<>();
 
@@ -131,9 +134,7 @@ class DataNegotiationJobTests {
         String issuer = "http://example.org";
         Mono<String> issuerMono = Mono.just(issuer);
 
-        List<MVEntity4DataNegotiation> externalEntityIds = MVEntity4DataNegotiationMother.list2And3();
-        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = Mono.just(externalEntityIds);
-
+        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = MVEntity4DataNegotiationMother.list2And3().collectList(); //TODO: revisar esto
         Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample3()));
 
         String processId = "0";
@@ -171,9 +172,7 @@ class DataNegotiationJobTests {
         String issuer = "http://example.org";
         Mono<String> issuerMono = Mono.just(issuer);
 
-        List<MVEntity4DataNegotiation> externalEntityIds = MVEntity4DataNegotiationMother.list2And3();
-        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = Mono.just(externalEntityIds);
-
+        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = MVEntity4DataNegotiationMother.list2And3().collectList(); //TODO: revisar esto
         Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample3TimestampOld()));
 
         String processId = "0";
@@ -254,7 +253,7 @@ class DataNegotiationJobTests {
         List<MVEntity4DataNegotiation> externalEntityIds = MVEntity4DataNegotiationMother.fullList();
         Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = Mono.just(externalEntityIds);
 
-        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(MVEntity4DataNegotiationMother.list3And4());
+        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = MVEntity4DataNegotiationMother.list3And4().collectList();
 
         String processId = "0";
         DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent(processId, issuerMono, externalEntityIdsMono, localEntityIdsMono);

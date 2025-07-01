@@ -23,10 +23,8 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -121,56 +119,29 @@ class P2PDataSyncJobTests {
 
         when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any())).thenReturn(Mono.empty());
 
-        Flux<MVEntityReplicationPoliciesInfo> mvEntityReplicationPoliciesInfoProductOfferingsFlux =
-                Flux.fromIterable(brokerEntities)
-                        .map(x -> new MVEntityReplicationPoliciesInfo(
-                                x.getId(),
-                                x.getLifecycleStatus(),
-                                x.getValidFor().startDateTime(),
-                                x.getValidFor().endDateTime()));
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class)))
+                .thenAnswer(invocation -> {
+                    Flux<MVEntityReplicationPoliciesInfo> fluxArg = invocation.getArgument(1);
 
-        var mvEntityReplicationPoliciesInfoProductOfferingsIdsFlux =
-                mvEntityReplicationPoliciesInfoProductOfferingsFlux.map(x -> new Id(x.id()));
+                    Set<String> productOfferingIds = MVBrokerEntity4DataNegotiationMother.list3And4().stream()
+                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
+                            .collect(Collectors.toSet());
 
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(
-                processId,
-                mvEntityReplicationPoliciesInfoProductOfferingsFlux
-        )).thenReturn(mvEntityReplicationPoliciesInfoProductOfferingsIdsFlux);
+                    Set<String> categoryIds = MVBrokerEntity4DataNegotiationMother.listCategories().stream()
+                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
+                            .collect(Collectors.toSet());
 
+                    Set<String> catalogIds = MVBrokerEntity4DataNegotiationMother.listCatalogs().stream()
+                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
+                            .collect(Collectors.toSet());
 
-        Flux<MVEntityReplicationPoliciesInfo> mvEntityReplicationPoliciesInfoCategories =
-                Flux.fromIterable(brokerCategories)
-                        .map(x -> new MVEntityReplicationPoliciesInfo(
-                                        x.getId(),
-                                        x.getLifecycleStatus(),
-                                        x.getValidFor().startDateTime(),
-                                        x.getValidFor().endDateTime()));
-
-        var mvEntityReplicationPoliciesInfoCategoriesIdsFlux =
-               mvEntityReplicationPoliciesInfoCategories.map(x -> new Id(x.id()));
-
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(
-                processId,
-                mvEntityReplicationPoliciesInfoCategories
-        )).thenReturn(mvEntityReplicationPoliciesInfoCategoriesIdsFlux);
-
-        Flux<MVEntityReplicationPoliciesInfo> mvEntityReplicationPoliciesInfoCatalogs =
-                Flux.fromIterable(brokerCatalogs)
-                        .map(x -> new MVEntityReplicationPoliciesInfo(
-                                        x.getId(),
-                                        x.getLifecycleStatus(),
-                                        x.getValidFor().startDateTime(),
-                                        x.getValidFor().endDateTime()));
-
-        var mvEntityReplicationPoliciesInfoCatalogsIdsFlux =
-                mvEntityReplicationPoliciesInfoCatalogs.map(x -> new Id(x.id()));
-
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(
-                processId,
-                mvEntityReplicationPoliciesInfoCatalogs
-        )).thenReturn(mvEntityReplicationPoliciesInfoCatalogsIdsFlux);
-
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), eq(Flux.empty()))).thenReturn(Flux.empty());
+                    return fluxArg
+                            .filter(info -> {
+                                String id = info.id();
+                                return productOfferingIds.contains(id) || categoryIds.contains(id) || catalogIds.contains(id);
+                            })
+                            .map(info -> new Id(info.id()));
+                });
 
         var result = p2PDataSyncJob.synchronizeData(processId);
 
@@ -244,65 +215,41 @@ class P2PDataSyncJobTests {
                     };
                 });
 
-        Flux<MVEntityReplicationPoliciesInfo> mvEntityReplicationPoliciesInfoProductOfferingsFlux =
-                Flux.fromIterable(brokerEntities)
-                        .map(x -> new MVEntityReplicationPoliciesInfo(
-                                x.getId(),
-                                x.getLifecycleStatus(),
-                                x.getValidFor().startDateTime(),
-                                x.getValidFor().endDateTime()));
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class)))
+                .thenAnswer(invocation -> {
+                    Flux<MVEntityReplicationPoliciesInfo> fluxArg = invocation.getArgument(1);
 
-        var mvEntityReplicationPoliciesInfoProductOfferingsIdsFlux =
-                mvEntityReplicationPoliciesInfoProductOfferingsFlux.map(x -> new Id(x.id()));
+                    Set<String> productOfferingIds = MVBrokerEntity4DataNegotiationMother.list3And4().stream()
+                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
+                            .collect(Collectors.toSet());
 
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(
-                processId,
-                mvEntityReplicationPoliciesInfoProductOfferingsFlux
-        )).thenReturn(mvEntityReplicationPoliciesInfoProductOfferingsIdsFlux);
+                    Set<String> categoryIds = MVBrokerEntity4DataNegotiationMother.listCategories().stream()
+                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
+                            .collect(Collectors.toSet());
 
+                    Set<String> catalogIds = MVBrokerEntity4DataNegotiationMother.listCatalogs().stream()
+                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
+                            .collect(Collectors.toSet());
 
-        Flux<MVEntityReplicationPoliciesInfo> mvEntityReplicationPoliciesInfoCategories =
-                Flux.fromIterable(brokerCategories)
-                        .map(x -> new MVEntityReplicationPoliciesInfo(
-                                x.getId(),
-                                x.getLifecycleStatus(),
-                                x.getValidFor().startDateTime(),
-                                x.getValidFor().endDateTime()));
-
-        var mvEntityReplicationPoliciesInfoCategoriesIdsFlux =
-                mvEntityReplicationPoliciesInfoCategories.map(x -> new Id(x.id()));
-
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(
-                processId,
-                mvEntityReplicationPoliciesInfoCategories
-        )).thenReturn(mvEntityReplicationPoliciesInfoCategoriesIdsFlux);
-
-        Flux<MVEntityReplicationPoliciesInfo> mvEntityReplicationPoliciesInfoCatalogs =
-                Flux.fromIterable(brokerCatalogs)
-                        .map(x -> new MVEntityReplicationPoliciesInfo(
-                                x.getId(),
-                                x.getLifecycleStatus(),
-                                x.getValidFor().startDateTime(),
-                                x.getValidFor().endDateTime()));
-
-        var mvEntityReplicationPoliciesInfoCatalogsIdsFlux =
-                mvEntityReplicationPoliciesInfoCatalogs.map(x -> new Id(x.id()));
-
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(
-                processId,
-                mvEntityReplicationPoliciesInfoCatalogs
-        )).thenReturn(mvEntityReplicationPoliciesInfoCatalogsIdsFlux);
-
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), eq(Flux.empty()))).thenReturn(Flux.empty());
+                    return fluxArg
+                            .filter(info -> {
+                                String id = info.id();
+                                return productOfferingIds.contains(id) || categoryIds.contains(id) || catalogIds.contains(id);
+                            })
+                            .map(info -> new Id(info.id()));
+                });
 
         Flux<MVEntity4DataNegotiation> resultFlux = p2PDataSyncJob.dataDiscovery(
                 processId,
                 Mono.just("https://example.org"),
                 MVEntity4DataNegotiationMother.list1And2());
 
-        StepVerifier.create(resultFlux)
-                .consumeNextWith(result ->
-                        assertThat(result).containsExactlyInAnyOrderElementsOf(internalEntities))
+        List<MVEntity4DataNegotiation> expected = internalEntities.collectList().block();
+
+        StepVerifier.create(resultFlux.collectList())
+                .assertNext(actual -> {
+                    assertThat(actual).containsExactlyInAnyOrderElementsOf(expected);
+                })
                 .verifyComplete();
 
         verify(brokerPublisherService, times(1)).findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class);

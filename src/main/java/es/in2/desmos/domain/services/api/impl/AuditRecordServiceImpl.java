@@ -313,21 +313,21 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     @Override
-    public Mono<List<MVAuditServiceEntity4DataNegotiation>> findCreateOrUpdateAuditRecordsByEntityIds(
+    public Flux<MVAuditServiceEntity4DataNegotiation> findCreateOrUpdateAuditRecordsByEntityIds(
             String processId,
             String entityType,
-            Mono<List<String>> entityIdsMono) { //TODO: modificar a flux el listado por parametro
-        //añadir CONCURRENCY_LIMIT en los flatmap de acceso a bdd para evitar fallos por  concurrencias
+            Flux<String> entityIdsFlux) {
 
-        return entityIdsMono.flatMap(entityIds -> {
+        return entityIdsFlux
+                .collectList()
+                .flatMapMany(entityIds -> {
                     if (entityIds.isEmpty()) {
                         return Mono.empty();
                     }
-
                     return auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(
                                     entityIds.toArray(new String[0]))
                             .collectMap(AuditRecord::getEntityId)
-                            .flatMap(auditRecordMap ->
+                            .flatMapMany(auditRecordMap ->
                                     Flux.fromIterable(entityIds)
                                             .flatMap(id -> {
                                                 Mono<String> entityHashMono = getEntityHash(processId, Mono.just(id));
@@ -357,7 +357,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                     }
                                                 });
                                             })
-                                            .collectList()
                             );
                 }
         );

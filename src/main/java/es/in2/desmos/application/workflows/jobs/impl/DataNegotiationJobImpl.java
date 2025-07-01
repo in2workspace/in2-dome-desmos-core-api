@@ -23,11 +23,12 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     private final DataTransferJob dataTransferJob;
     private final ReplicationPoliciesService replicationPoliciesService;
 
+
+    //TODO: REFACTOR
     @Override
     public Mono<Void> negotiateDataSyncWithMultipleIssuers(
             String processId,
-            Mono<Map<Issuer,
-                    List<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
+            Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
         log.info("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
 

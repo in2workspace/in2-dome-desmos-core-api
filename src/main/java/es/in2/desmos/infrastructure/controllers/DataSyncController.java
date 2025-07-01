@@ -1,7 +1,9 @@
 package es.in2.desmos.infrastructure.controllers;
 
 import es.in2.desmos.application.workflows.jobs.P2PDataSyncJob;
-import es.in2.desmos.domain.models.*;
+import es.in2.desmos.domain.models.Entity;
+import es.in2.desmos.domain.models.Id;
+import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import jakarta.validation.Valid;
@@ -9,7 +11,6 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.validator.constraints.URL;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.*;

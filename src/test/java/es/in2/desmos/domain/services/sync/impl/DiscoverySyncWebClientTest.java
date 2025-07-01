@@ -4,7 +4,7 @@ import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.DiscoverySyncResponse;
 import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
-import es.in2.desmos.objectmothers.DiscoverySyncRequestMother;
+import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.json.JSONException;
@@ -54,7 +54,7 @@ class DiscoverySyncWebClientTest {
     }
 
     @Test
-    void makeRequest_shouldReturnFluxOfEntityValues() throws Exception {
+    void   makeRequest_shouldReturnFluxOfEntityValues() throws Exception {
         String mockAccessToken = "mock-access-token";
         when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
 
@@ -82,7 +82,7 @@ class DiscoverySyncWebClientTest {
                 .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         Mono<String> url = Mono.just(mockWebServer.url("/").toString());
-        Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url, Mono.just(DiscoverySyncRequestMother.list1And2()));
+        Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url, MVEntity4DataNegotiationMother.list1And2());
 
         StepVerifier.create(result)
                 .expectNextCount(1)
@@ -112,7 +112,7 @@ class DiscoverySyncWebClientTest {
             when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
 
             Mono<String> url = Mono.just(mockWebServer1.url("/").toString());
-            Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url, Mono.just(DiscoverySyncRequestMother.list1And2()));
+            Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url,MVEntity4DataNegotiationMother.list1And2());
 
             StepVerifier
                     .create(result)
