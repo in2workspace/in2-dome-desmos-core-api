@@ -358,13 +358,13 @@ class AuditRecordServiceTests {
                 .thenReturn(Flux.just(AuditRecordMother.list3And4().get(0), AuditRecordMother.list3And4().get(1)));
 
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3and4();
-        var entityIdsMono = Mono.just(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
+        var entityIdsFlux = Flux.fromIterable(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
 
-        Mono<List<MVAuditServiceEntity4DataNegotiation>> resultMono =
-                auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIdsMono);
+        Flux<MVAuditServiceEntity4DataNegotiation> resultFlux =
+                auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIdsFlux);
 
         StepVerifier
-                .create(resultMono)
+                .create(resultFlux.collectList())
                 .assertNext(result ->
                         assertThat(result).isEqualTo(expectedAuditEntities))
                 .verifyComplete();
@@ -386,13 +386,13 @@ class AuditRecordServiceTests {
                                 AuditRecordMother.list3And4().get(1)));
 
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3and4();
-        var entityIdsMono = Mono.just(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
+        var entityIdsMono = Flux.fromIterable(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
 
-        Mono<List<MVAuditServiceEntity4DataNegotiation>> resultMono =
+        Flux<MVAuditServiceEntity4DataNegotiation> resultMono =
                 auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIdsMono);
 
         StepVerifier
-                .create(resultMono)
+                .create(resultMono.collectList())
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -424,13 +424,13 @@ class AuditRecordServiceTests {
                 .thenReturn(auditRecord3Mono);
 
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3and4NewHashlink();
-        var entityIdsMono = Mono.just(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
+        var entityIdsMono = Flux.fromIterable(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
 
-        Mono<List<MVAuditServiceEntity4DataNegotiation>> resultMono =
+        Flux<MVAuditServiceEntity4DataNegotiation> resultMono =
                 auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIdsMono);
 
         StepVerifier
-                .create(resultMono)
+                .create(resultMono.collectList())
                 .assertNext(result ->
                         assertThat(result).isEqualTo(expectedAuditEntities))
                 .verifyComplete();
@@ -442,7 +442,7 @@ class AuditRecordServiceTests {
         String processId = "0";
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3and4NewHashlink();
 
-        Mono<List<String>> entityIdsMono = Mono.just(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
+       Flux<String> entityIdsMono = Flux.fromIterable(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
 
         when(brokerPublisherService.getEntityById(eq(processId), any()))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
@@ -460,11 +460,11 @@ class AuditRecordServiceTests {
         when(auditRecordRepository.save(any()))
                 .thenReturn(Mono.just(AuditRecordMother.list3OtherHashWithTraderConsumerAnd4().get(0)));
 
-        Mono<List<MVAuditServiceEntity4DataNegotiation>> resultMono =
+        Flux<MVAuditServiceEntity4DataNegotiation> resultMono =
                 auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIdsMono);
 
         StepVerifier
-                .create(resultMono)
+                .create(resultMono.collectList())
                 .expectNextCount(1)
                 .verifyComplete();
 
@@ -492,7 +492,7 @@ class AuditRecordServiceTests {
         String processId = "0";
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3EqualsHashAndHashlinkAnd4();
 
-        Mono<List<String>> entityIdsMono = Mono.just(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
+        Flux<String> entityIdsMono = Flux.fromIterable(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
 
         when(brokerPublisherService.getEntityById(eq(processId), any()))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
@@ -513,11 +513,11 @@ class AuditRecordServiceTests {
         when(auditRecordRepository.save(any()))
                 .thenReturn(Mono.just(AuditRecordMother.list3EqualsHashAndHashLinkAnd4().get(0)));
 
-        Mono<List<MVAuditServiceEntity4DataNegotiation>> resultMono =
+        Flux<MVAuditServiceEntity4DataNegotiation> resultMono =
                 auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIdsMono);
 
         StepVerifier
-                .create(resultMono)
+                .create(resultMono.collectList())
                 .assertNext(result ->
                         assertThat(result).isEqualTo(expectedAuditEntities))
                 .verifyComplete();

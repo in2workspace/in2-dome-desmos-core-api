@@ -91,17 +91,15 @@ class P2PDataSyncJobTests {
                     String entityType = invocation.getArgument(1);
                     return switch (entityType) {
                         case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME ->
-                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
                         case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME ->
-                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCategories());
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCategories());
                         case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME ->
-                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
-                        default -> Mono.just(Collections.emptyList());
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
+                        default -> Flux.fromIterable(Collections.emptyList());
                     };
                 });
 
-        String myDomain = "http://my-domain.org";
-        when(apiConfig.getExternalDomain()).thenReturn(myDomain);
 
         String externalDomain = "http://external-domain.org";
         DiscoverySyncResponse discoverySyncResponse3 = new DiscoverySyncResponse(Mono.just(externalDomain),
@@ -158,9 +156,6 @@ class P2PDataSyncJobTests {
         verify(externalAccessNodesConfig, atLeastOnce()).getExternalAccessNodesUrls();
         verifyNoMoreInteractions(externalAccessNodesConfig);
 
-        verify(apiConfig, atLeastOnce()).getExternalDomain();
-        verifyNoMoreInteractions(apiConfig);
-
         verify(discoverySyncWebClient, atLeastOnce()).makeRequest(eq(processId), any(), any());
         verifyNoMoreInteractions(discoverySyncWebClient);
 
@@ -206,12 +201,12 @@ class P2PDataSyncJobTests {
                     String entityType = invocation.getArgument(1);
                     return switch (entityType) {
                         case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME ->
-                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
                         case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME ->
-                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCategories());
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCategories());
                         case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME ->
-                                Mono.just(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
-                        default -> Mono.just(Collections.emptyList());
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
+                        default -> Flux.fromIterable(Collections.emptyList());
                     };
                 });
 
