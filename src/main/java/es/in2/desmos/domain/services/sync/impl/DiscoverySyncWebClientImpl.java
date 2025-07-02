@@ -1,7 +1,6 @@
 package es.in2.desmos.domain.services.sync.impl;
 
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
-import es.in2.desmos.domain.models.DiscoverySyncResponse;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.services.sync.DiscoverySyncWebClient;
 import es.in2.desmos.domain.utils.EndpointsConstants;
@@ -25,12 +24,12 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
     private final M2MAccessTokenProvider m2MAccessTokenProvider;
 
     @Override
-    public Mono<DiscoverySyncResponse> makeRequest(String processId, Mono<String> externalAccessNodeMono,
+    public Flux<MVEntity4DataNegotiation> makeRequest(String processId, Mono<String> externalAccessNodeMono,
                                                    Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
         log.debug("ProcessID: {} - Making a Discovery Sync Web Client request", processId);
         return externalAccessNodeMono
                 .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
-                .flatMap(tuple ->
+                .flatMapMany(tuple ->
                         webClient
                                 .post()
                                 .uri(UriComponentsBuilder.fromHttpUrl(tuple.getT1())
@@ -54,7 +53,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         clientResponse ->
                                                 Mono.error(new DiscoverySyncException(
                                                         "Error occurred while discovery sync")))
-                                .bodyToMono(DiscoverySyncResponse.class)
+                                .bodyToFlux(MVEntity4DataNegotiation.class)
                                 .retry(3));
     }
 }

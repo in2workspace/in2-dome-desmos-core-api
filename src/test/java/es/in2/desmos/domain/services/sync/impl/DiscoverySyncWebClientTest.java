@@ -1,7 +1,7 @@
 package es.in2.desmos.domain.services.sync.impl;
 
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
-import es.in2.desmos.domain.models.DiscoverySyncResponse;
+import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -82,7 +83,7 @@ class DiscoverySyncWebClientTest {
                 .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
 
         Mono<String> url = Mono.just(mockWebServer.url("/").toString());
-        Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url, MVEntity4DataNegotiationMother.list1And2());
+        Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url, MVEntity4DataNegotiationMother.list1And2());
 
         StepVerifier.create(result)
                 .expectNextCount(1)
@@ -112,7 +113,7 @@ class DiscoverySyncWebClientTest {
             when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
 
             Mono<String> url = Mono.just(mockWebServer1.url("/").toString());
-            Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url,MVEntity4DataNegotiationMother.list1And2());
+            Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url,MVEntity4DataNegotiationMother.list1And2());
 
             StepVerifier
                     .create(result)

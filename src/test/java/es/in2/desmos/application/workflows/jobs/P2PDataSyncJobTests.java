@@ -100,17 +100,9 @@ class P2PDataSyncJobTests {
                     };
                 });
 
-
-        String externalDomain = "http://external-domain.org";
-        DiscoverySyncResponse discoverySyncResponse3 = new DiscoverySyncResponse(Mono.just(externalDomain),
-                Flux.just(MVEntity4DataNegotiationMother.sample3()));
-
-        DiscoverySyncResponse discoverySyncResponse4 = new DiscoverySyncResponse(Mono.just(externalDomain),
-                Flux.just(MVEntity4DataNegotiationMother.sample4()));
-
         when(discoverySyncWebClient.makeRequest(eq(processId), any(), any()))
-                .thenReturn(Mono.just(discoverySyncResponse3))
-                .thenReturn(Mono.just(discoverySyncResponse4));
+                .thenReturn(Flux.just(MVEntity4DataNegotiationMother.sample3()))
+                .thenReturn( Flux.just(MVEntity4DataNegotiationMother.sample4()));
 
         List<String> urlExternalAccessNodesList = UrlMother.example1And2urlsList();
         when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(urlExternalAccessNodesList));

@@ -91,19 +91,11 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                     log.debug("ProcessID: {} - External Access Node: {}", processId, externalAccessNode);
 
                     return discoverySyncWebClient.makeRequest(processId, Mono.just(externalAccessNode), localMvEntities4DataNegotiation)
-                            .flatMap(resultList -> {
-                                log.debug("ProcessID: {} - Get DiscoverySync Response. [issuer={}, response={}]", processId, externalAccessNode, resultList);
-
-                                Issuer issuer = new Issuer(externalAccessNode);
-
-                                return resultList
-                                        .entities()
-                                        .filter(entity -> Objects.equals(entity.type(), entityType))
-                                        .collectList() // volvemos a Mono<List<MVEntity4DataNegotiation>>
-                                        .map(filteredEntities -> {
-                                            log.debug("ProcessID: {} - DiscoverySync Response filtered. [issuer={}, response={}]", processId, externalAccessNode, filteredEntities);
-                                            return Map.entry(issuer, filteredEntities);
-                                        });
+                            .filter(entity -> Objects.equals(entity.type(), entityType))
+                            .collectList()
+                            .map(filteredEntities -> {
+                                log.debug("ProcessID: {} - Get DiscoverySync Response filtered. [issuer={}, response={}]", processId, externalAccessNode, filteredEntities);
+                                return Map.entry(new Issuer(externalAccessNode), filteredEntities);
                             });
                 })
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
