@@ -8,15 +8,15 @@ import java.time.Instant;
 import java.util.Optional;
 
 public record MVEntity4DataNegotiation(
-        @JsonProperty("id")  String id,
-        @JsonProperty("type")  String type,
-        @JsonProperty("version")  String version,
-        @JsonProperty("lastUpdate")  String lastUpdate,
-        @JsonProperty("lifecycleStatus")  String lifecycleStatus,
-        @JsonProperty("validFor")  String startDateTime,
-        @JsonProperty("endDateTime")  String endDateTime,
-        @JsonProperty("hash")  String hash,
-        @JsonProperty("hashlink")  String hashlink) {
+        @JsonProperty("id") @NotBlank String id,
+        @JsonProperty("type") @NotBlank String type,
+        @JsonProperty("version") @NotBlank String version,
+        @JsonProperty("lastUpdate") @NotBlank String lastUpdate,
+        @JsonProperty("lifecycleStatus") @NotBlank String lifecycleStatus,
+        @JsonProperty("validFor") @NotBlank String startDateTime,
+        @JsonProperty("endDateTime") @NotBlank String endDateTime,
+        @JsonProperty("hash") @NotBlank String hash,
+        @JsonProperty("hashlink") @NotBlank String hashlink) {
 
     @JsonIgnore
     public Float getFloatVersion() {
