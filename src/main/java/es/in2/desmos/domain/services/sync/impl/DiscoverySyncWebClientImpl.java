@@ -8,6 +8,7 @@ import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -18,6 +19,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -27,8 +29,11 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
     private final M2MAccessTokenProvider m2MAccessTokenProvider;
 
     @Override
-    public Flux<MVEntity4DataNegotiation> makeRequest(String processId, Mono<String> externalAccessNodeMono,
-                                                   Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
+    public Flux<MVEntity4DataNegotiation> makeRequest(
+            String processId,
+            Mono<String> externalAccessNodeMono,
+            Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
+
         log.debug("ProcessID: {} - Making a Discovery Sync Web Client request", processId);
 
         // Sanitizar datos ANTES de enviarlos
@@ -44,9 +49,10 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                             ? Instant.now().toString()
                             : entity.lastUpdate();
 
-            String safeEndDateTime = (entity.endDateTime() == null || entity.endDateTime().isBlank())
-                    ? "9999-12-31T23:59:59Z" // o alguna fecha por defecto válida
-                    : entity.endDateTime();
+            String safeEndDateTime =
+                    (entity.endDateTime() == null || entity.endDateTime().isBlank())
+                            ? "9999-12-31T23:59:59Z"
+                            : entity.endDateTime();
 
             return new MVEntity4DataNegotiation(
                     entity.id(),
@@ -60,19 +66,20 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                     entity.hashlink()
             );
         });
-        // Paso 2 - imprimimos el JSON antes de enviarlo (solo para debug)
-        sanitizedFlux
-                .collectList()
-                .doOnNext(list -> {
-                    try {
-                        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-                        String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(list);
-                        log.info("ProcessID: {} - JSON que se va a enviar:\n{}", processId, json);
-                    } catch (Exception e) {
-                        log.error("Error serializando JSON para logging", e);
-                    }
-                })
-                .subscribe();
+
+        // Coleccionar como lista y loggear JSON
+        Mono<List<MVEntity4DataNegotiation>> bodyMono =
+                sanitizedFlux
+                        .collectList()
+                        .doOnNext(list -> {
+                            try {
+                                ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+                                String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(list);
+                                log.info("ProcessID: {} - JSON que se va a enviar:\n{}", processId, json);
+                            } catch (Exception e) {
+                                log.error("Error serializando JSON para logging", e);
+                            }
+                        });
 
         return externalAccessNodeMono
                 .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
@@ -86,7 +93,8 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
                                 .header("X-Issuer", tuple.getT2())
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .body(sanitizedFlux, MVEntity4DataNegotiation.class)
+                                .body(bodyMono, new ParameterizedTypeReference<List<MVEntity4DataNegotiation>>() {
+                                })
                                 .retrieve()
                                 .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
                                         clientResponse -> {
