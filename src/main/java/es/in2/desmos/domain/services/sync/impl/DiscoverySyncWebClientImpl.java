@@ -44,6 +44,10 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                             ? Instant.now().toString()
                             : entity.lastUpdate();
 
+            String safeEndDateTime = (entity.endDateTime() == null || entity.endDateTime().isBlank())
+                    ? "9999-12-31T23:59:59Z" // o alguna fecha por defecto válida
+                    : entity.endDateTime();
+
             return new MVEntity4DataNegotiation(
                     entity.id(),
                     entity.type(),
@@ -51,7 +55,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                     safeLastUpdate,
                     entity.lifecycleStatus(),
                     entity.startDateTime(),
-                    entity.endDateTime(),
+                    safeEndDateTime,
                     entity.hash(),
                     entity.hashlink()
             );
