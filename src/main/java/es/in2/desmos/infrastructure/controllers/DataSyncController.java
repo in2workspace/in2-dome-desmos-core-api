@@ -31,7 +31,7 @@ public class DataSyncController {
     private final P2PDataSyncJob p2PDataSyncJob;
     private final BrokerPublisherService brokerPublisherService;
 
-    @PostMapping(path = "/api/v1/sync/p2p/discovery", consumes = MediaType.APPLICATION_NDJSON_VALUE)
+    @PostMapping(path = "/api/v1/sync/p2p/discovery")
     @ResponseStatus(HttpStatus.OK)
     public Flux<MVEntity4DataNegotiation> discoverySync(
             @RequestHeader("X-Issuer") @NotBlank String issuer,
