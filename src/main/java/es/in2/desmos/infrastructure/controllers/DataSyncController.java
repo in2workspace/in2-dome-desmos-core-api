@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -30,7 +31,7 @@ public class DataSyncController {
     private final P2PDataSyncJob p2PDataSyncJob;
     private final BrokerPublisherService brokerPublisherService;
 
-    @PostMapping("/api/v1/sync/p2p/discovery")
+    @PostMapping(path = "/api/v1/sync/p2p/discovery", consumes = MediaType.APPLICATION_NDJSON_VALUE)
     @ResponseStatus(HttpStatus.OK)
     public Flux<MVEntity4DataNegotiation> discoverySync(
             @RequestHeader("X-Issuer") @NotBlank String issuer,
