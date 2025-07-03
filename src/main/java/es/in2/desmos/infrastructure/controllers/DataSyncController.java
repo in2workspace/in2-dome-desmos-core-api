@@ -34,7 +34,7 @@ public class DataSyncController {
     @ResponseStatus(HttpStatus.OK)
     public Flux<MVEntity4DataNegotiation> discoverySync(
             @RequestHeader("X-Issuer") @NotBlank String issuer,
-            @RequestBody Flux<@NotNull MVEntity4DataNegotiation> discoverySyncRequest,
+            @RequestBody Flux<MVEntity4DataNegotiation> discoverySyncRequest,
             ServerHttpResponse response) {
 
         String processId = UUID.randomUUID().toString();
