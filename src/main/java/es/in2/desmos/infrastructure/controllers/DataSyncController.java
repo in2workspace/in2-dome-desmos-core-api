@@ -15,7 +15,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.reactive.function.server.ServerRequest;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -32,21 +31,18 @@ public class DataSyncController {
     private final P2PDataSyncJob p2PDataSyncJob;
     private final BrokerPublisherService brokerPublisherService;
 
-    @PostMapping(path = "/api/v1/sync/p2p/discovery", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(path = "/api/v1/sync/p2p/discovery", consumes = MediaType.APPLICATION_NDJSON_VALUE)
     @ResponseStatus(HttpStatus.OK)
     public Flux<MVEntity4DataNegotiation> discoverySync(
             @RequestHeader("X-Issuer") @NotBlank String issuer,
-            ServerRequest request,
+            @RequestBody Flux<MVEntity4DataNegotiation> discoverySyncRequest,
             ServerHttpResponse response) {
 
         String processId = UUID.randomUUID().toString();
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
         Mono<String> issuerMono = Mono.just(issuer);
-
-        Flux<MVEntity4DataNegotiation> requestFlux = request.bodyToFlux(MVEntity4DataNegotiation.class);
-
         log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Controller", processId);
-        return p2PDataSyncJob.dataDiscovery(processId, issuerMono, requestFlux)
+        return p2PDataSyncJob.dataDiscovery(processId, issuerMono, discoverySyncRequest)
                 .doOnComplete(() -> log.info("ProcessID: {} - Discovery completed successfully", processId))
                 .doOnError(error -> log.error("ProcessID: {} - Error during discovery: {}", processId, error.getMessage()));
 
