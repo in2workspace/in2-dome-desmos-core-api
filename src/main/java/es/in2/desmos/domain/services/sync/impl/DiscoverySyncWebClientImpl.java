@@ -38,6 +38,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
                                 .header("X-Issuer", tuple.getT2())
+                                .contentType(MediaType.valueOf("application/stream+json"))
                                 .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)
                                 .retrieve()
                                 .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
@@ -46,8 +47,10 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                             return Mono.empty();
                                         })
                                 .onStatus(status -> status != null && status.is4xxClientError(),
-                                        clientResponse ->
-                                            Mono.error(new DiscoverySyncException("Error occurred while discovery sync")))
+                                        clientResponse -> {
+                                            System.out.println("HOLIS: " + clientResponse);
+                                            return Mono.error(new DiscoverySyncException("Error occurred while discovery sync"));
+                                        })
                                 .onStatus(status -> status != null && status.is5xxServerError(),
                                         clientResponse ->
                                                 Mono.error(new DiscoverySyncException(
