@@ -61,8 +61,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                                 clientResponse.bodyToMono(String.class)
                                                         .flatMap(errorBody -> {
                                                             log.error("ProcessID: {} - Remote 4xx error: {}", processId, errorBody);
-                                                            return Mono.error(new DiscoverySyncException(
-                                                                    "Error 4xx occurred while discovery sync. Body: " + errorBody));
+                                                            return Mono.error(new DiscoverySyncException(String.format("Error 4xx occurred while discovery sync. ProcessId: %s | X-Issuer: %s | Body: %s", processId, tuple.getT2(), errorBody)));
                                                         }))
                                 .onStatus(status -> status != null && status.is5xxServerError(),
                                         clientResponse ->
