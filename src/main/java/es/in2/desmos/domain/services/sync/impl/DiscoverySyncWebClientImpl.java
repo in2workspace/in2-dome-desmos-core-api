@@ -46,7 +46,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         .build()
                                         .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
-                                .header("X-Issuer", tuple.getT2())
+                                .header("X-Issuer", tuple.getT1())
                                 .contentType(MediaType.valueOf("application/x-ndjson"))
                                 .accept(MediaType.valueOf("application/x-ndjson"))
                                 .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)

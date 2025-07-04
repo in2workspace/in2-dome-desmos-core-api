@@ -42,6 +42,12 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     private final ReplicationPoliciesService replicationPoliciesService;
 
+    /**
+     * Refactorizado para mantener datos como Flux el mayor tiempo posible,
+     * permitiendo procesamiento en streaming, menor uso de memoria y mejor rendimiento.
+     * Solo se colectan listas cuando es estrictamente necesario (e.g. replicables).
+     * Mejora la escalabilidad y se alinea con el enfoque reactivo.
+     */
     @Override
     public Mono<Void> synchronizeData(String processId) {
         log.info("ProcessID: {} - Starting P2P Data Synchronization Workflow", processId);
@@ -53,50 +59,60 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                             log.debug("ProcessID: {} - No local MV Entities found for entity type: {}", processId, entityType);
                             return Flux.empty();
                         }))
+                        .transform(flux -> filterReplicableMvEntities(processId,flux))
                         .collectList()
-                        .flatMap(localMvEntities4DataNegotiation -> {
-                            log.debug("ProcessID: {} - Local MV Entities 4 Data Negotiation synchronizing data: {}", processId, localMvEntities4DataNegotiation);
+                        .flatMap(replicableMvEntitiesList -> {
+                            if (replicableMvEntitiesList.isEmpty()) {
+                                log.debug("ProcessID: {} - No replicable MV Entities found", processId);
+                                return Mono.empty();
+                            }
+                            // Convertimos la lista de replicables de nuevo a Flux para pasarlo
+                            Flux<MVEntity4DataNegotiation> replicableEntitiesFlux = Flux.fromIterable(replicableMvEntitiesList);
+                            // Obtenemos el Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> como antes
+                            Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalEntitiesMono =
+                                    getExternalMVEntities4DataNegotiationByIssuer(processId, replicableEntitiesFlux, entityType);
+                            // Aquí mantenemos el localEntitiesFlux como flujo
+                            Flux<MVEntity4DataNegotiation> localEntitiesFlux = Flux.fromIterable(replicableMvEntitiesList);
 
-                            return filterReplicableMvEntities(processId, Flux.fromIterable(localMvEntities4DataNegotiation))
-                                    .collectList() // <-- agrupamos el Flux en List como antes
-                                    .flatMap(replicableMvEntities -> {
-                                        if (replicableMvEntities.isEmpty()) {
-                                            log.debug("ProcessID: {} - No replicable MV Entities found", processId);
-                                            return Mono.empty();
-                                        }
-                                        //TODO: REFACTORIZAR A FLUX replicableMvEntities?
-                                        return getExternalMVEntities4DataNegotiationByIssuer(processId, Flux.fromIterable(replicableMvEntities), entityType)
-                                                .flatMap(mvEntities4DataNegotiationByIssuer -> {
-                                                    Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> externalMVEntities4DataNegotiationByIssuerMono = Mono.just(mvEntities4DataNegotiationByIssuer);
-                                                    Mono<List<MVEntity4DataNegotiation>> localMVEntities4DataNegotiationMono = Mono.just(localMvEntities4DataNegotiation);
-
-                                                    return dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(
-                                                            processId,
-                                                            externalMVEntities4DataNegotiationByIssuerMono,
-                                                            localMVEntities4DataNegotiationMono
-                                                    );
-                                                });
-                                    });
+                            // Llamamos a la negociación con flujo reactivo
+                            return dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(processId, externalEntitiesMono, localEntitiesFlux);
                         })
-                )
-                .collectList()
-                .then();
+                ).then();
     }
 
-    private Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> getExternalMVEntities4DataNegotiationByIssuer(String processId,
+    /**
+     * Obtiene un Mono que emite un Map donde la clave es el Issuer y el valor es un Flux
+     * de MVEntity4DataNegotiation para ese issuer.
+     *
+     * <p>No se recoge la lista completa, sino que se devuelve el flujo tal cual (sin consumirlo todavía).
+     * El valor asociado al issuer en el mapa es un Flux reactivo y "vivo" que emitirá entidades conforme
+     * las reciba. Se pospone la suscripción y consumo hasta que el flujo se consuma más abajo.
+     *
+     * <p>Esto puede mejorar eficiencia, porque no se espera a tener toda la lista para procesar,
+     * permitiendo procesamiento en streaming (reactividad completa).
+     *
+     * @param processId identificador del proceso
+     * @param localMvEntities4DataNegotiation flujo local de entidades MV para negociación
+     * @param entityType tipo de entidad a filtrar
+     * @return Mono con mapa de Issuer a flujo de entidades filtradas
+     */
+    private Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> getExternalMVEntities4DataNegotiationByIssuer(String processId,
                                         Flux<MVEntity4DataNegotiation> localMvEntities4DataNegotiation, String entityType) {
         return externalAccessNodesConfig.getExternalAccessNodesUrls()
                 .flatMapIterable(externalAccessNodesList -> externalAccessNodesList)
                 .flatMap(externalAccessNode -> {
                     log.debug("ProcessID: {} - External Access Node: {}", processId, externalAccessNode);
 
-                    return discoverySyncWebClient.makeRequest(processId, Mono.just(externalAccessNode), localMvEntities4DataNegotiation)
+                    Flux<MVEntity4DataNegotiation> filteredFlux = discoverySyncWebClient.makeRequest(
+                                processId,
+                                Mono.just(externalAccessNode),
+                                localMvEntities4DataNegotiation)
                             .filter(entity -> Objects.equals(entity.type(), entityType))
-                            .collectList()
-                            .map(filteredEntities -> {
-                                log.debug("ProcessID: {} - Get DiscoverySync Response filtered. [issuer={}, response={}]", processId, externalAccessNode, filteredEntities);
-                                return Map.entry(new Issuer(externalAccessNode), filteredEntities);
-                            });
+                            .doOnNext(filteredEntities ->
+                                log.debug("ProcessID: {} - Get DiscoverySync Response filtered. [issuer={}, response={}]",
+                                        processId, externalAccessNode, filteredEntities));
+
+                    return Mono.just(Map.entry(new Issuer(externalAccessNode), filteredFlux));
                 })
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }

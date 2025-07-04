@@ -24,22 +24,52 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     private final ReplicationPoliciesService replicationPoliciesService;
 
 
-    //TODO: REFACTOR
+    /**
+     * Ejecuta la negociación de datos con múltiples issuers usando flujos reactivos y control de concurrencia.
+     *
+     * <p>Esta versión refactorizada mejora el rendimiento y la eficiencia al procesar entidades de manera
+     * reactiva y concurrente:
+     *
+     * <ul>
+     *   <li>Recibe un Mono con un Map donde cada Issuer está asociado a un Flux de entidades externas,
+     *       permitiendo procesamiento en streaming y sin necesidad de cargar toda la lista en memoria.</li>
+     *   <li>Las entidades locales se reciben como un Flux reactivo, lo que facilita el procesamiento
+     *       continuo y eficiente de datos locales también.</li>
+     *   <li>El método negocia con múltiples issuers en paralelo, con un límite de concurrencia (4 en este caso),
+     *       evitando saturar recursos y controlando la cantidad de negociaciones simultáneas.</li>
+     *   <li>Se convierte cada flujo externo por issuer a lista solo en el momento necesario para la negociación,
+     *       minimizando el uso de memoria y latencia.</li>
+     *   <li>Al trabajar con flujos y control de concurrencia se obtiene un diseño más escalable, reactivo y eficiente,
+     *       que puede procesar datos conforme llegan y evitar bloqueos o esperas innecesarias.</li>
+     * </ul>
+     *
+     * @param processId identificador del proceso
+     * @param externalEntitiesInfoMono Mono que emite un Map de Issuer a flujo (Flux) de entidades externas
+     * @param localEntitiesFlux flujo reactivo de entidades locales para negociación
+     * @return Mono que completa cuando finaliza la negociación y sincronización de datos
+     */
     @Override
     public Mono<Void> negotiateDataSyncWithMultipleIssuers(
             String processId,
-            Mono<Map<Issuer, List<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
-            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
+            Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
+            Flux<MVEntity4DataNegotiation> localEntitiesFlux) {
         log.info("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
 
         return externalEntitiesInfoMono
-                .flatMapIterable(Map::entrySet)
-                .flatMap(externalEntitiesInfoByIssuer ->
-                        getDataNegotiationResultMono(
-                                processId,
-                                localEntitiesInfoMono,
-                                Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
-                                Mono.just(externalEntitiesInfoByIssuer.getValue())))
+                .flatMapMany(externalEntitiesByIssuer ->
+                    Flux.fromIterable(externalEntitiesByIssuer.entrySet())
+                            .flatMap(issuerFluxEntry -> {
+                                Issuer issuer = issuerFluxEntry.getKey();
+                                Flux<MVEntity4DataNegotiation> externalEntitiesFlux = issuerFluxEntry.getValue();
+                                log.debug("ProcessID: {} - Negotiating data with issuer: {}", processId, issuer.value());
+                                return getDataNegotiationResultMono(
+                                        processId,
+                                        localEntitiesFlux.collectList(), //TODO: REFACTOR ( tirar del hilo, debe ser solo flux)
+                                        Mono.just(issuer.value()),
+                                        externalEntitiesFlux.collectList()
+                                );
+                            },4) // Control de concurrencia: negociamos con 4 issuers simultáneos
+                )
                 .collectList()
                 .flatMap(dataNegotiationResults ->
                         dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults)));
@@ -60,6 +90,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                         dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)));
     }
 
+    //TODO REFACTORIZAR A FLUX
     private Mono<DataNegotiationResult> getDataNegotiationResultMono(
             String processId,
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono,

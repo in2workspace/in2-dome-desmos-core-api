@@ -18,6 +18,7 @@ import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -51,20 +52,20 @@ class DataNegotiationJobTests {
     void itShouldSyncDataWithMultipleIssuers() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         String processId = "0";
 
-        Map<Issuer, List<MVEntity4DataNegotiation>> externalMVENtities4DataNegotiationByIssuer = new HashMap<>();
+        Map<Issuer, Flux<MVEntity4DataNegotiation>> externalMVENtities4DataNegotiationByIssuer = new HashMap<>();
         Issuer issuer1 = new Issuer("http://example1.org");
         var externalMVEntitiesIssuer1 =
                 List.of(MVEntity4DataNegotiationMother.sample1(),
                         MVEntity4DataNegotiationMother.sample2());
-        externalMVENtities4DataNegotiationByIssuer.put(issuer1, externalMVEntitiesIssuer1);
+        externalMVENtities4DataNegotiationByIssuer.put(issuer1, Flux.fromIterable(externalMVEntitiesIssuer1));
         Issuer issuer2 = new Issuer("http://example2.org");
         var externalMVEntitiesIssuer2 =
                 List.of(MVEntity4DataNegotiationMother.sample3(),
                         MVEntity4DataNegotiationMother.sample4());
 
-        externalMVENtities4DataNegotiationByIssuer.put(issuer2, externalMVEntitiesIssuer2);
+        externalMVENtities4DataNegotiationByIssuer.put(issuer2, Flux.fromIterable(externalMVEntitiesIssuer2));
 
-        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(MVEntity4DataNegotiationMother.list1And2OldAnd3());
+        Flux<MVEntity4DataNegotiation> localEntityIdsMono = Flux.fromIterable(MVEntity4DataNegotiationMother.list1And2OldAnd3());
 
         when(dataTransferJob.syncDataFromList(eq(processId), any())).thenReturn(Mono.empty());
 
