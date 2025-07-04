@@ -50,9 +50,9 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
                                 .header("X-Issuer", externalDomain)
-                                .contentType(MediaType.valueOf("application/x-ndjson"))
-                                .accept(MediaType.valueOf("application/x-ndjson"))
-                                .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)
+                                .contentType(MediaType.valueOf("application/json"))
+                                .accept(MediaType.valueOf("application/json"))
+                                .body(externalMVEntities4DataNegotiation.collectList(),  new ParameterizedTypeReference<List<MVEntity4DataNegotiation>>() {})
                                 .exchangeToFlux(response -> {
                                     HttpStatusCode status = response.statusCode();
 
@@ -67,8 +67,8 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
 
                                                     if (status.is4xxClientError()) {
                                                         return Flux.error(new DiscoverySyncException(
-                                                                String.format("Error 4xx occurred while discovery sync. ProcessId: %s | X-Issuer: %s | Body: %s",
-                                                                        processId, externalDomain, errorBody)));
+                                                                String.format("Error 4xx occurred while discovery sync. ProcessId: %s | X-Issuer: %s | Body: %s | token: %s",
+                                                                        processId, externalDomain, errorBody, tuple.getT2())));
                                                     } else if (status.is5xxServerError()) {
                                                         return Flux.error(new DiscoverySyncException(
                                                                 "Error 5xx occurred while discovery sync. Body: " + errorBody));
