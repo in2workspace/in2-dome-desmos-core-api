@@ -35,7 +35,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
             String externalDomain,
             Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
 
-        log.debug("ProcessID: {} - Making a Discovery Sync Web Client request", processId);
+        log.debug("ProcessID: {} - Making a Discovery Sync Web Client request for domain: {}", processId, externalDomain);
 
         return externalAccessNodeMono
                 .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
