@@ -17,7 +17,9 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -52,28 +54,35 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                 .accept(MediaType.valueOf("application/x-ndjson"))
                                 .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)
                                 .retrieve()
-                                .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
-                                        clientResponse -> {
-                                            log.debug("ProcessID: {} - Discovery sync successfully", processId);
-                                            return Mono.empty();
-                                        })
-                                .onStatus(status -> status != null && status.is4xxClientError(),
+                                .onStatus(
+                                        status -> !status.is2xxSuccessful(),
                                         clientResponse ->
                                                 clientResponse.bodyToMono(String.class)
                                                         .flatMap(errorBody -> {
-                                                            log.error("ProcessID: {} - Remote 4xx error: {}", processId, errorBody);
-                                                            return Mono.error(new DiscoverySyncException(String.format("Error 4xx occurred while discovery sync. ProcessId: %s | X-Issuer: %s | Body: %s", processId, tuple.getT2(), errorBody)));
-                                                        }))
-                                .onStatus(status -> status != null && status.is5xxServerError(),
-                                        clientResponse ->
-                                                clientResponse.bodyToMono(String.class)
-                                                        .flatMap(errorBody -> {
-                                                            log.error("ProcessID: {} - Remote 5xx error: {}", processId, errorBody);
-                                                            return Mono.error(new DiscoverySyncException(
-                                                                    "Error 5xx occurred while discovery sync. Body: " + errorBody));
-                                                        }))
+                                                            if (clientResponse.statusCode().is4xxClientError()) {
+                                                                log.error("ProcessID: {} - Remote 4xx error: {}", processId, errorBody);
+                                                                return Mono.error(new DiscoverySyncException(
+                                                                        String.format("Error 4xx occurred while discovery sync. ProcessId: %s | X-Issuer: %s | Body: %s",
+                                                                                processId, externalDomain, errorBody)));
+                                                            } else if (clientResponse.statusCode().is5xxServerError()) {
+                                                                log.error("ProcessID: {} - Remote 5xx error: {}", processId, errorBody);
+                                                                return Mono.error(new DiscoverySyncException(
+                                                                        "Error 5xx occurred while discovery sync. Body: " + errorBody));
+                                                            } else {
+                                                                log.error("ProcessID: {} - Unexpected HTTP error: {} Body: {}", processId,
+                                                                        clientResponse.statusCode(), errorBody);
+                                                                return Mono.error(new DiscoverySyncException(
+                                                                        String.format("Unexpected HTTP error during discovery sync. Status: %s | Body: %s",
+                                                                                clientResponse.statusCode(), errorBody)));
+                                                            }
+                                                        })
+                                )
                                 .bodyToFlux(MVEntity4DataNegotiation.class)
-                                .retry(3)
+                                .doOnNext(entity ->
+                                        log.debug("ProcessID: {} - Discovery Sync Web Client request successfully", processId)
+                                )
+                                .retryWhen(Retry.fixedDelay(3, Duration.ofSeconds(1))
+                                        .filter(throwable -> !(throwable instanceof DiscoverySyncException)))
                 );
     }
 }
