@@ -33,7 +33,54 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
             String processId,
             Mono<String> externalAccessNodeMono,
             Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
+
         log.debug("ProcessID: {} - Making a Discovery Sync Web Client request", processId);
+
+        // Sanitizar datos ANTES de enviarlos
+        Flux<MVEntity4DataNegotiation> sanitizedFlux = externalMVEntities4DataNegotiation.map(entity -> {
+
+            String safeVersion =
+                    (entity.version() == null || entity.version().isBlank())
+                            ? "v1"
+                            : entity.version();
+
+            String safeLastUpdate =
+                    (entity.lastUpdate() == null || entity.lastUpdate().isBlank())
+                            ? Instant.now().toString()
+                            : entity.lastUpdate();
+
+            String safeEndDateTime =
+                    (entity.endDateTime() == null || entity.endDateTime().isBlank())
+                            ? "9999-12-31T23:59:59Z"
+                            : entity.endDateTime();
+
+            return new MVEntity4DataNegotiation(
+                    entity.id(),
+                    entity.type(),
+                    safeVersion,
+                    safeLastUpdate,
+                    entity.lifecycleStatus(),
+                    entity.startDateTime(),
+                    safeEndDateTime,
+                    entity.hash(),
+                    entity.hashlink()
+            );
+        });
+
+        // Coleccionar como lista y loggear JSON
+        Mono<List<MVEntity4DataNegotiation>> bodyMono =
+                sanitizedFlux
+                        .collectList()
+                        .doOnNext(list -> {
+                            try {
+                                ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+                                String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(list);
+                                log.info("ProcessID: {} - JSON que se va a enviar:\n{}", processId, json);
+                            } catch (Exception e) {
+                                log.error("Error serializando JSON para logging", e);
+                            }
+                        });
+
         return externalAccessNodeMono
                 .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
                 .flatMapMany(tuple ->
