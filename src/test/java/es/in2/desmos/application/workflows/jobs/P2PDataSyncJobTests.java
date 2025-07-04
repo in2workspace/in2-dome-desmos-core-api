@@ -100,44 +100,32 @@ class P2PDataSyncJobTests {
                     };
                 });
 
-        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any()))
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
                 .thenReturn(Flux.just(MVEntity4DataNegotiationMother.sample3()))
                 .thenReturn( Flux.just(MVEntity4DataNegotiationMother.sample4()));
 
         List<String> urlExternalAccessNodesList = UrlMother.example1And2urlsList();
         when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(urlExternalAccessNodesList));
 
-        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any())).thenReturn(Mono.empty());
-
-        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class)))
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(
+                eq(processId), any(Flux.class)))
                 .thenAnswer(invocation -> {
                     Flux<MVEntityReplicationPoliciesInfo> fluxArg = invocation.getArgument(1);
-
-                    Set<String> productOfferingIds = MVBrokerEntity4DataNegotiationMother.list3And4().stream()
-                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
-                            .collect(Collectors.toSet());
-
-                    Set<String> categoryIds = MVBrokerEntity4DataNegotiationMother.listCategories().stream()
-                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
-                            .collect(Collectors.toSet());
-
-                    Set<String> catalogIds = MVBrokerEntity4DataNegotiationMother.listCatalogs().stream()
-                            .map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId)
-                            .collect(Collectors.toSet());
-
-                    return fluxArg
-                            .filter(info -> {
-                                String id = info.id();
-                                return productOfferingIds.contains(id) || categoryIds.contains(id) || catalogIds.contains(id);
-                            })
-                            .map(info -> new Id(info.id()));
+                    return fluxArg.map(info -> new Id(info.id()));
                 });
 
-        var result = p2PDataSyncJob.synchronizeData(processId);
+        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalEntitiesMono = invocation.getArgument(1);
+                    return externalEntitiesMono.flatMapMany(map -> Flux.merge(map.values()))
+                            .then(); // Así se suscriben los Flux y se dispara makeRequest
+                });
 
         StepVerifier
-                .create(result)
-                .verifyComplete();
+                .create(p2PDataSyncJob.synchronizeData(processId))
+                .expectComplete()
+                .verify();
+
 
         verify(brokerPublisherService, times(1)).findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class);
         verifyNoMoreInteractions(brokerPublisherService);
@@ -148,7 +136,7 @@ class P2PDataSyncJobTests {
         verify(externalAccessNodesConfig, atLeastOnce()).getExternalAccessNodesUrls();
         verifyNoMoreInteractions(externalAccessNodesConfig);
 
-        verify(discoverySyncWebClient, atLeastOnce()).makeRequest(eq(processId), any(), any());
+        verify(discoverySyncWebClient, atLeastOnce()).makeRequest(eq(processId), any(),any(), any());
         verifyNoMoreInteractions(discoverySyncWebClient);
 
         verify(dataNegotiationJob, atLeastOnce()).negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());

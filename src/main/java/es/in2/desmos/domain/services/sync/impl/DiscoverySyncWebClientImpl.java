@@ -32,6 +32,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
     public Flux<MVEntity4DataNegotiation> makeRequest(
             String processId,
             Mono<String> externalAccessNodeMono,
+            String externalDomain,
             Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
 
         log.debug("ProcessID: {} - Making a Discovery Sync Web Client request", processId);
@@ -46,7 +47,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         .build()
                                         .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
-                                .header("X-Issuer", String.valueOf(externalAccessNodeMono))
+                                .header("X-Issuer", externalDomain)
                                 .contentType(MediaType.valueOf("application/x-ndjson"))
                                 .accept(MediaType.valueOf("application/x-ndjson"))
                                 .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)

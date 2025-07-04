@@ -106,6 +106,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                     Flux<MVEntity4DataNegotiation> filteredFlux = discoverySyncWebClient.makeRequest(
                                 processId,
                                 Mono.just(externalAccessNode),
+                                apiConfig.getExternalDomain(),
                                 localMvEntities4DataNegotiation)
                             .filter(entity -> Objects.equals(entity.type(), entityType))
                             .doOnNext(filteredEntities ->

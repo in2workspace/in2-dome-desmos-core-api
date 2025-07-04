@@ -42,7 +42,7 @@ public class DataSyncController {
         String processId = UUID.randomUUID().toString();
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
         Mono<String> issuerMono = Mono.just(issuer);
-        log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Controller", processId);
+        log.info("ProcessID: {} Issuer: {} - Starting P2P Data Synchronization Discovery Controller", processId, apiConfig.getExternalDomain());
         return p2PDataSyncJob.dataDiscovery(processId, issuerMono, discoverySyncRequest)
                 .doOnComplete(() -> log.info("ProcessID: {} - Discovery completed successfully", processId))
                 .doOnError(error -> log.error("ProcessID: {} - Error during discovery: {}", processId, error.getMessage()));

@@ -80,10 +80,10 @@ class DiscoverySyncWebClientTest {
 
         mockWebServer.enqueue(new MockResponse()
                 .setBody(responseBody)
-                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
+                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_NDJSON_VALUE));
 
         Mono<String> url = Mono.just(mockWebServer.url("/").toString());
-        Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url, MVEntity4DataNegotiationMother.list1And2());
+        Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url, "X-Issuer" ,MVEntity4DataNegotiationMother.list1And2());
 
         StepVerifier.create(result)
                 .expectNextCount(1)
@@ -92,7 +92,7 @@ class DiscoverySyncWebClientTest {
         var recordedRequest = mockWebServer.takeRequest();
         assertThat(recordedRequest.getPath()).isEqualTo(EndpointsConstants.P2P_DISCOVERY_SYNC);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
-        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
+        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/ndjson");
     }
 
     @ParameterizedTest
@@ -113,7 +113,7 @@ class DiscoverySyncWebClientTest {
             when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
 
             Mono<String> url = Mono.just(mockWebServer1.url("/").toString());
-            Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url,MVEntity4DataNegotiationMother.list1And2());
+            Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url,"X-Issuer", MVEntity4DataNegotiationMother.list1And2());
 
             StepVerifier
                     .create(result)
