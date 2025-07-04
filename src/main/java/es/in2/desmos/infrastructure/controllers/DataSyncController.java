@@ -45,20 +45,7 @@ public class DataSyncController {
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
         Mono<String> issuerMono = Mono.just(issuer);
         log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Controller", processId);
-        return discoverySyncRequest
-                .collectList()
-                .doOnNext(list -> {
-                    try {
-                        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-                        String json = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(list);
-                        log.info("ProcessID: {} - JSON recibido en Controller:\n{}", processId, json);
-                    } catch (Exception e) {
-                        log.error("ProcessID: {} - Error serializando JSON recibido", processId, e);
-                    }
-                })
-                .flatMapMany(list ->
-                    p2PDataSyncJob.dataDiscovery(processId, issuerMono, Flux.fromIterable(list))
-                )
+        return p2PDataSyncJob.dataDiscovery(processId, issuerMono, discoverySyncRequest)
                 .doOnComplete(() -> log.info("ProcessID: {} - Discovery completed successfully", processId))
                 .doOnError(error -> log.error("ProcessID: {} - Error during discovery: {}", processId, error.getMessage()));
 
