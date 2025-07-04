@@ -92,9 +92,8 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
                                 .header("X-Issuer", tuple.getT2())
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .body(bodyMono, new ParameterizedTypeReference<List<MVEntity4DataNegotiation>>() {
-                                })
+                                .contentType(MediaType.parseMediaType("application/x-ndjson"))
+                                .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)
                                 .retrieve()
                                 .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
                                         clientResponse -> {
