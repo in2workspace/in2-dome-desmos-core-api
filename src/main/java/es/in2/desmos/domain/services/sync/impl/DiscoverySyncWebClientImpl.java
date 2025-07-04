@@ -47,7 +47,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                 .header("X-Issuer", tuple.getT2())
                                 .contentType(MediaType.valueOf("application/x-ndjson"))
                                 .accept(MediaType.valueOf("application/x-ndjson"))
-                                .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)
+                                .body(sanitizedFlux, MVEntity4DataNegotiation.class)
                                 .retrieve()
                                 .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
                                         clientResponse -> {
