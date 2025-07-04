@@ -104,27 +104,25 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
     private Flux<MVEntity4DataNegotiation> filterReplicableMvEntities(String processId,
                                                                       Flux<MVEntity4DataNegotiation> localMvEntities4DataNegotiationFlux) {
 
-                    Flux<MVEntityReplicationPoliciesInfo> policyInfoFlux  =
-                            localMvEntities4DataNegotiationFlux.map(mv ->
-                                    new MVEntityReplicationPoliciesInfo(
-                                        mv.id(),
-                                        mv.lifecycleStatus(),
-                                        mv.startDateTime(),
-                                        mv.endDateTime()
-                    ));
+        Flux<MVEntity4DataNegotiation> cachedFlux = localMvEntities4DataNegotiationFlux.cache();
 
-                    return replicationPoliciesService.filterReplicableMvEntitiesList(processId, policyInfoFlux)
-                            .map(Id::id)
-                            .collectList()
-                            .map(HashSet::new)
-                            .flatMapMany(replicableIds ->
-                                localMvEntities4DataNegotiationFlux
-                                .doOnNext(mv -> log.info("Replicable flux emits: {}", mv))
-                                .filter(mv -> {
-                                    System.out.println("Contians: "+ mv + replicableIds.contains(mv.id()));
-                                    return replicableIds.contains(mv.id());
-                                })
-                    );
+        Flux<MVEntityReplicationPoliciesInfo> policyInfoFlux  =
+                cachedFlux.map(mv ->
+                        new MVEntityReplicationPoliciesInfo(
+                            mv.id(),
+                            mv.lifecycleStatus(),
+                            mv.startDateTime(),
+                            mv.endDateTime()
+        ));
+
+        return replicationPoliciesService.filterReplicableMvEntitiesList(processId, policyInfoFlux)
+                .map(Id::id)
+                .collect(Collectors.toSet())
+                .flatMapMany(replicableIds ->
+                    cachedFlux
+                        .doOnNext(mv -> log.info("Replicable flux emits: {}", mv))
+                        .filter(mv -> replicableIds.contains(mv.id()))
+        );
     }
 
     @Override
@@ -143,7 +141,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                             .filter(mv -> Objects.equals(mv.type(), entityType));
 
                                     return externalFilteredFlux.collectList()
-                                            .zipWith(Mono.just(localMvEntities4DataNegotiation))
+                                            .zipWith((Mono.fromSupplier(() -> localMvEntities4DataNegotiation)))
                                             .flatMapMany(tuple -> {
                                                 var dataNegotiationEvent = new DataNegotiationEvent(
                                                         processId,
@@ -169,7 +167,6 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
         return brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, ids, new ArrayList<>());
     }
 
-    //TODO: refactorizar
     private Flux<MVEntity4DataNegotiation> createLocalMvEntitiesByType(String processId, String entityType) {
 
         return brokerPublisherService.findAllIdTypeAndAttributesByType(
@@ -210,8 +207,8 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                                     mvBrokerEntity.getValidFor() != null
                                                             ? mvBrokerEntity.getValidFor().endDateTime()
                                                             : null,
-                                                    mvAuditEntity.hash(),
-                                                    mvAuditEntity.hashlink()
+                                                    mvAuditEntity != null ? mvAuditEntity.hash() : null,
+                                                    mvAuditEntity != null ? mvAuditEntity.hashlink() : null
                                             );
                                         });
                             });
