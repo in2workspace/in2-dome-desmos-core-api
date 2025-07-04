@@ -166,8 +166,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     @Override
     public Mono<List<Entity>> getLocalEntitiesByIdInBase64(String processId, Mono<List<Id>> ids) {
-        return brokerPublisherService
-                .findEntitiesAndItsSubentitiesByIdInBase64(processId, ids, new ArrayList<>());
+        return brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, ids, new ArrayList<>());
     }
 
     //TODO: refactorizar
