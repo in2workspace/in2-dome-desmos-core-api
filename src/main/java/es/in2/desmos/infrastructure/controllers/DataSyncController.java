@@ -31,8 +31,8 @@ public class DataSyncController {
     private final BrokerPublisherService brokerPublisherService;
 
     @PostMapping(path = "/api/v1/sync/p2p/discovery",
-            consumes = "application/json",
-            produces = "application/json")
+            consumes = "application/x-ndjson",
+            produces = "application/x-ndjson")
     @ResponseStatus(HttpStatus.OK)
     public Flux<MVEntity4DataNegotiation> discoverySync(
             @RequestHeader("X-Issuer") @NotBlank String issuer,
