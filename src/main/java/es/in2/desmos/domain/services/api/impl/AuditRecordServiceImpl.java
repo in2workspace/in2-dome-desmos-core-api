@@ -247,8 +247,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     private static String getDataLocationForProducedEntity(String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation) {
-        long start = System.currentTimeMillis();
-        log.debug("{} getDataLocationForProducedEntity", start);
         return issuer +
                 EndpointsConstants.GET_ENTITY +
                 "/" +
@@ -363,7 +361,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     private Mono<MVAuditServiceEntity4DataNegotiation> findOrUpdateAuditRecord(String processId, String entityHash, AuditRecord auditRecord) {
-        log.info("{} findOrUpdateAuditRecord start", start);
         if (entityHash.equals(auditRecord.getEntityHash())) {
             return Mono.just(new MVAuditServiceEntity4DataNegotiation(
                     auditRecord.getEntityId(),
@@ -388,7 +385,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                 auditRecord.getTrader(),
                                 newAuditRecordDataLocation
                         ).doOnSuccess(result ->
-                                log.info("ProcessID: {} - buildAndSaveAuditRecord completed in {} ms", processId, System.currentTimeMillis() - startFunction));
+                                log.info("ProcessID: {} - findOrUpdateAuditRecord - buildAndSaveAuditRecord completed in {} ms", processId, System.currentTimeMillis() - startFunction));
                     });
 
         }
@@ -446,7 +443,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     private Mono<String> getEntityHash(String processId, Mono<String> entityIdMono) {
         start = System.currentTimeMillis();
-        log.info("{} getEntityHash start", start);
         return entityIdMono.flatMap(entityId ->
                 brokerPublisherService.getEntityById(processId, entityId)
                         .flatMap(entity -> {
