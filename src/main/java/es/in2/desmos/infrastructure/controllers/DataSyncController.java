@@ -1,6 +1,5 @@
 package es.in2.desmos.infrastructure.controllers;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.application.workflows.jobs.P2PDataSyncJob;
 import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.models.Id;
@@ -44,6 +43,7 @@ public class DataSyncController {
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
         Mono<String> issuerMono = Mono.just(issuer);
         log.info("ProcessID: {} Issuer: {} - Starting P2P Data Synchronization Discovery Controller", processId, apiConfig.getExternalDomain());
+        //TODO: Revisar por qué no está funcionando correctamente con el formato x-ndjson.
         return discoverySyncRequest
                 .collectList()
                 .flatMapMany(list ->
