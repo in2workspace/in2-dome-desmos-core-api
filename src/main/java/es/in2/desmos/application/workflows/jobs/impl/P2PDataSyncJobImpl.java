@@ -66,8 +66,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                         .collectList()
                         .flatMap(replicableMvEntitiesList -> {
                             if (replicableMvEntitiesList.isEmpty()) {
-                                log.debug("ProcessID: {} - No replicable MV Entities found", processId);
-                                return Mono.empty();
+                                log.debug("ProcessID: {} -  No replicable MV Entities found, replicableMvEntitiesList is EMPTY", processId);
                             }
                             // Convertimos la lista de replicables de nuevo a Flux para pasarlo
                             Flux<MVEntity4DataNegotiation> replicableEntitiesFlux = Flux.fromIterable(replicableMvEntitiesList);
@@ -123,7 +122,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     private Flux<MVEntity4DataNegotiation> filterReplicableMvEntities(String processId,
                                                                       Flux<MVEntity4DataNegotiation> localMvEntities4DataNegotiationFlux) {
-
+        log.debug("ProcessID: {} - Local MV Entities 4 Data Negotiation synchronizing data: {}", processId, localMvEntities4DataNegotiationFlux);
         Flux<MVEntity4DataNegotiation> cachedFlux = localMvEntities4DataNegotiationFlux.cache();
 
         Flux<MVEntityReplicationPoliciesInfo> policyInfoFlux  =
@@ -140,37 +139,45 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                 .collect(Collectors.toSet())
                 .flatMapMany(replicableIds ->
                     cachedFlux
-                        .doOnNext(mv -> log.info("Replicable flux emits: {}", mv))
                         .filter(mv -> replicableIds.contains(mv.id()))
+                        .doOnNext(mv -> log.info("Replicable flux emits: {}", mv))
+                        .doOnError(e -> log.error("ProcessID: {} - Error filtering replicable entities: {}",
+                                processId, e.getMessage()))
+
         );
     }
 
     @Override
     public Flux<MVEntity4DataNegotiation> dataDiscovery(String processId, Mono<String> issuer,
                                                         Flux<MVEntity4DataNegotiation> externalMvEntities4DataNegotiation) {
-        log.info("ProcessID: {} - Starting P2P Data Synchronization Discovery Workflow", processId);
 
         return Flux.fromIterable(ROOT_OBJECTS_LIST)
                 .concatMap(entityType ->
                         createLocalMvEntitiesByType(processId, entityType)
                                 .collectList()
                                 .flatMapMany(localMvEntities4DataNegotiation -> {
-                                    log.debug("ProcessID: {} - Local MV Entities: {}", processId, localMvEntities4DataNegotiation);
+                                    log.debug("ProcessID: {} -  Local MV Entities size for {}: {}", processId, entityType,
+                                            localMvEntities4DataNegotiation.size());
 
                                     Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
                                             .filter(mv -> Objects.equals(mv.type(), entityType));
 
-                                    return externalFilteredFlux.collectList()
-                                            .zipWith((Mono.fromSupplier(() -> localMvEntities4DataNegotiation)))
-                                            .flatMapMany(tuple -> {
+                                    return externalFilteredFlux
+                                            .collectList()
+                                            .doOnNext(list ->
+                                                    log.debug("ProcessID: {} - External MV Entities size for {}: {}",
+                                                            processId, entityType, list.size()))
+                                            //.zipWith((Mono.fromSupplier(() -> localMvEntities4DataNegotiation)))
+                                            .flatMapMany(externalList -> {
                                                 var dataNegotiationEvent = new DataNegotiationEvent(
                                                         processId,
                                                         issuer,
-                                                        Mono.just(tuple.getT1()),
-                                                        Mono.just(tuple.getT2())
+                                                        //Mono.just(tuple.getT1()),
+                                                        //Mono.just(tuple.getT2())
+                                                        Mono.just(externalList),
+                                                        Mono.just(localMvEntities4DataNegotiation)
                                                 );
                                                 dataNegotiationEventPublisher.publishEvent(dataNegotiationEvent);
-
                                                 return filterReplicableMvEntities(processId,
                                                         Flux.fromIterable(localMvEntities4DataNegotiation));
                                             });
@@ -189,6 +196,8 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     private Flux<MVEntity4DataNegotiation> createLocalMvEntitiesByType(String processId, String entityType) {
 
+        log.info("ProcessID: {} - createLocalMvEntitiesByType for : {}", processId, entityType);
+
         return brokerPublisherService.findAllIdTypeAndAttributesByType(
                     processId,
                     entityType,
@@ -205,33 +214,33 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                             processId,
                             entityType,
                             Flux.fromIterable(mvBrokerEntities).map(BrokerEntityWithIdTypeLastUpdateAndVersion::getId))
-                            .collectList()
-                            .flatMapMany(mvAuditEntities -> {
-                                log.debug("ProcessID: {} - MV Audit Service Entities 4 Data Negotiation: {}", processId, mvAuditEntities);
-                                Map<String, MVAuditServiceEntity4DataNegotiation> mvAuditEntitiesById = getMvAuditEntitiesById(mvAuditEntities);
+                                .collectList()
+                                .flatMapMany(mvAuditEntities -> {
+                                    log.debug("ProcessID: {} - MV Audit Service Entities 4 Data Negotiation: {}", processId, mvAuditEntities);
+                                    Map<String, MVAuditServiceEntity4DataNegotiation> mvAuditEntitiesById = getMvAuditEntitiesById(mvAuditEntities);
 
-                                return Flux.fromIterable(mvBrokerEntities)
-                                        .map(mvBrokerEntity -> {
+                                    return Flux.fromIterable(mvBrokerEntities)
+                                            .map(mvBrokerEntity -> {
 
-                                            String entityId = mvBrokerEntity.getId();
-                                            MVAuditServiceEntity4DataNegotiation mvAuditEntity = mvAuditEntitiesById.get(entityId);
-                                            return new MVEntity4DataNegotiation(
-                                                    entityId,
-                                                    entityType,
-                                                    mvBrokerEntity.getVersion(),
-                                                    mvBrokerEntity.getLastUpdate(),
-                                                    mvBrokerEntity.getLifecycleStatus(),
-                                                    mvBrokerEntity.getValidFor() != null
-                                                            ? mvBrokerEntity.getValidFor().startDateTime()
-                                                            : null,
-                                                    mvBrokerEntity.getValidFor() != null
-                                                            ? mvBrokerEntity.getValidFor().endDateTime()
-                                                            : null,
-                                                    mvAuditEntity != null ? mvAuditEntity.hash() : null,
-                                                    mvAuditEntity != null ? mvAuditEntity.hashlink() : null
-                                            );
-                                        });
-                            });
+                                                String entityId = mvBrokerEntity.getId();
+                                                MVAuditServiceEntity4DataNegotiation mvAuditEntity = mvAuditEntitiesById.get(entityId);
+                                                return new MVEntity4DataNegotiation(
+                                                        entityId,
+                                                        entityType,
+                                                        mvBrokerEntity.getVersion(),
+                                                        mvBrokerEntity.getLastUpdate(),
+                                                        mvBrokerEntity.getLifecycleStatus(),
+                                                        mvBrokerEntity.getValidFor() != null
+                                                                ? mvBrokerEntity.getValidFor().startDateTime()
+                                                                : null,
+                                                        mvBrokerEntity.getValidFor() != null
+                                                                ? mvBrokerEntity.getValidFor().endDateTime()
+                                                                : null,
+                                                        mvAuditEntity != null ? mvAuditEntity.hash() : null,
+                                                        mvAuditEntity != null ? mvAuditEntity.hashlink() : null
+                                                );
+                                            });
+                                });
                 });
     }
 

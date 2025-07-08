@@ -37,47 +37,53 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
 
         return externalAccessNodeMono
                 .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
-                .flatMapMany(tuple ->
-                        webClient
-                                .post()
-                                .uri(UriComponentsBuilder.fromHttpUrl(tuple.getT1())
-                                        .path(EndpointsConstants.P2P_DISCOVERY_SYNC)
-                                        .build()
-                                        .toUriString())
-                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
-                                .header("X-Issuer", externalDomain)
-                                .contentType(MediaType.valueOf("application/x-ndjson"))
-                                .accept(MediaType.valueOf("application/x-ndjson"))
-                                .body(externalMVEntities4DataNegotiation, MVEntity4DataNegotiation.class)
-                                .exchangeToFlux(response -> {
-                                    HttpStatusCode status = response.statusCode();
+                .flatMapMany(tuple -> {
+                    Flux<MVEntity4DataNegotiation> payloadToSend =
+                            externalMVEntities4DataNegotiation
+                                    .doOnNext(entity ->
+                                            log.info("ProcessID: {} - Payload for {}: {}", processId, externalDomain,entity));
 
-                                    if (status.is2xxSuccessful()) {
-                                        log.info("ProcessID: {} - Discovery Sync successful, HTTP {}", processId, status);
-                                        return response.bodyToFlux(MVEntity4DataNegotiation.class)
-                                                .doOnNext(entity -> log.debug("ProcessID: {} - Received entity: {}", processId, entity));
-                                    } else {
-                                        return response.bodyToMono(String.class)
-                                                .flatMapMany(errorBody -> {
-                                                    log.error("ProcessID: {} - Error HTTP {}: {}", processId, status, errorBody);
+                            return webClient
+                                    .post()
+                                    .uri(UriComponentsBuilder.fromHttpUrl(tuple.getT1())
+                                            .path(EndpointsConstants.P2P_DISCOVERY_SYNC)
+                                            .build()
+                                            .toUriString())
+                                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())
+                                    .header("X-Issuer", externalDomain)
+                                    .contentType(MediaType.valueOf("application/x-ndjson"))
+                                    .accept(MediaType.valueOf("application/x-ndjson"))
+                                    .body(payloadToSend, MVEntity4DataNegotiation.class)
+                                    .exchangeToFlux(response -> {
+                                        HttpStatusCode status = response.statusCode();
 
-                                                    if (status.is4xxClientError()) {
-                                                        return Flux.error(new DiscoverySyncException(
-                                                                String.format("Error 4xx occurred while discovery sync. ProcessId: %s | X-Issuer: %s | Body: %s",
-                                                                        processId, externalDomain, errorBody)));
-                                                    } else if (status.is5xxServerError()) {
-                                                        return Flux.error(new DiscoverySyncException(
-                                                                "Error 5xx occurred while discovery sync. Body: " + errorBody));
-                                                    } else {
-                                                        return Flux.error(new DiscoverySyncException(
-                                                                String.format("Unexpected HTTP error during discovery sync. Status: %s | Body: %s",
-                                                                        status, errorBody)));
-                                                    }
-                                                });
-                                    }
-                                })
-                                .retryWhen(Retry.fixedDelay(3, Duration.ofSeconds(1))
-                                        .filter(throwable -> !(throwable instanceof DiscoverySyncException)))
+                                        if (status.is2xxSuccessful()) {
+                                            log.info("ProcessID: {} - Discovery Sync successful, HTTP {}", processId, status);
+                                            return response.bodyToFlux(MVEntity4DataNegotiation.class)
+                                                    .doOnNext(entity -> log.debug("ProcessID: {} - Received entity: {}", processId, entity));
+                                        } else {
+                                            return response.bodyToMono(String.class)
+                                                    .flatMapMany(errorBody -> {
+                                                        log.error("ProcessID: {} - Error HTTP {}: {}", processId, status, errorBody);
+
+                                                        if (status.is4xxClientError()) {
+                                                            return Flux.error(new DiscoverySyncException(
+                                                                    String.format("Error 4xx occurred while discovery sync. ProcessId: %s | X-Issuer: %s | Body: %s",
+                                                                            processId, externalDomain, errorBody)));
+                                                        } else if (status.is5xxServerError()) {
+                                                            return Flux.error(new DiscoverySyncException(
+                                                                    "Error 5xx occurred while discovery sync. Body: " + errorBody));
+                                                        } else {
+                                                            return Flux.error(new DiscoverySyncException(
+                                                                    String.format("Unexpected HTTP error during discovery sync. Status: %s | Body: %s",
+                                                                            status, errorBody)));
+                                                        }
+                                                    });
+                                        }
+                                    })
+                                    .retryWhen(Retry.fixedDelay(3, Duration.ofSeconds(1))
+                                            .filter(throwable -> !(throwable instanceof DiscoverySyncException)));
+                        }
                 );
     }
 }

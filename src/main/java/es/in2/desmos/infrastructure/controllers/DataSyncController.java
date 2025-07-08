@@ -36,20 +36,28 @@ public class DataSyncController {
     @ResponseStatus(HttpStatus.OK)
     public Flux<MVEntity4DataNegotiation> discoverySync(
             @RequestHeader("X-Issuer") @NotBlank String issuer,
-            @RequestBody Flux<MVEntity4DataNegotiation> discoverySyncRequest,
+            @RequestBody(required = false) Flux<MVEntity4DataNegotiation> discoverySyncRequest,
             ServerHttpResponse response) {
 
         String processId = UUID.randomUUID().toString();
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
-        Mono<String> issuerMono = Mono.just(issuer);
-        log.info("ProcessID: {} Issuer: {} - Starting P2P Data Synchronization Discovery Controller", processId, apiConfig.getExternalDomain());
-        //TODO: Revisar por qué no está funcionando correctamente con el formato x-ndjson.
-        return discoverySyncRequest
+        Mono<String> issuerMono = Mono.just(issuer); // no debería ser el issuer de A que es el que realiza la petición?
+
+        discoverySyncRequest
                 .collectList()
-                .flatMapMany(list ->
-                        p2PDataSyncJob.dataDiscovery(processId, issuerMono, Flux.fromIterable(list)))
-                .doOnComplete(() -> log.info("ProcessID: {} - Discovery completed successfully", processId))
-                .doOnError(error -> log.error("ProcessID: {} - Error during discovery: {}", processId, error.getMessage()));
+                .doOnNext(list -> {
+                    if (list.isEmpty()) {
+                        log.info("ProcessID: {} - discoverySyncRequest is empty (Flux.empty())", processId);
+                    } else {
+                        log.info("ProcessID: {} - discoverySyncRequest contains {} elements: {}", processId, list.size(), list);
+                    }
+                })
+                .subscribe();
+
+        log.info("ProcessID: {} My Issuer: {} Requested Issuer: {}- Starting P2P Data Synchronization at DISCOVERY CONTROLLER", processId, apiConfig.getExternalDomain(), issuer);
+        return p2PDataSyncJob.dataDiscovery(processId, issuerMono, discoverySyncRequest)
+                .doOnComplete(() -> log.info("ProcessID: {} - DISCOVERY CONTROLLER completed successfully", processId))
+                .doOnError(error -> log.error("ProcessID: {} - Error during DISCOVERY CONTROLLER: {}", processId, error.getMessage()));
 
     }
 
