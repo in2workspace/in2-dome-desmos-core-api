@@ -8,6 +8,8 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
+
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
@@ -16,14 +18,12 @@ public class BrokerConfig {
     private final BrokerProperties brokerProperties;
     private final NgsiLdSubscriptionProperties ngsiLdSubscriptionProperties;
 
-    private static final List<String> ENTITY_TYPES = List.of("product-offering", "category", "catalog");
-
     public String getNotificationEndpoint() {
         return ngsiLdSubscriptionProperties.notificationEndpoint();
     }
 
     public List<String> getEntityTypes() {
-        return ENTITY_TYPES;
+        return ROOT_OBJECTS_LIST;
     }
 
     public String getEntitiesExternalDomain() { return brokerProperties.internalDomain() + brokerProperties.paths().entities();}
