@@ -70,7 +70,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                                         Mono.just(issuer.value()),
                                         externalEntitiesFlux
                                 );
-                            },4) // Control de concurrencia: negociamos con 4 issuers simultáneos
+                            }) //Control de concurrencia: negociamos con 4 issuers simultáneos
                 )
                 .collectList()
                 .flatMap(dataNegotiationResults ->
