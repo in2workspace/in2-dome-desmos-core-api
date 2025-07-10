@@ -41,8 +41,7 @@ public class DataSyncController {
 
         String processId = UUID.randomUUID().toString();
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
-        Mono<String> issuerMono = Mono.just(issuer); // no debería ser el issuer de A que es el que realiza la petición?
-
+        Mono<String> issuerMono = Mono.just(issuer);
         discoverySyncRequest
                 .collectList()
                 .doOnNext(list -> {

@@ -322,15 +322,20 @@ public class AuditRecordServiceImpl implements AuditRecordService {
         return entityIdsFlux
                 .collectList()
                 .flatMapMany(entityIds -> {
+                    log.debug("ProcessID: {} - EntityIds received for audit record search: {}", processId, entityIds);
                     if (entityIds.isEmpty()) {
+                        log.debug("ProcessID: {} - EMPTY entityIds, returning empty Mono", processId);
                         return Mono.empty();
                     }
                     return auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(
                                     entityIds.toArray(new String[0]))
                             .collectMap(AuditRecord::getEntityId)
-                            .flatMapMany(auditRecordMap ->
-                                    Flux.fromIterable(entityIds)
+                            .flatMapMany(auditRecordMap ->{
+                                    log.debug("ProcessID: {} - auditRecordMap keys: {}", processId, auditRecordMap.keySet());
+
+                                    return Flux.fromIterable(entityIds)
                                             .flatMap(id -> {
+                                                log.debug("ProcessID: {} - Processing entityId: {}", processId, id);
                                                 Mono<String> entityHashMono = getEntityHash(processId, Mono.just(id));
                                                 return entityHashMono.flatMap(entityHash -> {
                                                     AuditRecord auditRecord = auditRecordMap.get(id);
@@ -338,10 +343,12 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                     if (auditRecord != null) {
                                                         log.debug("ProcessID: {} - AuditId: {}", processId, id);
                                                         start = System.currentTimeMillis();
-                                                        return findOrUpdateAuditRecord(processId, entityHash, auditRecord).doOnSuccess(result ->
+                                                        return findOrUpdateAuditRecord(processId, entityHash, auditRecord)
+                                                                .doOnSuccess(result ->
                                                                 log.info("ProcessID: {} - findOrUpdateAuditRecord completed in {} ms", processId, System.currentTimeMillis() - start));
 
                                                     } else {
+                                                        log.debug("ProcessID: {} - NO auditRecord found for entityId: {} → calling buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity", processId, id);
                                                         long startFunction = System.currentTimeMillis();
                                                         return buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity(
                                                                 processId,
@@ -354,11 +361,11 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                                 AuditRecordTrader.PRODUCER,
                                                                 null
                                                         ).doOnSuccess(result ->
-                                                                log.info("ProcessID: {} - buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity (on else) completed in {} ms", processId, System.currentTimeMillis() - startFunction));
+                                                                log.info("ProcessID: {} - buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity completed in {} ms", processId, System.currentTimeMillis() - startFunction));
                                                     }
                                                 });
-                                            })
-                            );
+                                            });
+                            });
                 }
         );
     }
