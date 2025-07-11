@@ -160,6 +160,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                             localMvEntities4DataNegotiation.size());
 
                                     Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
+                                            .doOnNext(mv -> log.info("entity in externalMvEntities4DataNegotiation: id={}, type={}", mv.id(), mv.type()))
                                             .filter(mv -> Objects.equals(mv.type(), entityType));
 
                                     return externalFilteredFlux
@@ -182,10 +183,10 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                                         Flux.fromIterable(localMvEntities4DataNegotiation));
                                             });
                                 })
-                )
-                .doOnNext(mv -> log.debug("ProcessID: {} - Emitting MVEntity: {}", processId, mv))
-                .doOnComplete(() -> log.info("ProcessID: {} - P2P Data Synchronization Discovery Workflow completed successfully.", processId))
-                .doOnError(error -> log.error("ProcessID: {} - Error occurred during P2P Data Synchronization Discovery Workflow: {}", processId, error.getMessage()));
+                        )
+                        .doOnNext(mv -> log.debug("ProcessID: {} - Emitting MVEntity: {}", processId, mv))
+                        .doOnComplete(() -> log.info("ProcessID: {} - P2P Data Synchronization Discovery Workflow completed successfully.", processId))
+                        .doOnError(error -> log.error("ProcessID: {} - Error occurred during P2P Data Synchronization Discovery Workflow: {}", processId, error.getMessage()));
     }
 
 
