@@ -160,7 +160,6 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                             localMvEntities4DataNegotiation.size());
 
                                     Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
-                                            //.doOnNext(mv -> log.info("entity in externalMvEntities4DataNegotiation: id={}, type={}", mv.id(), mv.type()))
                                             .filter(mv -> Objects.equals(mv.type(), entityType));
 
                                     return externalFilteredFlux
@@ -168,13 +167,10 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                             .doOnNext(list ->
                                                     log.debug("ProcessID: {} - External MV Entities size for {}: {}",
                                                             processId, entityType, list.size()))
-                                            //.zipWith((Mono.fromSupplier(() -> localMvEntities4DataNegotiation)))
                                             .flatMapMany(externalList -> {
                                                 var dataNegotiationEvent = new DataNegotiationEvent(
                                                         processId,
                                                         issuer,
-                                                        //Mono.just(tuple.getT1()),
-                                                        //Mono.just(tuple.getT2())
                                                         Mono.just(externalList),
                                                         Mono.just(localMvEntities4DataNegotiation)
                                                 );
