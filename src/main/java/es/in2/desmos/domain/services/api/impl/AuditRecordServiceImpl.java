@@ -345,7 +345,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                         start = System.currentTimeMillis();
                                                         return findOrUpdateAuditRecord(processId, entityHash, auditRecord)
                                                                 .doOnSuccess(result ->
-                                                                log.info("ProcessID: {} - findOrUpdateAuditRecord completed in {} ms", processId, System.currentTimeMillis() - start));
+                                                                log.debug("ProcessID: {} - findOrUpdateAuditRecord completed in {} ms", processId, System.currentTimeMillis() - start));
 
                                                     } else {
                                                         log.debug("ProcessID: {} - NO auditRecord found for entityId: {} → calling buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity", processId, id);
@@ -361,7 +361,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                                 AuditRecordTrader.PRODUCER,
                                                                 null
                                                         ).doOnSuccess(result ->
-                                                                log.info("ProcessID: {} - buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity completed in {} ms", processId, System.currentTimeMillis() - startFunction));
+                                                                log.debug("ProcessID: {} - buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity completed in {} ms", processId, System.currentTimeMillis() - startFunction));
                                                     }
                                                 });
                                             });
@@ -395,7 +395,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                 auditRecord.getTrader(),
                                 newAuditRecordDataLocation
                         ).doOnSuccess(result ->
-                                log.info("ProcessID: {} - findOrUpdateAuditRecord - buildAndSaveAuditRecord completed in {} ms", processId, System.currentTimeMillis() - startFunction));
+                                log.debug("ProcessID: {} - findOrUpdateAuditRecord - buildAndSaveAuditRecord completed in {} ms", processId, System.currentTimeMillis() - startFunction));
                     });
 
         }
@@ -445,8 +445,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     private String setAuditRecordHashLink(AuditRecord lastAuditRecordRegistered, String auditRecordHash)
             throws NoSuchAlgorithmException, JsonProcessingException {
-        start = System.currentTimeMillis();
-        log.info("{} setAuditRecordHashLink start", start);
         return lastAuditRecordRegistered.getHashLink() == null ? auditRecordHash
                 : ApplicationUtils.calculateHashLink(lastAuditRecordRegistered.getHashLink(), auditRecordHash);
     }
@@ -463,7 +461,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                 return Mono.error(e);
                             }
                         })).doOnSuccess(result ->
-                log.info("ProcessID: {} - getEntityHash completed in {} ms", processId, System.currentTimeMillis() - start));
+                log.debug("ProcessID: {} - getEntityHash completed in {} ms", processId, System.currentTimeMillis() - start));
     }
 
     private Mono<String> calculateHashLink(Mono<String> previousHashlink, Mono<String> currentHash) {
@@ -477,7 +475,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         return Mono.error(e);
                     }
                 }).doOnSuccess(result ->
-                        log.info("calculateHashLink completed in {} ms", System.currentTimeMillis() - start));
+                        log.debug("calculateHashLink completed in {} ms", System.currentTimeMillis() - start));
     }
 
     private String calculateHash(String retrievedBrokerEntity) {

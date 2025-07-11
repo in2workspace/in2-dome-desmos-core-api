@@ -122,7 +122,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     private Flux<MVEntity4DataNegotiation> filterReplicableMvEntities(String processId,
                                                                       Flux<MVEntity4DataNegotiation> localMvEntities4DataNegotiationFlux) {
-        log.debug("ProcessID: {} - Local MV Entities 4 Data Negotiation synchronizing data: {}", processId, localMvEntities4DataNegotiationFlux);
+        log.info("ProcessID: {} - Local MV Entities 4 Data Negotiation synchronizing data: {}", processId, localMvEntities4DataNegotiationFlux);
         Flux<MVEntity4DataNegotiation> cachedFlux = localMvEntities4DataNegotiationFlux.cache();
 
         Flux<MVEntityReplicationPoliciesInfo> policyInfoFlux  =
@@ -160,7 +160,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                             localMvEntities4DataNegotiation.size());
 
                                     Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
-                                            .doOnNext(mv -> log.info("entity in externalMvEntities4DataNegotiation: id={}, type={}", mv.id(), mv.type()))
+                                            //.doOnNext(mv -> log.info("entity in externalMvEntities4DataNegotiation: id={}, type={}", mv.id(), mv.type()))
                                             .filter(mv -> Objects.equals(mv.type(), entityType));
 
                                     return externalFilteredFlux

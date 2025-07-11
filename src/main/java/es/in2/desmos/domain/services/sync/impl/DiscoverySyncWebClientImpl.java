@@ -33,7 +33,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
             String externalDomain,
             Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
 
-        log.debug("ProcessID: {} - Making a Discovery Sync Web Client request for domain: {}", processId, externalDomain);
+        log.info("ProcessID: {} - Making a Discovery Sync Web Client request for domain: {}", processId, externalDomain);
 
         return externalAccessNodeMono
                 .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
@@ -41,7 +41,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                     Flux<MVEntity4DataNegotiation> payloadToSend =
                             externalMVEntities4DataNegotiation
                                     .doOnNext(entity ->
-                                            log.info("ProcessID: {} - Payload for {}: {}", processId, externalDomain,entity));
+                                            log.debug("ProcessID: {} - Payload for {}: {}", processId, externalDomain,entity));
 
                             return webClient
                                     .post()
