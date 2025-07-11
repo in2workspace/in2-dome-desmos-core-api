@@ -21,6 +21,8 @@ import reactor.core.publisher.Mono;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
+
 /*
  *  Workflow steps:
  *  1. Get the event from the SubscribeQueue.
@@ -104,9 +106,7 @@ public class SubscribeWorkflowImpl implements SubscribeWorkflow {
     }
 
     private boolean hasRootObjectType(String entityType) {
-        return entityType.equals("product-offering") ||
-                entityType.equals("category") ||
-                entityType.equals("catalog");
+        return ROOT_OBJECTS_LIST.contains(entityType);
     }
 
     private String getEntityIdFromJson(String retrievedBrokerEntity) {

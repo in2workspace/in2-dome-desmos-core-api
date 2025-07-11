@@ -8,11 +8,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -114,19 +114,18 @@ class ReplicationPoliciesServiceTest {
         var mvReplicableList = MVEntityReplicationPoliciesInfoMother.mvReplicableList();
 
 
-        List<MVEntityReplicationPoliciesInfo> mvReplicationPoliciesInfoList =
-                Stream.concat(
-                                mvReplicableList.stream(),
-                                MVEntityReplicationPoliciesInfoMother.mvNotReplicableList().stream())
-                        .toList();
+        Flux<MVEntityReplicationPoliciesInfo> mvReplicationPoliciesInfoFlux =
+                Flux.concat(
+                        Flux.fromIterable(mvReplicableList),
+                        Flux.fromIterable(MVEntityReplicationPoliciesInfoMother.mvNotReplicableList())
+                );
 
-        List<Id> expectedIds =
-                mvReplicableList.stream()
-                        .map(mv ->
-                                new Id(mv.id()))
-                        .toList();
 
-        var result = replicationPoliciesService.filterReplicableMvEntitiesList(processId, mvReplicationPoliciesInfoList);
+        List<Id> expectedIds = mvReplicableList.stream()
+                    .map(mv -> new Id(mv.id()))
+                    .toList();
+
+        var result = replicationPoliciesService.filterReplicableMvEntitiesList(processId, mvReplicationPoliciesInfoFlux);
 
         StepVerifier.create(result)
                 .expectNextSequence(expectedIds)

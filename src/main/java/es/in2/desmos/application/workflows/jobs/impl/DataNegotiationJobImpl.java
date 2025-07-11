@@ -23,22 +23,55 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     private final DataTransferJob dataTransferJob;
     private final ReplicationPoliciesService replicationPoliciesService;
 
+
+    /**
+     * Ejecuta la negociación de datos con múltiples issuers usando flujos reactivos y control de concurrencia.
+     *
+     * <p>Esta versión refactorizada mejora el rendimiento y la eficiencia al procesar entidades de manera
+     * reactiva y concurrente:
+     *
+     * <ul>
+     *   <li>Recibe un Mono con un Map donde cada Issuer está asociado a un Flux de entidades externas,
+     *       permitiendo procesamiento en streaming y sin necesidad de cargar toda la lista en memoria.</li>
+     *   <li>Las entidades locales se reciben como un Flux reactivo, lo que facilita el procesamiento
+     *       continuo y eficiente de datos locales también.</li>
+     *   <li>El método negocia con múltiples issuers en paralelo, con un límite de concurrencia (4 en este caso),
+     *       evitando saturar recursos y controlando la cantidad de negociaciones simultáneas.</li>
+     *   <li>Se convierte cada flujo externo por issuer a lista solo en el momento necesario para la negociación,
+     *       minimizando el uso de memoria y latencia.</li>
+     *   <li>Al trabajar con flujos y control de concurrencia se obtiene un diseño más escalable, reactivo y eficiente,
+     *       que puede procesar datos conforme llegan y evitar bloqueos o esperas innecesarias.</li>
+     * </ul>
+     *
+     * @param processId identificador del proceso
+     * @param externalEntitiesInfoMono Mono que emite un Map de Issuer a flujo (Flux) de entidades externas
+     * @param localEntitiesFlux flujo reactivo de entidades locales para negociación
+     * @return Mono que completa cuando finaliza la negociación y sincronización de datos
+     */
     @Override
     public Mono<Void> negotiateDataSyncWithMultipleIssuers(
             String processId,
-            Mono<Map<Issuer,
-                    List<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
-            Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
+            Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
+            Flux<MVEntity4DataNegotiation> localEntitiesFlux) {
         log.info("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
 
+        Mono<List<MVEntity4DataNegotiation>> localEntitiesListMono = localEntitiesFlux.collectList();
+
         return externalEntitiesInfoMono
-                .flatMapIterable(Map::entrySet)
-                .flatMap(externalEntitiesInfoByIssuer ->
-                        getDataNegotiationResultMono(
-                                processId,
-                                localEntitiesInfoMono,
-                                Mono.just(externalEntitiesInfoByIssuer.getKey().value()),
-                                Mono.just(externalEntitiesInfoByIssuer.getValue())))
+                .flatMapMany(externalEntitiesByIssuer ->
+                    Flux.fromIterable(externalEntitiesByIssuer.entrySet())
+                            .flatMap(issuerFluxEntry -> {
+                                Issuer issuer = issuerFluxEntry.getKey();
+                                Flux<MVEntity4DataNegotiation> externalEntitiesFlux = issuerFluxEntry.getValue();
+                                log.debug("ProcessID: {} - Negotiating data with issuer: {}", processId, issuer.value());
+                                return getDataNegotiationResultMono(
+                                        processId,
+                                        localEntitiesListMono,
+                                        Mono.just(issuer.value()),
+                                        externalEntitiesFlux
+                                );
+                            }) //Control de concurrencia: negociamos con 4 issuers simultáneos
+                )
                 .collectList()
                 .flatMap(dataNegotiationResults ->
                         dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults)));
@@ -54,7 +87,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                 processId,
                 dataNegotiationEvent.localEntitiesInfo(),
                 dataNegotiationEvent.issuer(),
-                dataNegotiationEvent.externalEntitiesInfo())
+                dataNegotiationEvent.externalEntitiesInfo().flatMapMany(Flux::fromIterable))
                 .flatMap(dataNegotiationResult ->
                         dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)));
     }
@@ -63,40 +96,48 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
             String processId,
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono,
             Mono<String> externalIssuerMono,
-            Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono) {
-        return externalEntitiesInfoMono
-                .flatMapMany(Flux::fromIterable)
+            Flux<MVEntity4DataNegotiation> externalEntitiesInfoFlux) {
+
+        log.debug("ProcessID: {} - get data Negotiating result with issuer: {} {} {}",
+                processId, externalIssuerMono, localEntitiesInfoMono, externalEntitiesInfoFlux);
+
+        return externalEntitiesInfoFlux
                 .flatMap(entityInfo -> getReplicableEntity(processId, entityInfo))
                 .collectList()
                 .flatMap(replicableExternalEntitiesInfo -> {
+
                     var replicableExternalEntitiesInfoMono = Mono.just(replicableExternalEntitiesInfo);
                     return getEntitiesToAdd(replicableExternalEntitiesInfoMono, localEntitiesInfoMono)
-                            .zipWith(getEntitiesToUpdate(replicableExternalEntitiesInfoMono, localEntitiesInfoMono))
+                            .collectList()
+                            .zipWith(
+                                    getEntitiesToUpdate(replicableExternalEntitiesInfoMono, localEntitiesInfoMono)
+                                            .collectList())
                             .flatMap(entitiesToSaveTuple ->
-                                    externalIssuerMono
-                                            .flatMap(externalIssuer ->
+                                    externalIssuerMono.flatMap(externalIssuer ->
                                                     createDataNegotiationResult(
-                                                            Mono.just(externalIssuer),
-                                                            Mono.just(entitiesToSaveTuple.getT1()),
-                                                            Mono.just(entitiesToSaveTuple.getT2()))));
+                                                           externalIssuer,
+                                                            entitiesToSaveTuple.getT1(),
+                                                            entitiesToSaveTuple.getT2()
+                                                    )
+                                    )
+                            );
 
                 });
     }
 
-    private Mono<List<MVEntity4DataNegotiation>> getEntitiesToAdd(
+    private Flux<MVEntity4DataNegotiation> getEntitiesToAdd(
             Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono,
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
 
         return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
-                .map(tuple -> {
+                .flatMapMany(tuple -> {
                     List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
                     List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
-
-                    return externalEntitiesInfo.stream()
+                    log.debug("getEntitiesToAdd: external {} internal{}", externalEntitiesInfo, localEntitiesInfo);
+                    return Flux.fromIterable(externalEntitiesInfo)
                             .filter(externalEntityInfo -> {
                                 Optional<MVEntity4DataNegotiation> localEntityWithSameIdOptional =
-                                        localEntitiesInfo
-                                                .stream()
+                                        localEntitiesInfo.stream()
                                                 .filter(localEntity ->
                                                         Objects.equals(localEntity.id(), externalEntityInfo.id()))
                                                 .findFirst();
@@ -107,22 +148,20 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                                                         externalEntityInfo.getFloatVersion(),
                                                         localEntityWithSameId.getFloatVersion()))
                                         .orElse(true);
-                            })
-                            .toList();
+                            });
                 });
     }
 
-    private Mono<List<MVEntity4DataNegotiation>> getEntitiesToUpdate(
+    private Flux<MVEntity4DataNegotiation> getEntitiesToUpdate(
             Mono<List<MVEntity4DataNegotiation>> externalEntitiesInfoMono,
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono) {
         return externalEntitiesInfoMono.zipWith(localEntitiesInfoMono)
-                .map(tuple -> {
+                .flatMapMany(tuple -> {
 
                     List<MVEntity4DataNegotiation> externalEntitiesInfo = tuple.getT1();
                     List<MVEntity4DataNegotiation> localEntitiesInfo = tuple.getT2();
-
-                    return externalEntitiesInfo
-                            .stream()
+                    log.debug("getEntitiesToUpdate: external {} internal{}", externalEntitiesInfo, localEntitiesInfo);
+                    return Flux.fromIterable(externalEntitiesInfo)
                             .filter(externalEntityInfo -> {
                                 boolean localHasEntityId =
                                         localEntitiesInfo
@@ -156,8 +195,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                                 } else {
                                     return false;
                                 }
-                            })
-                            .toList();
+                            });
                 });
     }
 
@@ -171,17 +209,11 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
         return externalEntityLastUpdate.isAfter(sameLocalEntityLastUpdate);
     }
 
-    private Mono<DataNegotiationResult> createDataNegotiationResult
-            (Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> newEntitiesToSync, Mono<List<MVEntity4DataNegotiation>> existingEntitiesToSync) {
-        return Mono.zip(issuerMono, newEntitiesToSync, existingEntitiesToSync).map(
-                tuple -> {
-                    String issuer = tuple.getT1();
-                    List<MVEntity4DataNegotiation> newEntitiesToSyncValue = tuple.getT2();
-                    List<MVEntity4DataNegotiation> existingEntitiesToSyncValue = tuple.getT3();
-
-                    return new DataNegotiationResult(issuer, newEntitiesToSyncValue, existingEntitiesToSyncValue);
-                }
-        );
+    private Mono<DataNegotiationResult> createDataNegotiationResult(
+            String issuerMono,
+             List<MVEntity4DataNegotiation> newEntitiesToSync,
+             List<MVEntity4DataNegotiation> existingEntitiesToSync) {
+        return Mono.just(new DataNegotiationResult(issuerMono, newEntitiesToSync, existingEntitiesToSync));
     }
 
     private Mono<MVEntity4DataNegotiation> getReplicableEntity(

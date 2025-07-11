@@ -1,9 +1,9 @@
 package es.in2.desmos.domain.services.api;
 
 import es.in2.desmos.domain.models.*;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.List;
 import java.util.Map;
 
 public interface AuditRecordService {
@@ -30,5 +30,5 @@ public interface AuditRecordService {
 
     Mono<AuditRecord> findLatestConsumerPublishedAuditRecord(String processId);
 
-    Mono<List<MVAuditServiceEntity4DataNegotiation>> findCreateOrUpdateAuditRecordsByEntityIds(String processId, String entityType, Mono<List<String>> entityIdsMono);
+    Flux<MVAuditServiceEntity4DataNegotiation> findCreateOrUpdateAuditRecordsByEntityIds(String processId, String entityType, Flux<String> entityIdsFlux);
 }

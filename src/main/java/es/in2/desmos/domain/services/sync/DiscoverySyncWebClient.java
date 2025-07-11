@@ -1,9 +1,10 @@
 package es.in2.desmos.domain.services.sync;
 
-import es.in2.desmos.domain.models.DiscoverySyncRequest;
-import es.in2.desmos.domain.models.DiscoverySyncResponse;
+import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
+import jakarta.validation.constraints.NotNull;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 public interface DiscoverySyncWebClient {
-    Mono<DiscoverySyncResponse> makeRequest(String processId, Mono<String> externalAccessNodeMono, Mono<DiscoverySyncRequest> localMvEntities4DataNegotiationMono);
+    Flux<MVEntity4DataNegotiation> makeRequest(String processId, Mono<String> externalAccessNodeMono, String externalDomain, Flux<@NotNull MVEntity4DataNegotiation> externalMVEntities4DataNegotiation);
 }

@@ -6,6 +6,7 @@ import es.in2.desmos.domain.utils.ApplicationUtils;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 import org.json.JSONObject;
+import reactor.core.publisher.Flux;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -116,11 +117,11 @@ public final class MVEntity4DataNegotiationMother {
         return new MVEntity4DataNegotiation(id, PRODUCT_OFFERING_TYPE_NAME, String.valueOf(randomVersion), "2024-04-01T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, generateRandomSha256(), generateRandomSha256());
     }
 
-    public static @NotNull List<MVEntity4DataNegotiation> list1And2() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+    public static @NotNull Flux<MVEntity4DataNegotiation> list1And2() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         List<MVEntity4DataNegotiation> mVEntity4DataNegotiationList = new ArrayList<>();
         mVEntity4DataNegotiationList.add(sample1());
         mVEntity4DataNegotiationList.add(sample2());
-        return mVEntity4DataNegotiationList;
+        return Flux.fromIterable(mVEntity4DataNegotiationList);
     }
 
     public static @NotNull List<MVEntity4DataNegotiation> list1And2OldAnd3() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
@@ -138,26 +139,26 @@ public final class MVEntity4DataNegotiationMother {
         return mVEntity4DataNegotiationList;
     }
 
-    public static @NotNull List<MVEntity4DataNegotiation> list2And3() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+    public static @NotNull Flux<MVEntity4DataNegotiation> list2And3() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         List<MVEntity4DataNegotiation> mVEntity4DataNegotiationList = new ArrayList<>();
         mVEntity4DataNegotiationList.add(sample2());
         mVEntity4DataNegotiationList.add(sample3());
-        return mVEntity4DataNegotiationList;
+        return Flux.fromIterable(mVEntity4DataNegotiationList);
     }
 
-    public static @NotNull List<MVEntity4DataNegotiation> list3And4() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+    public static @NotNull Flux<MVEntity4DataNegotiation> list3And4() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         List<MVEntity4DataNegotiation> mVEntity4DataNegotiationList = new ArrayList<>();
         mVEntity4DataNegotiationList.add(sample3());
         mVEntity4DataNegotiationList.add(sample4());
-        return mVEntity4DataNegotiationList;
+        return Flux.fromIterable(mVEntity4DataNegotiationList);
     }
 
-    public static @NotNull List<MVEntity4DataNegotiation> listCategories() {
-        return List.of(category1(), category2());
+    public static @NotNull Flux<MVEntity4DataNegotiation> listCategories() {
+        return Flux.just(category1(), category2());
     }
 
-    public static @NotNull List<MVEntity4DataNegotiation> listCatalogs() {
-        return List.of(catalog1(), catalog2());
+    public static @NotNull Flux<MVEntity4DataNegotiation> listCatalogs() {
+        return Flux.just(catalog1(), catalog2());
     }
 
     public static @NotNull List<MVEntity4DataNegotiation> listLaunchedAndRetired() {

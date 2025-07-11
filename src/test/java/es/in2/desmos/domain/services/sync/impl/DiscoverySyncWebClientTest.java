@@ -1,10 +1,10 @@
 package es.in2.desmos.domain.services.sync.impl;
 
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
-import es.in2.desmos.domain.models.DiscoverySyncResponse;
+import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
-import es.in2.desmos.objectmothers.DiscoverySyncRequestMother;
+import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.json.JSONException;
@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -54,7 +55,7 @@ class DiscoverySyncWebClientTest {
     }
 
     @Test
-    void makeRequest_shouldReturnFluxOfEntityValues() throws Exception {
+    void   makeRequest_shouldReturnFluxOfEntityValues() throws Exception {
         String mockAccessToken = "mock-access-token";
         when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
 
@@ -79,10 +80,10 @@ class DiscoverySyncWebClientTest {
 
         mockWebServer.enqueue(new MockResponse()
                 .setBody(responseBody)
-                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE));
+                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_NDJSON_VALUE));
 
         Mono<String> url = Mono.just(mockWebServer.url("/").toString());
-        Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url, Mono.just(DiscoverySyncRequestMother.list1And2()));
+        Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url, "X-Issuer" ,MVEntity4DataNegotiationMother.list1And2());
 
         StepVerifier.create(result)
                 .expectNextCount(1)
@@ -91,7 +92,7 @@ class DiscoverySyncWebClientTest {
         var recordedRequest = mockWebServer.takeRequest();
         assertThat(recordedRequest.getPath()).isEqualTo(EndpointsConstants.P2P_DISCOVERY_SYNC);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
-        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
+        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/x-ndjson");
     }
 
     @ParameterizedTest
@@ -99,20 +100,19 @@ class DiscoverySyncWebClientTest {
     void itShouldThrowExceptionWhenStatusIs4xxOr5xx(int responseCode) throws IOException {
         try (MockWebServer mockWebServer1 = new MockWebServer()) {
             mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.start();
+                    .setResponseCode(responseCode)
+                    .setBody("error-body")); // opcional, mejor poner algo
 
             String mockAccessToken = "mock-access-token";
             when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
 
             Mono<String> url = Mono.just(mockWebServer1.url("/").toString());
-            Mono<DiscoverySyncResponse> result = discoverySyncWebClient.makeRequest("process1", url, Mono.just(DiscoverySyncRequestMother.list1And2()));
+            Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest(
+                    "process1",
+                    url,
+                    "X-Issuer",
+                    MVEntity4DataNegotiationMother.list1And2()
+            );
 
             StepVerifier
                     .create(result)
@@ -122,4 +122,5 @@ class DiscoverySyncWebClientTest {
             throw new RuntimeException(e);
         }
     }
+
 }
