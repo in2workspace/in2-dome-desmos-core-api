@@ -30,7 +30,7 @@ class DataNegotiationEventPublisherTests {
     void itShouldPublicateEvent() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
 
         Mono<String> issuer = Mono.just("https://example.org");
-        Mono<List<MVEntity4DataNegotiation>> externalEntityIds = MVEntity4DataNegotiationMother.list1And2().collectList(); //TODO: revisar esto
+        Mono<List<MVEntity4DataNegotiation>> externalEntityIds = MVEntity4DataNegotiationMother.list1And2().collectList();
         Mono<List<MVEntity4DataNegotiation>> internalEntityIds = MVEntity4DataNegotiationMother.list3And4().collectList();
 
         String processId = "0";
