@@ -42,6 +42,8 @@ public class DataSyncController {
         String processId = UUID.randomUUID().toString();
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
         Mono<String> issuerMono = Mono.just(issuer);
+        log.info("ProcessID: {} My Issuer: {} Requested Issuer: {}- Starting P2P Data Synchronization at DISCOVERY CONTROLLER", processId, apiConfig.getExternalDomain(), issuer);
+
         discoverySyncRequest
                 .collectList()
                 .doOnNext(list -> {
@@ -53,7 +55,6 @@ public class DataSyncController {
                 })
                 .subscribe();
 
-        log.info("ProcessID: {} My Issuer: {} Requested Issuer: {}- Starting P2P Data Synchronization at DISCOVERY CONTROLLER", processId, apiConfig.getExternalDomain(), issuer);
         return p2PDataSyncJob.dataDiscovery(processId, issuerMono, discoverySyncRequest)
                 .doOnComplete(() -> log.info("ProcessID: {} - DISCOVERY CONTROLLER completed successfully", processId))
                 .doOnError(error -> log.error("ProcessID: {} - Error during DISCOVERY CONTROLLER: {}", processId, error.getMessage()));
