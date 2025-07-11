@@ -217,22 +217,8 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                     Map<String, MVAuditServiceEntity4DataNegotiation> mvAuditEntitiesById = getMvAuditEntitiesById(mvAuditEntities);
 
                                     return Flux.fromIterable(mvBrokerEntities)
-                                            .map(mvBrokerEntity -> {
-
-                                                String entityId = mvBrokerEntity.getId();
-                                                MVAuditServiceEntity4DataNegotiation mvAuditEntity = mvAuditEntitiesById.get(entityId);
-                                                BrokerEntityValidFor validFor = mvBrokerEntity.getValidFor();
-                                                String startDateTime = validFor != null ? validFor.startDateTime() : null;
-                                                String endDateTime = validFor != null ? validFor.endDateTime() : null;
-
-                                                String hash = mvAuditEntity != null ? mvAuditEntity.hash() : null;
-                                                String hashlink = mvAuditEntity != null ? mvAuditEntity.hashlink() : null;
-
-                                                return new MVEntity4DataNegotiation(
-                                                        entityId, entityType, mvBrokerEntity.getVersion(),
-                                                        mvBrokerEntity.getLastUpdate(), mvBrokerEntity.getLifecycleStatus(),
-                                                        startDateTime, endDateTime, hash, hashlink );
-                                            });
+                                            .map(mvBrokerEntity ->
+                                                    toMVEntity4DataNegotiation(mvBrokerEntity, entityType, mvAuditEntitiesById));
                                 });
                 });
     }
@@ -240,6 +226,33 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
     private Map<String, MVAuditServiceEntity4DataNegotiation> getMvAuditEntitiesById(List<MVAuditServiceEntity4DataNegotiation> mvAuditEntities) {
         return mvAuditEntities.stream()
                 .collect(Collectors.toMap(MVAuditServiceEntity4DataNegotiation::id, Function.identity()));
+    }
+
+    private MVEntity4DataNegotiation toMVEntity4DataNegotiation(BrokerEntityWithIdTypeLastUpdateAndVersion mvBrokerEntity,
+            String entityType,
+            Map<String, MVAuditServiceEntity4DataNegotiation> mvAuditEntitiesById) {
+
+        String entityId = mvBrokerEntity.getId();
+        MVAuditServiceEntity4DataNegotiation mvAuditEntity = mvAuditEntitiesById.get(entityId);
+
+        BrokerEntityValidFor validFor = mvBrokerEntity.getValidFor();
+        String startDateTime = validFor != null ? validFor.startDateTime() : null;
+        String endDateTime = validFor != null ? validFor.endDateTime() : null;
+
+        String hash = mvAuditEntity != null ? mvAuditEntity.hash() : null;
+        String hashLink = mvAuditEntity != null ? mvAuditEntity.hashlink() : null;
+
+        return new MVEntity4DataNegotiation(
+                entityId,
+                entityType,
+                mvBrokerEntity.getVersion(),
+                mvBrokerEntity.getLastUpdate(),
+                mvBrokerEntity.getLifecycleStatus(),
+                startDateTime,
+                endDateTime,
+                hash,
+                hashLink
+        );
     }
 
 
