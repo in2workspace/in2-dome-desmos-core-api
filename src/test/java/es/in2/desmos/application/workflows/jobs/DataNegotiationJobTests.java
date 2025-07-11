@@ -103,7 +103,7 @@ class DataNegotiationJobTests {
         String processId = "0";
         DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent(processId, issuerMono, externalEntityIdsMono, localEntityIdsMono);
 
-        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = MVEntity4DataNegotiationMother.list1And2().collectList().block(); //TODO: REVISAR ESTO
+        List<MVEntity4DataNegotiation> expectedNewEntitiesToSync = MVEntity4DataNegotiationMother.list1And2().collectList().block();
 
         List<MVEntity4DataNegotiation> expectedExistingEntitiesToSync = new ArrayList<>();
 
@@ -135,7 +135,7 @@ class DataNegotiationJobTests {
         String issuer = "http://example.org";
         Mono<String> issuerMono = Mono.just(issuer);
 
-        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = MVEntity4DataNegotiationMother.list2And3().collectList(); //TODO: revisar esto
+        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = MVEntity4DataNegotiationMother.list2And3().collectList();
         Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample3()));
 
         String processId = "0";
@@ -173,7 +173,7 @@ class DataNegotiationJobTests {
         String issuer = "http://example.org";
         Mono<String> issuerMono = Mono.just(issuer);
 
-        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = MVEntity4DataNegotiationMother.list2And3().collectList(); //TODO: revisar esto
+        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = MVEntity4DataNegotiationMother.list2And3().collectList();
         Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of(MVEntity4DataNegotiationMother.sample3TimestampOld()));
 
         String processId = "0";
