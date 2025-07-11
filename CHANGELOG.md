@@ -8,11 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry mechanism for Blockchain Adapter and Context Broker.
 - Recover after a failure mechanism for Blockchain Adapter and Context Broker.
 
-## [Released]: v1.1.6
-- Update DataSync to reactive
-
 ## [Released]: v1.1.5
 - Add new entity types to replicate.
+- Update DataSync to reactive
+- Added logs for time execution control
 
 ## [Released]: v1.1.4
 - Desecurize "/prometheus" and "/backoffice/v1/actions/sync" endpoints.
