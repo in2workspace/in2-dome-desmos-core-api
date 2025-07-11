@@ -100,20 +100,19 @@ class DiscoverySyncWebClientTest {
     void itShouldThrowExceptionWhenStatusIs4xxOr5xx(int responseCode) throws IOException {
         try (MockWebServer mockWebServer1 = new MockWebServer()) {
             mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(responseCode));
-            mockWebServer1.start();
+                    .setResponseCode(responseCode)
+                    .setBody("error-body")); // opcional, mejor poner algo
 
             String mockAccessToken = "mock-access-token";
             when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
 
             Mono<String> url = Mono.just(mockWebServer1.url("/").toString());
-            Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest("process1", url,"X-Issuer", MVEntity4DataNegotiationMother.list1And2());
+            Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest(
+                    "process1",
+                    url,
+                    "X-Issuer",
+                    MVEntity4DataNegotiationMother.list1And2()
+            );
 
             StepVerifier
                     .create(result)
@@ -123,4 +122,5 @@ class DiscoverySyncWebClientTest {
             throw new RuntimeException(e);
         }
     }
+
 }
