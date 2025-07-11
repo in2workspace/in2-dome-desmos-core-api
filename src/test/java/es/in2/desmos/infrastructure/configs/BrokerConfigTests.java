@@ -40,7 +40,9 @@ class BrokerConfigTests {
     @Test
     void getEntityTypesReturnsCorrectEntities() {
         // Arrange
-        List<String> expectedEntityTypes = List.of("product-offering", "category", "catalog");
+        List<String> expectedEntityTypes = List.of("individual", "organization", "catalog", "product-offering",
+                "product-offering-price", "product-specification", "service-specification", "resource-specification",
+                "category", "product-order", "product", "usage", "usage-specification","applied-customer-bill-rate", "customer-bill");
         // Act
         List<String> actualEntityTypes = brokerConfig.getEntityTypes();
         // Assert
