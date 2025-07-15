@@ -98,8 +98,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
             Mono<String> externalIssuerMono,
             Flux<MVEntity4DataNegotiation> externalEntitiesInfoFlux) {
 
-        log.debug("ProcessID: {} - get data Negotiating result with issuer: {} {} {}",
-                processId, externalIssuerMono, localEntitiesInfoMono, externalEntitiesInfoFlux);
+        log.debug("ProcessID: {} - get data Negotiating result", processId);
 
         return externalEntitiesInfoFlux
                 .flatMap(entityInfo -> getReplicableEntity(processId, entityInfo))

@@ -160,6 +160,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                             localMvEntities4DataNegotiation.size());
 
                                     Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
+                                            .doOnNext(mv -> log.debug("entity in externalMvEntities4DataNegotiation: id={}, type={}", mv.id(), mv.type()))
                                             .filter(mv -> Objects.equals(mv.type(), entityType));
 
                                     return externalFilteredFlux
