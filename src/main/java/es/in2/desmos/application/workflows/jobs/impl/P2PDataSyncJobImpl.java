@@ -149,6 +149,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
     @Override
     public Flux<MVEntity4DataNegotiation> dataDiscovery(String processId, Mono<String> issuer,
                                                         Flux<MVEntity4DataNegotiation> externalMvEntities4DataNegotiation) {
+        Flux<MVEntity4DataNegotiation> cachedExternalFlux = externalMvEntities4DataNegotiation.cache();
 
         return Flux.fromIterable(ROOT_OBJECTS_LIST)
                 .concatMap(entityType ->
@@ -157,10 +158,9 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                 .flatMapMany(localMvEntities4DataNegotiation -> {
                                     log.debug("ProcessID: {} -  Local MV Entities size for {}: {}", processId, entityType,
                                             localMvEntities4DataNegotiation.size());
-
-                                    Flux<MVEntity4DataNegotiation> externalFilteredFlux = externalMvEntities4DataNegotiation
-                                            .doOnNext(mv -> log.debug("entity in externalMvEntities4DataNegotiation: id={}, type={}", mv.id(), mv.type()))
-                                            .filter(mv -> Objects.equals(mv.type(), entityType));
+                                    Flux<MVEntity4DataNegotiation> externalFilteredFlux = cachedExternalFlux
+                                            .doOnNext(mv -> log.debug("entity in cachedExternalFlux: id={}, type={}", mv.id(), mv.type()))
+                                            .filter(mv -> mv.type().equals(entityType));
 
                                     return externalFilteredFlux
                                             .collectList()

@@ -43,18 +43,6 @@ public class DataSyncController {
         response.getHeaders().add("X-Issuer", apiConfig.getExternalDomain());
         Mono<String> issuerMono = Mono.just(issuer);
         log.info("ProcessID: {} My Issuer: {} Requested Issuer: {}- Starting P2P Data Synchronization at DISCOVERY CONTROLLER", processId, apiConfig.getExternalDomain(), issuer);
-        Flux<MVEntity4DataNegotiation> cachedFlux = discoverySyncRequest.cache();
-
-        cachedFlux
-                .collectList()
-                .doOnNext(list -> {
-                    if (list.isEmpty()) {
-                        log.info("ProcessID: {} - discoverySyncRequest is empty (Flux.empty())", processId);
-                    } else {
-                        log.info("ProcessID: {} - discoverySyncRequest contains {} elements: {}", processId, list.size(), list);
-                    }
-                })
-                .subscribe();
 
         return p2PDataSyncJob.dataDiscovery(processId, issuerMono, discoverySyncRequest)
                 .doOnComplete(() -> log.info("ProcessID: {} - DISCOVERY CONTROLLER completed successfully", processId))
