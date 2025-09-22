@@ -1,10 +1,8 @@
 package es.in2.desmos.infrastructure.controllers;
 
 import es.in2.desmos.domain.services.sync.services.DataSyncService;
-import es.in2.desmos.domain.utils.EndpointsConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;

@@ -3,7 +3,6 @@ package es.in2.desmos.domain.services.sync.impl;
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.utils.EndpointsConstants;
-import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
 import okhttp3.mockwebserver.MockResponse;

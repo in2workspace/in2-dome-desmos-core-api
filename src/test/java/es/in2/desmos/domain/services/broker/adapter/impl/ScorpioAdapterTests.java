@@ -2,7 +2,6 @@ package es.in2.desmos.domain.services.broker.adapter.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.BrokerSubscription;
-import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import es.in2.desmos.infrastructure.configs.EndpointsConfig;

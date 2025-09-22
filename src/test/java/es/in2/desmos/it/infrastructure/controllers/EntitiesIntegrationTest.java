@@ -13,7 +13,6 @@ import es.in2.desmos.objectmothers.BrokerDataMother;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.junit.jupiter.api.*;
-import org.mockito.Mock;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,8 +28,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static es.in2.desmos.domain.utils.EndpointsConstants.BACKOFFICE_P2P_DATA_SYNC;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers

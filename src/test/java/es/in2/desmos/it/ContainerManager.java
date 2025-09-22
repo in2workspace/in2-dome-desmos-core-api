@@ -1,7 +1,6 @@
 package es.in2.desmos.it;
 
 import es.in2.desmos.domain.utils.EndpointsConstants;
-import org.mockito.Mock;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;

@@ -1,10 +1,7 @@
 package es.in2.desmos.domain.models;
 
-import es.in2.desmos.domain.utils.EndpointsConstants;
-import org.intellij.lang.annotations.MagicConstant;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
 
 import java.util.List;
 
