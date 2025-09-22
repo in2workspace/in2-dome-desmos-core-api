@@ -8,7 +8,6 @@ import es.in2.desmos.domain.repositories.AuditRecordRepository;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.utils.ApplicationUtils;
-import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

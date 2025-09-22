@@ -1,6 +1,6 @@
 package es.in2.desmos.infrastructure.security;
 
-import es.in2.desmos.domain.utils.EndpointsConstants;
+
 import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

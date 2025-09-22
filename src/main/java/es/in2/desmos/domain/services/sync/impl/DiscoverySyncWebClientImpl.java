@@ -3,8 +3,6 @@ package es.in2.desmos.domain.services.sync.impl;
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.services.sync.DiscoverySyncWebClient;
-import es.in2.desmos.domain.utils.EndpointsConstants;
-import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
