@@ -30,7 +30,7 @@ public class DataSyncController {
     private final P2PDataSyncJob p2PDataSyncJob;
     private final BrokerPublisherService brokerPublisherService;
 
-    @PostMapping(path = "/api/v1/sync/p2p/discovery",
+    @PostMapping(path = "/api/${api.version}/sync/p2p/discovery",
             consumes = "application/x-ndjson",
             produces = "application/x-ndjson")
     @ResponseStatus(HttpStatus.OK)
@@ -50,7 +50,7 @@ public class DataSyncController {
 
     }
 
-    @PostMapping(value = "/api/v1/sync/p2p/entities")
+    @PostMapping(value = "/api/${api.version}/sync/p2p/entities")
     @ResponseStatus(HttpStatus.OK)
     public Flux<Entity> entitiesSync(@RequestBody @Valid Mono<@NotNull Id[]> entitySyncRequest) {
         String processId = UUID.randomUUID().toString();
@@ -69,7 +69,7 @@ public class DataSyncController {
                 .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Entities Synchronization Controller: {}", processId, error.getMessage()));
     }
 
-    @GetMapping("/api/v1/entities/{id}")
+    @GetMapping("/api/${api.version}/entities/{id}")
     @ResponseStatus(HttpStatus.OK)
     public Flux<Entity> getEntities(@PathVariable String id) {
         String processId = UUID.randomUUID().toString();

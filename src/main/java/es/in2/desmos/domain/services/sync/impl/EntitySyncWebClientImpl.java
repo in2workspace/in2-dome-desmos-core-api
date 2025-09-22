@@ -5,6 +5,7 @@ import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.models.Id;
 import es.in2.desmos.domain.services.sync.EntitySyncWebClient;
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono;
 public class EntitySyncWebClientImpl implements EntitySyncWebClient {
     private final WebClient webClient;
     private final M2MAccessTokenProvider m2MAccessTokenProvider;
+    private final String p2pEntitiesEndpoint;
 
     public Flux<String> makeRequest(String processId, Mono<String> issuerMono, Mono<Id[]> entitySyncRequest) {
         log.info("ProcessID: {} - Making a Entity Sync Web Client request", processId);
@@ -31,7 +33,7 @@ public class EntitySyncWebClientImpl implements EntitySyncWebClient {
                         issuerMono.flatMapMany(issuer -> webClient
                                 .post()
                                 .uri(UriComponentsBuilder.fromHttpUrl(issuer)
-                                        .path(EndpointsConstants.P2P_ENTITIES_SYNC)
+                                        .path(p2pEntitiesEndpoint)
                                         .build()
                                         .toUriString())
                                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)

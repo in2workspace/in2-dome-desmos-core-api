@@ -26,10 +26,12 @@ class BrokerConfigTests {
     @InjectMocks
     private BrokerConfig brokerConfig;
 
+    private String brokerNotificationEndpoint;
+
     @Test
     void getNotificationEndpointReturnsCorrectEndpoint() {
         // Arrange
-        String expectedEndpoint = "https://example.com" + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION;
+        String expectedEndpoint = "https://example.com" + brokerNotificationEndpoint;
         when(ngsiLdSubscriptionProperties.notificationEndpoint()).thenReturn(expectedEndpoint);
         // Act
         String actualEndpoint = brokerConfig.getNotificationEndpoint();

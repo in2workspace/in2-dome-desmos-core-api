@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.exceptions.HashLinkException;
 import es.in2.desmos.domain.models.BlockchainTxPayload;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ public class BlockchainTxPayloadFactory {
 
     private final ObjectMapper objectMapper;
     private final ApiConfig apiConfig;
+    private final EndpointsConfig endpointsConfig;
 
     public Mono<BlockchainTxPayload> buildBlockchainTxPayload(String processId, Map<String, Object> dataMap, String previousHashLink) {
         log.debug("ProcessID: {} - Building blockchain data...", processId);
@@ -34,7 +36,7 @@ public class BlockchainTxPayloadFactory {
             String entityType = (String) dataMap.get("type");
             String entityHash = calculateSHA256(objectMapper.writeValueAsString(dataMap));
             String entityHashLink = entityHash.equals(previousHashLink) ? previousHashLink : calculateHashLink(previousHashLink, entityHash);
-            String dataLocation = apiConfig.getExternalDomain() + EndpointsConstants.GET_ENTITY + "/" + entityId + HASHLINK_PREFIX + entityHashLink;
+            String dataLocation = apiConfig.getExternalDomain() + endpointsConfig.getEntitiesEndpoint() + "/" + entityId + HASHLINK_PREFIX + entityHashLink;
             String organizationIdentifier = HASH_PREFIX + apiConfig.organizationIdHash();
             String previousEntityHashLink = HASH_PREFIX + previousHashLink;
             List<String> metadataList = List.of(getEnvironmentMetadata(apiConfig.getCurrentEnvironment()));

@@ -20,13 +20,15 @@ class BlockchainConfigTests {
     @Mock
     private TxSubscriptionProperties txSubscriptionProperties;
 
+    private String dltAdapterNotificationEndpoint;
+
     @InjectMocks
     private BlockchainConfig blockchainConfig;
 
     @Test
     void getNotificationEndpointReturnsCorrectEndpoint() {
         // Arrange
-        String expectedEndpoint = "https://example.com" + EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
+        String expectedEndpoint = "https://example.com" + dltAdapterNotificationEndpoint;
         when(txSubscriptionProperties.notificationEndpoint()).thenReturn(expectedEndpoint);
         // Act
         String actualEndpoint = blockchainConfig.getNotificationEndpoint();

@@ -4,14 +4,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.it.ContainerManager;
 import org.junit.jupiter.api.*;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -23,26 +26,10 @@ import java.util.List;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@TestPropertySource(properties = "api.version=v2")
 class ScorpioAdapterSubscriptionIT {
 
-    BrokerSubscription brokerSubscription = BrokerSubscription.builder()
-            .id("urn:subscription:b74a701a-9a3b-4eff-982e-744652fc2abf")
-            .type("Subscription")
-            .entities(List.of(
-                    BrokerSubscription.Entity.builder().type("ProductOffering").build(),
-                    BrokerSubscription.Entity.builder().type("Category").build(),
-                    BrokerSubscription.Entity.builder().type("Catalogue").build()))
-            .notification(BrokerSubscription.SubscriptionNotification.builder()
-                    .subscriptionEndpoint(BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.builder()
-                            .uri("http://localhost:8080" + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
-                            .accept("application/json")
-                            .receiverInfo(List.of(
-                                    BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.RetrievalInfoContentType.builder()
-                                            .contentType("application/json")
-                                            .build()))
-                            .build())
-                    .build())
-            .build();
+    private BrokerSubscription brokerSubscription;
 
     @Autowired
     private ScorpioAdapter scorpioAdapter;
@@ -52,6 +39,9 @@ class ScorpioAdapterSubscriptionIT {
 
     @Autowired
     private BrokerConfig brokerConfig;
+
+    @Autowired
+    private EndpointsConfig endpointsConfig;
 
     @Autowired
     private WebClient webClient;
@@ -68,6 +58,24 @@ class ScorpioAdapterSubscriptionIT {
     void setUp() {
         webClient = WebClient.builder()
                 .baseUrl("http://localhost:" + localServerPort)
+                .build();
+        brokerSubscription = BrokerSubscription.builder()
+                .id("urn:subscription:b74a701a-9a3b-4eff-982e-744652fc2abf")
+                .type("Subscription")
+                .entities(List.of(
+                        BrokerSubscription.Entity.builder().type("ProductOffering").build(),
+                        BrokerSubscription.Entity.builder().type("Category").build(),
+                        BrokerSubscription.Entity.builder().type("Catalogue").build()))
+                .notification(BrokerSubscription.SubscriptionNotification.builder()
+                        .subscriptionEndpoint(BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.builder()
+                                .uri("http://localhost:8080" + endpointsConfig.brokerNotificationEndpoint())
+                                .accept("application/json")
+                                .receiverInfo(List.of(
+                                        BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.RetrievalInfoContentType.builder()
+                                                .contentType("application/json")
+                                                .build()))
+                                .build())
+                        .build())
                 .build();
     }
 

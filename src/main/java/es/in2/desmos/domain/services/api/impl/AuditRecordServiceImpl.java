@@ -37,6 +37,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private final BrokerPublisherService brokerPublisherService;
     private final ApiConfig apiConfig;
     private long start;
+    private static String getEntityEndpoint;
 
     /**
      * Create a new AuditRecord with status CREATED or PUBLISHED and trader CONSUMER
@@ -251,7 +252,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     private static String getDataLocationForProducedEntity(String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation) {
         return issuer +
-                EndpointsConstants.GET_ENTITY +
+                getEntityEndpoint +
                 "/" +
                 mvAuditServiceEntity4DataNegotiation.id() +
                 HASHLINK_PREFIX

@@ -3,6 +3,7 @@ package es.in2.desmos.domain.services.sync.impl;
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
 import okhttp3.mockwebserver.MockResponse;
@@ -35,6 +36,8 @@ class DiscoverySyncWebClientTest {
     @Mock
     private M2MAccessTokenProvider mockTokenProvider;
 
+    private String p2pDiscoveryEndpoint;
+
     @InjectMocks
     private DiscoverySyncWebClientImpl discoverySyncWebClient;
 
@@ -45,8 +48,9 @@ class DiscoverySyncWebClientTest {
     void setUp() throws Exception {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
+        p2pDiscoveryEndpoint = "/api/v2"+ EndpointsConstants.P2P_SYNC_PREFIX + EndpointsConstants.P2P_DISCOVERY_SYNC;
         WebClient webClient = WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build();
-        discoverySyncWebClient = new DiscoverySyncWebClientImpl(webClient, mockTokenProvider);
+        discoverySyncWebClient = new DiscoverySyncWebClientImpl(webClient, mockTokenProvider, p2pDiscoveryEndpoint);
     }
 
     @AfterEach
@@ -90,7 +94,7 @@ class DiscoverySyncWebClientTest {
                 .verifyComplete();
 
         var recordedRequest = mockWebServer.takeRequest();
-        assertThat(recordedRequest.getPath()).isEqualTo(EndpointsConstants.P2P_DISCOVERY_SYNC);
+        assertThat(recordedRequest.getPath()).isEqualTo(p2pDiscoveryEndpoint);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
         assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/x-ndjson");
     }

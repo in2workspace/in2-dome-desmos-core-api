@@ -5,13 +5,16 @@ import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
 
@@ -23,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 @WebFluxTest(DataSyncController.class)
 @WithMockUser
+@TestPropertySource(properties = "api.version=v2")
 class DataSyncControllerTest {
 
     @MockBean
@@ -37,6 +41,9 @@ class DataSyncControllerTest {
     @Autowired
     private WebTestClient webTestClient;
 
+    @Mock
+    private EndpointsConfig endpointsConfig;
+
 
     @Test
     void testGetEntitiesSuccess() {
@@ -48,9 +55,12 @@ class DataSyncControllerTest {
         when(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(anyString(), any(), any()))
                 .thenReturn(Mono.just(expectedEntitiesList));
 
+        //Must update the version to pass the test
+        when(endpointsConfig.getEntitiesEndpoint()).thenReturn("/api/v2"+EndpointsConstants.GET_ENTITY);
+
         webTestClient
                 .get()
-                .uri(EndpointsConstants.GET_ENTITY + "/{id}", id)
+                .uri(endpointsConfig.getEntitiesEndpoint() + "/{id}", id)
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer <token>")
                 .exchange()

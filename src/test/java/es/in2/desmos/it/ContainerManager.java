@@ -1,6 +1,7 @@
 package es.in2.desmos.it;
 
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import org.mockito.Mock;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -27,6 +28,9 @@ public class ContainerManager {
     private static final GenericContainer<?> postgisContainerB;
     private static final GenericContainer<?> blockchainAdapterContainerB;
     private static final PostgreSQLContainer<?> postgresContainerB;
+
+    private static String dltAdapterNotificationEndpoint;
+    private static String brokerNotificationEndpoint;
 
     static {
         // Node A
@@ -120,12 +124,12 @@ public class ContainerManager {
                 .withEnv("DLT_ADAPTER_PROVIDER", "digitelts")
                 .withEnv("DLT_ADAPTER_INTERNAL_DOMAIN", "http://dlt-adapter-node-b:8080")
                 .withEnv("DLT_ADAPTER_EXTERNAL_DOMAIN", "http://dlt-adapter-node-b:8080")
-                .withEnv("TX_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080" + EndpointsConstants.DLT_ADAPTER_NOTIFICATION)
+                .withEnv("TX_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080" + dltAdapterNotificationEndpoint)
                 .withEnv("TX_SUBSCRIPTION_ENTITY_TYPES", "ProductOffering,Category,Catalogue")
                 .withEnv("BROKER_PROVIDER", "scorpio")
                 .withEnv("BROKER_INTERNAL_DOMAIN", "http://scorpio-node-b:9090")
                 .withEnv("BROKER_EXTERNAL_DOMAIN", "http://scorpio-node-b:9090")
-                .withEnv("NGSI_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080" + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
+                .withEnv("NGSI_SUBSCRIPTION_NOTIFICATION_ENDPOINT", "http://desmos-node-b:8080" + brokerNotificationEndpoint)
                 .withEnv("NGSI_SUBSCRIPTION_ENTITY_TYPES", "ProductOffering,Category,Catalogue")
                 .dependsOn(blockchainAdapterContainerB)
                 .dependsOn(scorpioContainerB)

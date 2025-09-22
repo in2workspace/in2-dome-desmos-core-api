@@ -13,6 +13,7 @@ import es.in2.desmos.objectmothers.BrokerDataMother;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.junit.jupiter.api.*;
+import org.mockito.Mock;
 import org.skyscreamer.jsonassert.JSONAssert;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +22,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -28,11 +30,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static es.in2.desmos.domain.utils.EndpointsConstants.BACKOFFICE_P2P_DATA_SYNC;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @WithMockUser
 @DirtiesContext
+@TestPropertySource(properties = "api.version=v2")
 class EntitiesIntegrationTest {
 
     @DynamicPropertySource
@@ -45,6 +50,8 @@ class EntitiesIntegrationTest {
 
     @Autowired
     ObjectMapper objectMapper;
+
+    private static String getEntitiesEndpoint;
 
 
     private WebTestClient webTestClient;
@@ -64,6 +71,7 @@ class EntitiesIntegrationTest {
         ScorpioInflator.addEntitiesToBroker(
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
+        getEntitiesEndpoint = "/api/v2"+ EndpointsConstants.GET_ENTITY;
     }
 
     @BeforeEach
@@ -90,7 +98,7 @@ class EntitiesIntegrationTest {
 
         webTestClient
                 .get()
-                .uri(EndpointsConstants.GET_ENTITY + "/{id}", BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID)
+                .uri(getEntitiesEndpoint + "/{id}", BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBodyList(Entity.class)

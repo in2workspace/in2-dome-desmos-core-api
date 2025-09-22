@@ -3,6 +3,7 @@ package es.in2.desmos.domain.services.sync.impl;
 import es.in2.desmos.domain.exceptions.EntitySyncException;
 import es.in2.desmos.domain.models.Id;
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -15,6 +16,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -33,6 +35,8 @@ class EntitySyncWebClientTest {
     @Mock
     private M2MAccessTokenProvider mockTokenProvider;
 
+    private String p2pEntitiesEndpoint;
+
     @InjectMocks
     private EntitySyncWebClientImpl entitySyncWebClient;
 
@@ -43,8 +47,9 @@ class EntitySyncWebClientTest {
     void setUp() throws Exception {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
+        p2pEntitiesEndpoint = "/api/v2"+ EndpointsConstants.P2P_SYNC_PREFIX + EndpointsConstants.P2P_ENTITIES_SYNC;
         WebClient webClient = WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build();
-        entitySyncWebClient = new EntitySyncWebClientImpl(webClient, mockTokenProvider);
+        entitySyncWebClient = new EntitySyncWebClientImpl(webClient, mockTokenProvider, p2pEntitiesEndpoint);
     }
 
     @AfterEach
@@ -87,7 +92,7 @@ class EntitySyncWebClientTest {
                 .verifyComplete();
 
         var recordedRequest = mockWebServer.takeRequest();
-        assertThat(recordedRequest.getPath()).isEqualTo(EndpointsConstants.P2P_ENTITIES_SYNC);
+        assertThat(recordedRequest.getPath()).isEqualTo(p2pEntitiesEndpoint);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
         assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
     }

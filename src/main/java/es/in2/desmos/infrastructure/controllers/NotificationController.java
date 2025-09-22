@@ -16,7 +16,7 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/notifications")
+@RequestMapping("/api/${api.version}/notifications")
 @RequiredArgsConstructor
 public class NotificationController {
 

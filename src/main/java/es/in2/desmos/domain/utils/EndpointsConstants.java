@@ -11,20 +11,17 @@ public final class EndpointsConstants {
     public static final String PROMETHEUS = "/prometheus";
 
     // Backoffice Endpoints
-    public static final String P2P_DATA_SYNC = "/backoffice/v1/actions/sync";
-
-    // Base API Prefix
-    public static final String API_V1_PREFIX = "/api/v1";
+    public static final String BACKOFFICE_P2P_DATA_SYNC = "/actions/sync";
 
     // P2P Sync Endpoints
-    public static final String P2P_SYNC_PREFIX = API_V1_PREFIX + "/sync/p2p";
-    public static final String P2P_DISCOVERY_SYNC = P2P_SYNC_PREFIX + "/discovery";
-    public static final String P2P_ENTITIES_SYNC = P2P_SYNC_PREFIX + "/entities";
+    public static final String P2P_SYNC_PREFIX =  "/sync/p2p";
+    public static final String P2P_DISCOVERY_SYNC = "/discovery";
+    public static final String P2P_ENTITIES_SYNC = "/entities";
 
     // Entity Endpoint
-    public static final String GET_ENTITY = API_V1_PREFIX + "/entities";
+    public static final String GET_ENTITY = "/entities";
 
     // Notifications
-    public static final String DLT_ADAPTER_NOTIFICATION = API_V1_PREFIX + "/notifications/dlt";
-    public static final String CONTEXT_BROKER_NOTIFICATION = API_V1_PREFIX + "/notifications/broker";
+    public static final String DLT_ADAPTER_NOTIFICATION = "/notifications/dlt";
+    public static final String CONTEXT_BROKER_NOTIFICATION = "/notifications/broker";
 }

@@ -86,6 +86,7 @@ operator:
 # Desmos Configuration
 api:
   externalDomain: "http://localhost:8080"
+  version:
 
 # Context Broker Configuration
 broker:
@@ -113,7 +114,7 @@ dlt-adapter:
 
 # Event Subscription Configuration
 tx-subscription:
-  notificationEndpoint: "http://localhost:8081/api/v1/notifications/dlt"
+  notificationEndpoint: "http://localhost:8081/api/${api.version}/notifications/dlt"
 
 security:
   privateKey: "0xd1d346bbb4e3748b370c5985face9a4e5b402dcf41d3f715a455d08144b2327f"
@@ -128,3 +129,4 @@ external-access-nodes:
 
 verifier:
   url:
+

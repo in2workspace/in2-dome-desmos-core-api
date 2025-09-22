@@ -4,6 +4,7 @@ import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.services.sync.DiscoverySyncWebClient;
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ import java.time.Duration;
 public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
     private final WebClient webClient;
     private final M2MAccessTokenProvider m2MAccessTokenProvider;
+    private final String p2pDiscoveryEndpoint;
 
     @Override
     public Flux<MVEntity4DataNegotiation> makeRequest(
@@ -46,7 +48,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                             return webClient
                                     .post()
                                     .uri(UriComponentsBuilder.fromHttpUrl(tuple.getT1())
-                                            .path(EndpointsConstants.P2P_DISCOVERY_SYNC)
+                                            .path(p2pDiscoveryEndpoint)
                                             .build()
                                             .toUriString())
                                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + tuple.getT2())

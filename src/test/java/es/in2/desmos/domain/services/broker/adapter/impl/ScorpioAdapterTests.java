@@ -5,6 +5,8 @@ import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -28,24 +30,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ScorpioAdapterTests {
 
-    BrokerSubscription brokerSubscription = BrokerSubscription.builder()
-            .id("urn:subscription:b74a701a-9a3b-4eff-982e-744652fc2abf")
-            .type("Subscription")
-            .entities(List.of(
-                    BrokerSubscription.Entity.builder().type("ProductOffering").build(),
-                    BrokerSubscription.Entity.builder().type("Category").build(),
-                    BrokerSubscription.Entity.builder().type("Catalogue").build()))
-            .notification(BrokerSubscription.SubscriptionNotification.builder()
-                    .subscriptionEndpoint(BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.builder()
-                            .uri("http://localhost:8080" + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
-                            .accept("application/json")
-                            .receiverInfo(List.of(
-                                    BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.RetrievalInfoContentType.builder()
-                                            .contentType("application/json")
-                                            .build()))
-                            .build())
-                    .build())
-            .build();
+    private BrokerSubscription brokerSubscription;
 
     @Mock
     private ObjectMapper objectMapper;
@@ -55,6 +40,9 @@ class ScorpioAdapterTests {
 
     @Mock
     private ApiConfig apiConfig;
+
+    @Mock
+    private EndpointsConfig endpointsConfig;
 
     @Mock
     private WebClient webClientMock;
@@ -76,6 +64,30 @@ class ScorpioAdapterTests {
 
     @Mock
     private WebClient.RequestBodySpec AcceptedRequestBodyMock;
+
+    @BeforeEach
+    void setUp() {
+
+
+        brokerSubscription = BrokerSubscription.builder()
+                .id("urn:subscription:b74a701a-9a3b-4eff-982e-744652fc2abf")
+                .type("Subscription")
+                .entities(List.of(
+                        BrokerSubscription.Entity.builder().type("ProductOffering").build(),
+                        BrokerSubscription.Entity.builder().type("Category").build(),
+                        BrokerSubscription.Entity.builder().type("Catalogue").build()))
+                .notification(BrokerSubscription.SubscriptionNotification.builder()
+                        .subscriptionEndpoint(BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.builder()
+                                .uri("http://localhost:8080" + endpointsConfig.brokerNotificationEndpoint())
+                                .accept("application/json")
+                                .receiverInfo(List.of(
+                                        BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.RetrievalInfoContentType.builder()
+                                                .contentType("application/json")
+                                                .build()))
+                                .build())
+                        .build())
+                .build();
+    }
 
     @InjectMocks
     private ScorpioAdapter scorpioAdapter;
