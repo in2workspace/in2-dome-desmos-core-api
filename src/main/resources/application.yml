@@ -100,7 +100,7 @@ broker:
 
 # NGSI Subscription Configuration
 ngsi-subscription:
-  notificationEndpoint: "http://localhost:8081/api/v1/notifications/broker"
+  notificationEndpoint: "http://localhost:8081/api/${api.version}/notifications/broker"
 
 # DLT Adapter Configuration
 dlt-adapter:
