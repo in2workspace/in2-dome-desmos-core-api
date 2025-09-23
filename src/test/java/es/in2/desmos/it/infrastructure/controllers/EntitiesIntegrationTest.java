@@ -34,7 +34,6 @@ import java.util.Objects;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @WithMockUser
 @DirtiesContext
-@TestPropertySource(properties = "api.version=v2")
 class EntitiesIntegrationTest {
 
     @DynamicPropertySource
