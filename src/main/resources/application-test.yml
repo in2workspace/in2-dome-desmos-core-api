@@ -45,11 +45,12 @@ management:
     prometheus:
       enabled: true
   metrics:
-    export:
-      simple:
-        enabled: false
     tags:
       application: ${spring.application.name}
+  simple:
+    metrics:
+      export:
+        enabled: false
 
 # SpringDoc Configuration - OpenAPI 3.0 Documentation & Swagger UI
 springdoc:
