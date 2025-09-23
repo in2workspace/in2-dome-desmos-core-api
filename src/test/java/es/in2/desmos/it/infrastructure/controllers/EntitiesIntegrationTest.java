@@ -64,9 +64,11 @@ class EntitiesIntegrationTest {
     @BeforeAll
     static void setup() {
         String brokerUrl = ContainerManager.getBaseUriForScorpioA();
+        ScorpioInflator.deleteInitialEntitiesFromContextBroker(brokerUrl, brokerEntitiesIds);
         ScorpioInflator.addEntitiesToBroker(
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
+
         getEntitiesEndpoint = "/api/v2"+ EndpointsConstants.GET_ENTITY;
     }
 
