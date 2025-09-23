@@ -69,7 +69,7 @@ class EntitiesIntegrationTest {
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
 
-        getEntitiesEndpoint = "/api/v2"+ EndpointsConstants.GET_ENTITY;
+        getEntitiesEndpoint = "/api/v1"+ EndpointsConstants.GET_ENTITY;
     }
 
     @BeforeEach
