@@ -70,7 +70,7 @@ class EntitiesIntegrationTest {
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
 
-        getEntitiesEndpoint = "/ngsi-ld/v1"+ EndpointsConstants.GET_ENTITY;
+        getEntitiesEndpoint = "/api/v2"+ EndpointsConstants.GET_ENTITY;
     }
 
     @BeforeEach
