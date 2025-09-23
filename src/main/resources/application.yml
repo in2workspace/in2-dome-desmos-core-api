@@ -45,9 +45,6 @@ management:
     prometheus:
       enabled: true
   metrics:
-    export:
-      simple:
-        enabled: false
     tags:
       application: ${spring.application.name}
 
