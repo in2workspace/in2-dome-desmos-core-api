@@ -3,6 +3,7 @@ package es.in2.desmos.domain.services.sync.impl;
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
 import okhttp3.mockwebserver.MockResponse;
@@ -35,6 +36,9 @@ class DiscoverySyncWebClientTest {
     @Mock
     private M2MAccessTokenProvider mockTokenProvider;
 
+    @Mock
+    private EndpointsConfig endpointsConfig;
+
     private String p2pDiscoveryEndpoint;
 
     @InjectMocks
@@ -49,7 +53,7 @@ class DiscoverySyncWebClientTest {
         mockWebServer.start();
         p2pDiscoveryEndpoint = "/api/v2"+ EndpointsConstants.P2P_SYNC_PREFIX + EndpointsConstants.P2P_DISCOVERY_SYNC;
         WebClient webClient = WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build();
-        discoverySyncWebClient = new DiscoverySyncWebClientImpl(webClient, mockTokenProvider, p2pDiscoveryEndpoint);
+        discoverySyncWebClient = new DiscoverySyncWebClientImpl(webClient, mockTokenProvider, endpointsConfig);
     }
 
     @AfterEach
@@ -61,6 +65,7 @@ class DiscoverySyncWebClientTest {
     void   makeRequest_shouldReturnFluxOfEntityValues() throws Exception {
         String mockAccessToken = "mock-access-token";
         when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
+        when(endpointsConfig.p2pDiscoveryEndpoint()).thenReturn(p2pDiscoveryEndpoint);
 
         String responseBody = """
                 {

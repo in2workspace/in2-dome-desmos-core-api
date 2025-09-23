@@ -5,6 +5,7 @@ import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.blockchain.adapter.BlockchainAdapterService;
 import es.in2.desmos.domain.services.blockchain.adapter.factory.BlockchainAdapterFactory;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.configs.TrustFrameworkConfig;
 import es.in2.desmos.objectmothers.BlockchainSubscriptionMother;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,7 @@ import reactor.test.StepVerifier;
 
 import java.util.stream.Stream;
 
+import static es.in2.desmos.domain.utils.EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,9 +46,15 @@ class BlockchainListenerServiceTest {
     @Mock
     private TrustFrameworkConfig trustFrameworkConfig;
 
+    @Mock
+    private EndpointsConfig endpointsConfig;
+
+    private static String dltendpoint = "/api/v2"+DLT_ADAPTER_NOTIFICATION;
+
     @BeforeEach
     void init() {
         when(blockchainAdapterFactory.getBlockchainAdapter()).thenReturn(blockchainAdapterService);
+        when(endpointsConfig.dltNotificationEndpoint()).thenReturn(dltendpoint);
         blockchainListenerService = new BlockchainListenerServiceImpl(blockchainAdapterFactory, auditRecordService, pendingSubscribeEventsQueue, trustFrameworkConfig);
     }
 
@@ -57,7 +65,7 @@ class BlockchainListenerServiceTest {
         when(blockchainAdapterService.getSubscriptions(processId))
                 .thenReturn(Flux.empty());
 
-        var blockchainSubscription = BlockchainSubscriptionMother.sample();
+        var blockchainSubscription = BlockchainSubscriptionMother.sample(endpointsConfig.dltNotificationEndpoint());
         when(blockchainAdapterService.createSubscription(processId, blockchainSubscription))
                 .thenReturn(Mono.empty());
 
@@ -79,7 +87,7 @@ class BlockchainListenerServiceTest {
         when(blockchainAdapterService.getSubscriptions(processId))
                 .thenReturn(Flux.just(differentSubscription));
 
-        var blockchainSubscription = BlockchainSubscriptionMother.sample();
+        var blockchainSubscription = BlockchainSubscriptionMother.sample(endpointsConfig.dltNotificationEndpoint());
         when(blockchainAdapterService.createSubscription(processId, blockchainSubscription))
                 .thenReturn(Mono.empty());
 
@@ -96,7 +104,7 @@ class BlockchainListenerServiceTest {
     @Test
     void itShouldNotCreateSubscriptionIfItsEqualThanExisting() {
         String processId = "0";
-        var blockchainSubscription = BlockchainSubscriptionMother.sample();
+        var blockchainSubscription = BlockchainSubscriptionMother.sample(endpointsConfig.dltNotificationEndpoint());
 
         when(blockchainAdapterService.getSubscriptions(processId))
                 .thenReturn(Flux.just(blockchainSubscription));
@@ -113,8 +121,8 @@ class BlockchainListenerServiceTest {
 
     private static Stream<BlockchainSubscription> getDifferentSubscriptions() {
         return Stream.of(
-                BlockchainSubscriptionMother.otherEventTypesSubscription(),
-                BlockchainSubscriptionMother.otherNotificationEndpointSubscription());
+                BlockchainSubscriptionMother.otherEventTypesSubscription(dltendpoint),
+                BlockchainSubscriptionMother.otherNotificationEndpointSubscription(dltendpoint));
     }
 
 }

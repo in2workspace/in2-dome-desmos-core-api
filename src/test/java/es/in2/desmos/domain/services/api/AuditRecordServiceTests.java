@@ -7,6 +7,7 @@ import es.in2.desmos.domain.repositories.AuditRecordRepository;
 import es.in2.desmos.domain.services.api.impl.AuditRecordServiceImpl;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.objectmothers.AuditRecordMother;
 import es.in2.desmos.objectmothers.EntityMother;
 import es.in2.desmos.objectmothers.MVAuditServiceEntity4DataNegotiationMother;
@@ -44,6 +45,9 @@ class AuditRecordServiceTests {
 
     @Mock
     private ApiConfig apiConfig;
+
+    @Mock
+    private EndpointsConfig endpointsConfig;
 
     @SuppressWarnings("CanBeFinal")
     @Spy

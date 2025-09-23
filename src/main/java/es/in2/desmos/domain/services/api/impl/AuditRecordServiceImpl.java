@@ -9,6 +9,7 @@ import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.utils.ApplicationUtils;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,7 +37,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private final BrokerPublisherService brokerPublisherService;
     private final ApiConfig apiConfig;
     private long start;
-    private static String getEntityEndpoint;
+    private final EndpointsConfig endpointsConfig;
 
     /**
      * Create a new AuditRecord with status CREATED or PUBLISHED and trader CONSUMER
@@ -249,9 +250,9 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                 });
     }
 
-    private static String getDataLocationForProducedEntity(String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation) {
+    private String getDataLocationForProducedEntity(String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation) {
         return issuer +
-                getEntityEndpoint +
+                endpointsConfig.getEntitiesEndpoint() +
                 "/" +
                 mvAuditServiceEntity4DataNegotiation.id() +
                 HASHLINK_PREFIX

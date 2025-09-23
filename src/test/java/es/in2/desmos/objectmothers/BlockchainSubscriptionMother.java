@@ -6,17 +6,10 @@ import java.util.List;
 
 public final class BlockchainSubscriptionMother {
 
-    private static String dltNotificationEndpoint;
-
     private BlockchainSubscriptionMother() {
     }
 
-    public static void setDltNotificationEndpoint(String endpoint) {
-        dltNotificationEndpoint = endpoint;
-    }
-
-
-    public static BlockchainSubscription sample() {
+    public static BlockchainSubscription sample(String dltNotificationEndpoint) {
         List<String> eventTypes = List.of(
                 "catalog",
                 "product-offering",
@@ -34,21 +27,21 @@ public final class BlockchainSubscriptionMother {
         return new BlockchainSubscription(eventTypes, metadata, dltNotificationEndpoint);
     }
 
-    public static BlockchainSubscription otherEventTypesSubscription() {
+    public static BlockchainSubscription otherEventTypesSubscription(String dltNotificationEndpoint) {
         List<String> eventTypes = List.of(
                 "other thing",
                 "other event");
 
-        return new BlockchainSubscription(eventTypes, sample().metadata(), sample().notificationEndpoint());
+        return new BlockchainSubscription(eventTypes, sample(dltNotificationEndpoint).metadata(), sample(dltNotificationEndpoint).notificationEndpoint());
     }
 
-    public static BlockchainSubscription otherNotificationEndpointSubscription() {
+    public static BlockchainSubscription otherNotificationEndpointSubscription( String dltNotificationEndpoint) {
         String notificationEndpoint = "/other/endpoint";
 
-        return new BlockchainSubscription(sample().eventTypes(), sample().metadata(), notificationEndpoint);
+        return new BlockchainSubscription(sample(dltNotificationEndpoint).eventTypes(), sample(dltNotificationEndpoint).metadata(), notificationEndpoint);
     }
 
-    public static BlockchainSubscription defaultConfigured() {
+    public static BlockchainSubscription defaultConfigured(String dltNotificationEndpoint) {
         List<String> eventTypes = List.of("individual",
                 "organization",
                 "catalog",
