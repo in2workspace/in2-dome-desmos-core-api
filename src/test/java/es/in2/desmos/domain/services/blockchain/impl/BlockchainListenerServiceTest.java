@@ -49,7 +49,7 @@ class BlockchainListenerServiceTest {
     @Mock
     private EndpointsConfig endpointsConfig;
 
-    private static String dltendpoint = "/api/v2"+DLT_ADAPTER_NOTIFICATION;
+    private final static String dltendpoint = "/api/v2"+DLT_ADAPTER_NOTIFICATION;
 
     @BeforeEach
     void init() {
