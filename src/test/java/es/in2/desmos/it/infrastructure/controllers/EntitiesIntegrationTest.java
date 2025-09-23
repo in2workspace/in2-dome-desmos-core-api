@@ -34,6 +34,7 @@ import java.util.Objects;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @WithMockUser
 @DirtiesContext
+
 class EntitiesIntegrationTest {
 
     @DynamicPropertySource
@@ -69,7 +70,7 @@ class EntitiesIntegrationTest {
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
 
-        getEntitiesEndpoint = "/api/v2"+ EndpointsConstants.GET_ENTITY;
+        getEntitiesEndpoint = "/ngsi-ld/v1"+ EndpointsConstants.GET_ENTITY;
     }
 
     @BeforeEach
