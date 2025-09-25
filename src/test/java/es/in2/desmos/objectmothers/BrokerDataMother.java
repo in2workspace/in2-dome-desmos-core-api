@@ -173,11 +173,13 @@ public final class BrokerDataMother {
                     "category": [
                          {
                              "type": "Relationship",
-                             "object": "%2$s"
+                             "object": "%2$s",
+                             "datasetId": "urn:dataset:category:1"
                          },
                          {
                              "type": "Relationship",
-                             "object": "%3$s"
+                             "object": "%3$s",
+                             "datasetId": "urn:dataset:category:2"
                          }
                     ]
                 },
