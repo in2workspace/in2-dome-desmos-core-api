@@ -65,6 +65,10 @@ class EntitiesIntegrationTest {
     static void setup() {
         brokerUrl = ContainerManager.getBaseUriForScorpioA();
         System.out.println("-TEST- BROKER url: " + brokerUrl);
+
+        System.out.println("Eliminando los elementos en:"+ brokerUrl);
+        ScorpioInflator.deleteInitialEntitiesFromContextBroker(brokerUrl, brokerEntitiesIds);
+
         ScorpioInflator.addEntitiesToBroker(
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
