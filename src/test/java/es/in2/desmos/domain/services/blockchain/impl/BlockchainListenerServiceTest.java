@@ -49,12 +49,12 @@ class BlockchainListenerServiceTest {
     @Mock
     private EndpointsConfig endpointsConfig;
 
-    private final static String dltendpoint = "/api/v2"+DLT_ADAPTER_NOTIFICATION;
+    private final static String dltEndpoint = "/api/v2"+DLT_ADAPTER_NOTIFICATION;
 
     @BeforeEach
     void init() {
         when(blockchainAdapterFactory.getBlockchainAdapter()).thenReturn(blockchainAdapterService);
-        when(endpointsConfig.dltNotificationEndpoint()).thenReturn(dltendpoint);
+        when(endpointsConfig.dltNotificationEndpoint()).thenReturn(dltEndpoint);
         blockchainListenerService = new BlockchainListenerServiceImpl(blockchainAdapterFactory, auditRecordService, pendingSubscribeEventsQueue, trustFrameworkConfig);
     }
 
@@ -121,8 +121,8 @@ class BlockchainListenerServiceTest {
 
     private static Stream<BlockchainSubscription> getDifferentSubscriptions() {
         return Stream.of(
-                BlockchainSubscriptionMother.otherEventTypesSubscription(dltendpoint),
-                BlockchainSubscriptionMother.otherNotificationEndpointSubscription(dltendpoint));
+                BlockchainSubscriptionMother.otherEventTypesSubscription(dltEndpoint),
+                BlockchainSubscriptionMother.otherNotificationEndpointSubscription(dltEndpoint));
     }
 
 }

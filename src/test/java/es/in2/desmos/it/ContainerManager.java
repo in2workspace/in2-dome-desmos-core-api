@@ -28,9 +28,10 @@ public class ContainerManager {
     private static final GenericContainer<?> blockchainAdapterContainerB;
     private static final PostgreSQLContainer<?> postgresContainerB;
 
-    //TODO: revisar para hacerlo dinámico
-    private final static String dltAdapterNotificationEndpoint = "/api/v2/"+EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
-    private final static String brokerNotificationEndpoint="/api/v2/"+EndpointsConstants.CONTEXT_BROKER_NOTIFICATION;
+    //Remember update the version
+    private final static String pathVersion = "v2";
+    private final static String dltAdapterNotificationEndpoint = "/api/"+ pathVersion + EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
+    private final static String brokerNotificationEndpoint="/api/"+pathVersion + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION;
 
     static {
         // Node A

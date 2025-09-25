@@ -14,7 +14,6 @@ import es.in2.desmos.infrastructure.security.JwtTokenProvider;
 import es.in2.desmos.infrastructure.security.VerifierService;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
