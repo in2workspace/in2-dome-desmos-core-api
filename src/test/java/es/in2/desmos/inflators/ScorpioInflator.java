@@ -21,7 +21,9 @@ public final class ScorpioInflator {
 
     private static final MediaType APPLICATION_LD_JSON = new MediaType("application", "ld+json");
 
-    public static void addInitialEntitiesToContextBroker(String brokerUrl, List<BrokerEntityWithIdTypeLastUpdateAndVersion> initialEntities) throws JSONException, JsonProcessingException {
+    public static void addInitialEntitiesToContextBroker(String brokerUrl,
+                 List<BrokerEntityWithIdTypeLastUpdateAndVersion> initialEntities)
+                throws JSONException, JsonProcessingException {
         String requestBody = createInitialEntitiesRequestBody(initialEntities);
 
         var result = WebClient.builder()

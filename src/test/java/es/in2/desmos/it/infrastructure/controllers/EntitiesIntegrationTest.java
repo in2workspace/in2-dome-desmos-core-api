@@ -27,6 +27,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -46,6 +47,8 @@ class EntitiesIntegrationTest {
     @Autowired
     ObjectMapper objectMapper;
 
+    private static String brokerUrl;
+
 
     private WebTestClient webTestClient;
 
@@ -60,7 +63,8 @@ class EntitiesIntegrationTest {
 
     @BeforeAll
     static void setup() {
-        String brokerUrl = ContainerManager.getBaseUriForScorpioA();
+        brokerUrl = ContainerManager.getBaseUriForScorpioA();
+        System.out.println("-TEST- BROKER url: " + brokerUrl);
         ScorpioInflator.addEntitiesToBroker(
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
@@ -68,6 +72,7 @@ class EntitiesIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        System.out.println("-TEST- LOCAL SERVER PORT: " + localServerPort);
         this.webTestClient = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + localServerPort)
                 .build();
@@ -75,7 +80,7 @@ class EntitiesIntegrationTest {
 
     @AfterAll
     static void tearDown() {
-        String brokerUrl = ContainerManager.getBaseUriForScorpioA();
+        System.out.println("Eliminando los elementos en:"+ brokerUrl);
         ScorpioInflator.deleteInitialEntitiesFromContextBroker(brokerUrl, brokerEntitiesIds);
     }
 
