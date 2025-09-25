@@ -27,6 +27,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @Testcontainers
@@ -46,6 +47,8 @@ class EntitiesIntegrationTest {
     @Autowired
     ObjectMapper objectMapper;
 
+    private static String brokerUrl;
+
 
     private WebTestClient webTestClient;
 
@@ -53,14 +56,19 @@ class EntitiesIntegrationTest {
             BrokerDataMother.GET_ENTITY_REQUEST_WITH_SUB_ENTITIES_ARRAY_JSON_VARIABLE;
 
     private static final List<String> brokerEntitiesIds = List.of(
-            BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID,
-            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_1_ID,
-            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_2_ID
+            BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID_2,
+            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_1_ID_2,
+            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_2_ID_2
     );
 
     @BeforeAll
     static void setup() {
-        String brokerUrl = ContainerManager.getBaseUriForScorpioA();
+        brokerUrl = ContainerManager.getBaseUriForScorpioA();
+        System.out.println("-TEST- BROKER url: " + brokerUrl);
+
+        System.out.println("Eliminando los elementos en:"+ brokerUrl);
+        ScorpioInflator.deleteInitialEntitiesFromContextBroker(brokerUrl, brokerEntitiesIds);
+
         ScorpioInflator.addEntitiesToBroker(
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
@@ -68,6 +76,7 @@ class EntitiesIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        System.out.println("-TEST- LOCAL SERVER PORT: " + localServerPort);
         this.webTestClient = WebTestClient.bindToServer()
                 .baseUrl("http://localhost:" + localServerPort)
                 .build();
@@ -75,7 +84,7 @@ class EntitiesIntegrationTest {
 
     @AfterAll
     static void tearDown() {
-        String brokerUrl = ContainerManager.getBaseUriForScorpioA();
+        System.out.println("Eliminando los elementos en:"+ brokerUrl);
         ScorpioInflator.deleteInitialEntitiesFromContextBroker(brokerUrl, brokerEntitiesIds);
     }
 
@@ -90,7 +99,7 @@ class EntitiesIntegrationTest {
 
         webTestClient
                 .get()
-                .uri(EndpointsConstants.GET_ENTITY + "/{id}", BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID)
+                .uri(EndpointsConstants.GET_ENTITY + "/"+ BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID_2)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBodyList(Entity.class)

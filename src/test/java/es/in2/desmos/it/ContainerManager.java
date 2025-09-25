@@ -28,6 +28,11 @@ public class ContainerManager {
     private static final GenericContainer<?> blockchainAdapterContainerB;
     private static final PostgreSQLContainer<?> postgresContainerB;
 
+
+    //TODO: revisar para hacerlo dinámico
+    private final static String dltAdapterNotificationEndpoint = "/api/v1/"+EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
+    private final static String brokerNotificationEndpoint="/api/v1/"+EndpointsConstants.CONTEXT_BROKER_NOTIFICATION;
+
     static {
         // Node A
         postgresContainerA = new PostgreSQLContainer<>("postgres:latest")
