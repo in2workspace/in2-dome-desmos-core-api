@@ -60,7 +60,7 @@ public final class BlockchainSubscriptionMother {
 
         List<String> metadata = List.of("local");
 
-        String notificationEndpoint = "http://localhost:8081" + dltNotificationEndpoint;
+        String notificationEndpoint = "http://desmos:8080" + dltNotificationEndpoint;
         return new BlockchainSubscription(eventTypes, metadata, notificationEndpoint);
     }
 }
