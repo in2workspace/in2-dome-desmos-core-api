@@ -56,9 +56,9 @@ class EntitiesIntegrationTest {
             BrokerDataMother.GET_ENTITY_REQUEST_WITH_SUB_ENTITIES_ARRAY_JSON_VARIABLE;
 
     private static final List<String> brokerEntitiesIds = List.of(
-            BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID,
-            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_1_ID,
-            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_2_ID
+            BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID_2,
+            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_1_ID_2,
+            BrokerDataMother.GET_ENTITY_REQUEST_SUBENTITY_2_ID_2
     );
 
     @BeforeAll

@@ -158,6 +158,13 @@ public final class BrokerDataMother {
     public static final String GET_ENTITY_REQUEST_SUBENTITY_2_ID =
             "urn:category:363a79ba-38ed-48c4-978c-131521b943ef";
 
+    public static final String GET_ENTITY_REQUEST_ENTITY_ID_2 =
+            "urn:productOffering:06f56a54-9be9-4d45-bae7-2a036b721d28";
+    public static final String GET_ENTITY_REQUEST_SUBENTITY_1_ID_2 =
+            "urn:category:ebdaf266-c967-43bc-a469-c6b6498facfz";
+    public static final String GET_ENTITY_REQUEST_SUBENTITY_2_ID_2 =
+            "urn:category:363a79ba-38ed-48c4-978c-131521b943ej";
+
     public static final String GET_ENTITY_REQUEST_WITH_SUB_ENTITIES_ARRAY_JSON_VARIABLE = String.format("""
             [
                 {
@@ -182,7 +189,7 @@ public final class BrokerDataMother {
                     "id": "%3$s",
                     "type": "category"
                 }
-            ]""", GET_ENTITY_REQUEST_ENTITY_ID, GET_ENTITY_REQUEST_SUBENTITY_1_ID, GET_ENTITY_REQUEST_SUBENTITY_2_ID);
+            ]""", GET_ENTITY_REQUEST_ENTITY_ID_2, GET_ENTITY_REQUEST_SUBENTITY_1_ID_2, GET_ENTITY_REQUEST_SUBENTITY_2_ID_2);
 
     public static final String GET_ENTITY_REQUEST_WITH_SUB_ENTITIES_ARRAY_WITH_PROPERTY_JSON =
             """
