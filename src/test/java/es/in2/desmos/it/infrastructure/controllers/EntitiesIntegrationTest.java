@@ -99,7 +99,7 @@ class EntitiesIntegrationTest {
 
         webTestClient
                 .get()
-                .uri(EndpointsConstants.GET_ENTITY + "/", BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID)
+                .uri(EndpointsConstants.GET_ENTITY + "/"+ BrokerDataMother.GET_ENTITY_REQUEST_ENTITY_ID_2)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBodyList(Entity.class)
