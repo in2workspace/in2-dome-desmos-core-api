@@ -119,7 +119,7 @@ public class JwtTokenProvider {
             SignedJWT jwt = getSignedJWT(jwtString);
             return validateM2MJwt(jwtString, jwt);
         } catch (Exception e) {
-            log.warn("Error parsing JWT in M2M validation", e);
+            log.debug("CATCHED ok - Error parsing JWT in M2M validation");
             return Mono.error(new InvalidKeyException());
         }
     }
