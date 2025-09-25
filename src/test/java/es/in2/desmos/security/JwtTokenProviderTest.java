@@ -78,7 +78,6 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    @Disabled
     void testGenerateTokenWithPayloadThrowJwtException() throws JsonProcessingException {
         String payload = """
                  {
@@ -107,7 +106,7 @@ class JwtTokenProviderTest {
     }
 
     @Test
-    @Disabled
+
     void testInvalidJwt() {
         String invalidJwt = "invalid.jwt.token";
         assertThrows(Exception.class, () -> jwtTokenProvider.validateSignedJwt(invalidJwt).block());

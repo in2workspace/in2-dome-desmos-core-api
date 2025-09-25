@@ -65,7 +65,6 @@ class EntitiesIntegrationTest {
     @BeforeAll
     static void setup() {
         String brokerUrl = ContainerManager.getBaseUriForScorpioA();
-        ScorpioInflator.deleteInitialEntitiesFromContextBroker(brokerUrl, brokerEntitiesIds);
         ScorpioInflator.addEntitiesToBroker(
                 brokerUrl,
                 BROKER_ENTITIES_JSON);
@@ -87,7 +86,6 @@ class EntitiesIntegrationTest {
     }
 
     @Test
-    @Disabled
     void test() throws JSONException, JsonProcessingException {
         List<String> expectedBrokerEntities = new ArrayList<>();
         for (int i = 0; i < new JSONArray(BROKER_ENTITIES_JSON).length(); i++) {
