@@ -131,12 +131,12 @@ public final class BrokerDataMother {
                             "category": [
                                  {
                                      "type": "Relationship",
-                                     "object": "urn:category:ebdaf266-c967-43bc-a469-c6b6498facff"
+                                     "object": "urn:category:ebdaf266-c967-43bc-a469-c6b6498facff",
                                      "datasetId": "urn:dataset:category:1"
                                  },
                                  {
                                      "type": "Relationship",
-                                     "object": "urn:category:363a79ba-38ed-48c4-978c-131521b943ef"
+                                     "object": "urn:category:363a79ba-38ed-48c4-978c-131521b943ef",
                                      "datasetId": "urn:dataset:category:2"
                                  }
                             ]
