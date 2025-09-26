@@ -16,6 +16,7 @@ public class VerifierConfig {
     private final VerifierProperties verifierProperties;
 
     public String getExternalUrl() {
+        log.debug(" Verifier url used - {}", verifierProperties.url());
         return verifierProperties.url();
     }
 
