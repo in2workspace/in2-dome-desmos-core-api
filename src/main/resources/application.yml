@@ -128,5 +128,5 @@ external-access-nodes:
   urls: ""
 
 verifier:
-  url:
+  url: "https://verifier.dome-marketplace-sbx.org"
 
