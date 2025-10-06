@@ -1,6 +1,5 @@
 package es.in2.desmos.infrastructure.configs;
 
-import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.properties.TxSubscriptionProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,13 +19,15 @@ class BlockchainConfigTests {
     @Mock
     private TxSubscriptionProperties txSubscriptionProperties;
 
+    private String dltAdapterNotificationEndpoint;
+
     @InjectMocks
     private BlockchainConfig blockchainConfig;
 
     @Test
     void getNotificationEndpointReturnsCorrectEndpoint() {
         // Arrange
-        String expectedEndpoint = "https://example.com" + EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
+        String expectedEndpoint = "https://example.com" + dltAdapterNotificationEndpoint;
         when(txSubscriptionProperties.notificationEndpoint()).thenReturn(expectedEndpoint);
         // Act
         String actualEndpoint = blockchainConfig.getNotificationEndpoint();

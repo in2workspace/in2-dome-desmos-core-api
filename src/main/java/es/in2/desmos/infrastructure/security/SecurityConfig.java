@@ -1,6 +1,7 @@
 package es.in2.desmos.infrastructure.security;
 
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.filters.BearerTokenReactiveAuthenticationManager;
 import es.in2.desmos.infrastructure.security.filters.ServerHttpBearerAuthenticationConverter;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ public class SecurityConfig {
 
     private final JwtTokenProvider jwtVerifier;
     private final CorsConfig corsConfig;
+    private final EndpointsConfig endpointsConfig;
 
 
     /**
@@ -44,14 +46,14 @@ public class SecurityConfig {
     public SecurityWebFilterChain springSecurityFilterChain(ServerHttpSecurity http) {
         http
                 .authorizeExchange(exchanges -> exchanges
-                        .pathMatchers(EndpointsConstants.HEALTH, EndpointsConstants.PROMETHEUS, EndpointsConstants.P2P_DATA_SYNC).permitAll()
-                        .pathMatchers(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION, EndpointsConstants.DLT_ADAPTER_NOTIFICATION).permitAll()
-                        .pathMatchers(EndpointsConstants.GET_ENTITY + "/*").authenticated() //replication endpoint
-                        .pathMatchers(EndpointsConstants.P2P_DATA_SYNC + "/*").authenticated() //synchronization endpoint
+                        .pathMatchers(EndpointsConstants.HEALTH, EndpointsConstants.PROMETHEUS, endpointsConfig.backofficeDataSyncEndpoint()).permitAll()
+                        .pathMatchers(endpointsConfig.brokerNotificationEndpoint(), endpointsConfig.dltNotificationEndpoint()).permitAll()
+                        .pathMatchers(endpointsConfig.getEntitiesEndpoint() + "/*").authenticated() //replication endpoint
+                        .pathMatchers(endpointsConfig.backofficeDataSyncEndpoint() + "/*").authenticated() //synchronization endpoint
                         .anyExchange().authenticated()
                 )
                 .csrf(csrf -> csrf
-                        .requireCsrfProtectionMatcher(ServerWebExchangeMatchers.pathMatchers(EndpointsConstants.API_V1_PREFIX + "/**"))
+                        .requireCsrfProtectionMatcher(ServerWebExchangeMatchers.pathMatchers(endpointsConfig.defaultPrefix() + "/**"))
                         .csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse())
                         .disable() // Disable CSRF protection for specific paths
                 )
@@ -81,7 +83,7 @@ public class SecurityConfig {
         bearerAuthenticationFilter
                 .setAuthenticationConverter(bearerConverter);
         bearerAuthenticationFilter
-                .setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.pathMatchers(EndpointsConstants.API_V1_PREFIX + "/**"));
+                .setRequiresAuthenticationMatcher(ServerWebExchangeMatchers.pathMatchers(endpointsConfig.defaultPrefix() + "/**"));
         return bearerAuthenticationFilter;
     }
 }

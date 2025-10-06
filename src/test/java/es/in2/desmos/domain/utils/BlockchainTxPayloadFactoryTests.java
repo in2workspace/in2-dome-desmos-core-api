@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.exceptions.HashLinkException;
 import es.in2.desmos.domain.models.BlockchainTxPayload;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -38,6 +39,9 @@ class BlockchainTxPayloadFactoryTests {
     @Mock
     private ApiConfig apiConfig;
 
+    @Mock
+    private EndpointsConfig endpointsConfig;
+
     @InjectMocks
     private BlockchainTxPayloadFactory blockchainTxPayloadFactory;
 
@@ -48,6 +52,7 @@ class BlockchainTxPayloadFactoryTests {
         when(objectMapper.writeValueAsString(dataMap)).thenReturn("dataMapString");
         when(apiConfig.organizationIdHash()).thenReturn("381d18e478b9ae6e67b1bf48c9f3bcaf246d53c4311bfe81f46e63aa18167c89");
         when(apiConfig.getCurrentEnvironment()).thenReturn("test");
+        when(endpointsConfig.getEntitiesEndpoint()).thenReturn("/api/v2"+ EndpointsConstants.GET_ENTITY);
         // Act
         Mono<BlockchainTxPayload> resultMono = blockchainTxPayloadFactory.buildBlockchainTxPayload(processId, dataMap, previousHash);
         // Assert
@@ -64,6 +69,7 @@ class BlockchainTxPayloadFactoryTests {
         when(objectMapper.writeValueAsString(dataMap)).thenReturn("dataMapString");
         when(apiConfig.organizationIdHash()).thenReturn("381d18e478b9ae6e67b1bf48c9f3bcaf246d53c4311bfe81f46e63aa18167c89");
         when(apiConfig.getCurrentEnvironment()).thenReturn("test");
+        when(endpointsConfig.getEntitiesEndpoint()).thenReturn("/api/v2"+ EndpointsConstants.GET_ENTITY);
         Mono<BlockchainTxPayload> resultMono = blockchainTxPayloadFactory.buildBlockchainTxPayload(processId, dataMap, previousHash);
         // Assert
         // Check that the previous hash is different from the hash of the data, because it is not the first hash, it is the concatenation of the previous hash and the hash of the data

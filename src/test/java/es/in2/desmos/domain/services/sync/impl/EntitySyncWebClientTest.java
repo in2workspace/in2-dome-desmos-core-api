@@ -3,6 +3,7 @@ package es.in2.desmos.domain.services.sync.impl;
 import es.in2.desmos.domain.exceptions.EntitySyncException;
 import es.in2.desmos.domain.models.Id;
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.infrastructure.security.M2MAccessTokenProvider;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -33,10 +34,14 @@ class EntitySyncWebClientTest {
     @Mock
     private M2MAccessTokenProvider mockTokenProvider;
 
+    @Mock
+    private EndpointsConfig endpointsConfig;
+
     @InjectMocks
     private EntitySyncWebClientImpl entitySyncWebClient;
 
     private MockWebServer mockWebServer;
+    private String p2pEntitiesEndpoint;
 
 
     @BeforeEach
@@ -44,7 +49,8 @@ class EntitySyncWebClientTest {
         mockWebServer = new MockWebServer();
         mockWebServer.start();
         WebClient webClient = WebClient.builder().baseUrl(mockWebServer.url("/").toString()).build();
-        entitySyncWebClient = new EntitySyncWebClientImpl(webClient, mockTokenProvider);
+        entitySyncWebClient = new EntitySyncWebClientImpl(webClient, mockTokenProvider, endpointsConfig);
+        p2pEntitiesEndpoint = "/api/v2"+ EndpointsConstants.P2P_SYNC_PREFIX + EndpointsConstants.P2P_ENTITIES_SYNC;
     }
 
     @AfterEach
@@ -56,6 +62,7 @@ class EntitySyncWebClientTest {
     void makeRequest_shouldReturnFluxOfEntityValues() throws Exception {
         String mockAccessToken = "mock-access-token";
         when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
+        when(endpointsConfig.p2pEntitiesEndpoint()).thenReturn(p2pEntitiesEndpoint);
 
         String issuer = mockWebServer.url("/").toString();
         Mono<String> issuerMono = Mono.just(issuer);
@@ -87,7 +94,7 @@ class EntitySyncWebClientTest {
                 .verifyComplete();
 
         var recordedRequest = mockWebServer.takeRequest();
-        assertThat(recordedRequest.getPath()).isEqualTo(EndpointsConstants.P2P_ENTITIES_SYNC);
+        assertThat(recordedRequest.getPath()).isEqualTo(p2pEntitiesEndpoint);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
         assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
     }

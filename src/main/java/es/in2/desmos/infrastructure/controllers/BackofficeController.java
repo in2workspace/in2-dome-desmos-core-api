@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping("/backoffice/v1/actions")
+@RequestMapping("/backoffice/${api.version}/actions")
 @RequiredArgsConstructor
 public class BackofficeController {
 

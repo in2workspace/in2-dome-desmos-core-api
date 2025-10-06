@@ -1,6 +1,5 @@
 package es.in2.desmos.infrastructure.configs;
 
-import es.in2.desmos.domain.utils.EndpointsConstants;
 import es.in2.desmos.infrastructure.configs.properties.BrokerProperties;
 import es.in2.desmos.infrastructure.configs.properties.NgsiLdSubscriptionProperties;
 import org.junit.jupiter.api.Test;
@@ -26,10 +25,12 @@ class BrokerConfigTests {
     @InjectMocks
     private BrokerConfig brokerConfig;
 
+    private String brokerNotificationEndpoint;
+
     @Test
     void getNotificationEndpointReturnsCorrectEndpoint() {
         // Arrange
-        String expectedEndpoint = "https://example.com" + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION;
+        String expectedEndpoint = "https://example.com" + brokerNotificationEndpoint;
         when(ngsiLdSubscriptionProperties.notificationEndpoint()).thenReturn(expectedEndpoint);
         // Act
         String actualEndpoint = brokerConfig.getNotificationEndpoint();

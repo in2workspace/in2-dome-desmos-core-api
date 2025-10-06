@@ -86,6 +86,7 @@ operator:
 # Desmos Configuration
 api:
   externalDomain: "http://localhost:8080"
+  version: v2
 
 # Context Broker Configuration
 broker:
@@ -99,7 +100,7 @@ broker:
 
 # NGSI Subscription Configuration
 ngsi-subscription:
-  notificationEndpoint: "http://localhost:8081/api/v1/notifications/broker"
+  notificationEndpoint: "http://desmos:8080/api/${api.version}/notifications/broker"
 
 # DLT Adapter Configuration
 dlt-adapter:
@@ -113,7 +114,7 @@ dlt-adapter:
 
 # Event Subscription Configuration
 tx-subscription:
-  notificationEndpoint: "http://localhost:8081/api/v1/notifications/dlt"
+  notificationEndpoint: "http://desmos:8080/api/${api.version}/notifications/dlt"
 
 security:
   privateKey: "0xd1d346bbb4e3748b370c5985face9a4e5b402dcf41d3f715a455d08144b2327f"
@@ -127,4 +128,5 @@ external-access-nodes:
   urls: ""
 
 verifier:
-  url:
+  url: "https://verifier.dome-marketplace-sbx.org"
+

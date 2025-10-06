@@ -105,6 +105,7 @@ class JwtTokenProviderTest {
     }
 
     @Test
+
     void testInvalidJwt() {
         String invalidJwt = "invalid.jwt.token";
         assertThrows(Exception.class, () -> jwtTokenProvider.validateSignedJwt(invalidJwt).block());

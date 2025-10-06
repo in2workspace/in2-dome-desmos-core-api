@@ -5,12 +5,15 @@ import es.in2.desmos.domain.models.BrokerNotification;
 import es.in2.desmos.domain.services.blockchain.BlockchainListenerService;
 import es.in2.desmos.domain.services.broker.BrokerListenerService;
 import es.in2.desmos.domain.utils.EndpointsConstants;
+import es.in2.desmos.infrastructure.security.JwtTokenProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
 
@@ -20,18 +23,35 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.csrf;
 
-@ExtendWith(MockitoExtension.class)
+@WebFluxTest(NotificationController.class)
+@WithMockUser
+@TestPropertySource(properties = "api.version=v2")
 class NotificationControllerTests {
 
-    @Mock
+    @MockBean
     private BrokerListenerService brokerListenerService;
-
-    @Mock
+    @MockBean
     private BlockchainListenerService blockchainListenerService;
+    @MockBean
+    private JwtTokenProvider jwtTokenProvider;
 
-    @InjectMocks
-    private NotificationController notificationController;
+    private String dltAdapterNotificationEndpoint;
+
+    private String brokerNotificationEndpoint;
+
+    @Autowired
+    private WebTestClient webTestClient;
+
+    private static final String API_VERSION = "v2";
+
+    @BeforeEach
+    void setup() {
+        dltAdapterNotificationEndpoint = "/api/"+API_VERSION+ EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
+        brokerNotificationEndpoint = "/api/"+API_VERSION+ EndpointsConstants.CONTEXT_BROKER_NOTIFICATION;
+
+    }
 
     @Test
     void testPostBrokerNotification() {
@@ -46,10 +66,9 @@ class NotificationControllerTests {
         when(brokerListenerService.processBrokerNotification(anyString(), any(BrokerNotification.class)))
                 .thenReturn(Mono.empty());
         // Act
-        WebTestClient.bindToController(notificationController)
-                .build()
+        webTestClient.mutateWith(csrf())
                 .post()
-                .uri(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
+                .uri(brokerNotificationEndpoint)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(brokerNotification)
                 .exchange()
@@ -76,10 +95,9 @@ class NotificationControllerTests {
         when(blockchainListenerService.processBlockchainNotification(anyString(), any(BlockchainNotification.class)))
                 .thenReturn(Mono.empty());
         // Act
-        WebTestClient.bindToController(notificationController)
-                .build()
+        webTestClient.mutateWith(csrf())
                 .post()
-                .uri(EndpointsConstants.DLT_ADAPTER_NOTIFICATION)
+                .uri(dltAdapterNotificationEndpoint)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(blockchainNotification)
                 .exchange()
@@ -91,10 +109,9 @@ class NotificationControllerTests {
         // Arrange an invalid BrokerNotification object (e.g., missing required fields according to validation annotations)
         BrokerNotification invalidNotification = BrokerNotification.builder().build();
         // Act and Assert
-        WebTestClient.bindToController(notificationController)
-                .build()
+        webTestClient.mutateWith(csrf())
                 .post()
-                .uri(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION)
+                .uri(brokerNotificationEndpoint)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(invalidNotification)
                 .exchange()
@@ -106,10 +123,9 @@ class NotificationControllerTests {
         // Arrange an invalid BlockchainNotification object
         BlockchainNotification invalidNotification = BlockchainNotification.builder().build();
         // Act and Assert
-        WebTestClient.bindToController(notificationController)
-                .build()
+        webTestClient.mutateWith(csrf())
                 .post()
-                .uri(EndpointsConstants.DLT_ADAPTER_NOTIFICATION)
+                .uri(dltAdapterNotificationEndpoint)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(invalidNotification)
                 .exchange()

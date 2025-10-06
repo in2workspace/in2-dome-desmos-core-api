@@ -7,6 +7,8 @@ import org.jetbrains.annotations.NotNull;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -14,6 +16,7 @@ import java.util.List;
 
 public final class ScorpioInflator {
 
+    private static final Logger log = LoggerFactory.getLogger(ScorpioInflator.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private ScorpioInflator() {
@@ -35,7 +38,7 @@ public final class ScorpioInflator {
                 .bodyToMono(String.class)
                 .retry(3).block();
 
-        System.out.println("Create entities to Scorpio: " + result);
+        log.debug("Create entities to Scorpio result: {}", result);
     }
 
     public static void addEntitiesToBroker(String brokerUrl, String brokerEntities) {
@@ -50,7 +53,7 @@ public final class ScorpioInflator {
                 .bodyToMono(String.class)
                 .retry(3).block();
 
-        System.out.println("Create entities to Scorpio: " + result);
+        log.debug("Create entities to Scorpio result: {}", result);
     }
 
     public static void addInitialEntitiesToContextBroker(String brokerUrl, String requestBody) {
@@ -65,7 +68,7 @@ public final class ScorpioInflator {
                 .bodyToMono(String.class)
                 .retry(3).block();
 
-        System.out.println("Create entities to Scorpio: " + result);
+        log.debug("Create entities to Scorpio result: {}", result);
     }
 
     public static void addInitialJsonEntitiesToContextBroker(String brokerUrl, String requestBody) {
@@ -80,7 +83,7 @@ public final class ScorpioInflator {
                 .bodyToMono(String.class)
                 .retry(3).block();
 
-        System.out.println("Create entities to Scorpio: " + result);
+        log.debug("Create entities to Scorpio: {}", result);
     }
 
     public static void deleteInitialEntitiesFromContextBroker(String brokerUrl, List<String> ids) {
@@ -95,7 +98,7 @@ public final class ScorpioInflator {
                 .bodyToMono(Void.class)
                 .retry(3).block();
 
-        System.out.println("Remove entities from Scorpio.");
+        log.debug("Remove entities from Scorpio.");
     }
 
     @NotNull

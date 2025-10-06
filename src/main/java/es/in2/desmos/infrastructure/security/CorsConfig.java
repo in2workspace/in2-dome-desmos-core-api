@@ -1,6 +1,7 @@
 package es.in2.desmos.infrastructure.security;
 
-import es.in2.desmos.domain.utils.EndpointsConstants;
+
+import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +16,7 @@ import java.util.Collections;
 @Configuration
 @RequiredArgsConstructor
 public class CorsConfig {
+    private final EndpointsConfig endpointsConfig;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
@@ -23,20 +25,20 @@ public class CorsConfig {
 
         CorsConfiguration brokerCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(brokerCorsConfig);
-        source.registerCorsConfiguration(EndpointsConstants.CONTEXT_BROKER_NOTIFICATION, brokerCorsConfig);
+        source.registerCorsConfiguration(endpointsConfig.brokerNotificationEndpoint(), brokerCorsConfig);
 
         CorsConfiguration dltAdapterCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(dltAdapterCorsConfig);
-        source.registerCorsConfiguration(EndpointsConstants.DLT_ADAPTER_NOTIFICATION, dltAdapterCorsConfig);
+        source.registerCorsConfiguration(endpointsConfig.dltNotificationEndpoint(), dltAdapterCorsConfig);
 
 
         CorsConfiguration githubSyncUrlsCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(githubSyncUrlsCorsConfig);
-        source.registerCorsConfiguration(EndpointsConstants.P2P_SYNC_PREFIX + "/**", githubSyncUrlsCorsConfig);
+        source.registerCorsConfiguration(endpointsConfig.p2pSyncEndpoint() + "/**", githubSyncUrlsCorsConfig);
 
         CorsConfiguration githubEntitiesUrlsCorsConfig = new CorsConfiguration();
         setBrokerCorsConfig(githubEntitiesUrlsCorsConfig);
-        source.registerCorsConfiguration(EndpointsConstants.GET_ENTITY + "/**", githubEntitiesUrlsCorsConfig);
+        source.registerCorsConfiguration(endpointsConfig.getEntitiesEndpoint()+ "/**", githubEntitiesUrlsCorsConfig);
 
         return source;
     }

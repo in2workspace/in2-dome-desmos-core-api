@@ -86,6 +86,7 @@ operator:
 # Desmos Configuration
 api:
   externalDomain: "http://localhost:8080"
+  version: v2
 
 # Context Broker Configuration
 broker:
@@ -100,7 +101,7 @@ broker:
 
 # NGSI Subscription Configuration
 ngsi-subscription:
-  notificationEndpoint:
+  notificationEndpoint: "http://desmos:8080/api/${api.version}/notifications/broker"
 
 # DLT Adapter Configuration
 dlt-adapter:
@@ -114,7 +115,7 @@ dlt-adapter:
 
 # Event Subscription Configuration
 tx-subscription:
-  notificationEndpoint:
+  notificationEndpoint:  "http://desmos:8080/api/${api.version}/notifications/broker"
 
 security:
   privateKey: "0x1aff50dca1ac463a5af99a858c2eef7517b8e46d3bf84723ff6dcfead7dc8db6"

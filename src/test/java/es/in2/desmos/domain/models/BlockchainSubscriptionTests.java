@@ -1,6 +1,5 @@
 package es.in2.desmos.domain.models;
 
-import es.in2.desmos.domain.utils.EndpointsConstants;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +12,8 @@ class BlockchainSubscriptionTests {
 
     private final List<String> eventTypes = List.of("ProductOffering", "Catalogue", "Category");
     private final List<String> metadata = List.of("dev");
-    private final String notificationEndpoint = "https://localhost:8080" + EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
+    private String dltAdapterNotificationEndpoint;
+    private final String notificationEndpoint = "https://localhost:8080" + dltAdapterNotificationEndpoint;
 
     @Test
     void testBuilderAndLombokGeneratedMethods() {
@@ -56,7 +56,7 @@ class BlockchainSubscriptionTests {
         String expectedToString = "BlockchainSubscription.BlockchainSubscriptionBuilder(" +
                 "eventTypes=[ProductOffering, Catalogue, Category], " +
                 "metadata=[dev], " +
-                "notificationEndpoint=https://localhost:8080" + EndpointsConstants.DLT_ADAPTER_NOTIFICATION + ")";
+                "notificationEndpoint=https://localhost:8080" + dltAdapterNotificationEndpoint + ")";
         // Act
         BlockchainSubscription.BlockchainSubscriptionBuilder blockchainSubscriptionBuilder = BlockchainSubscription.builder()
                 .eventTypes(eventTypes)
