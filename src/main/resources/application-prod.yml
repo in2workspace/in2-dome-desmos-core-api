@@ -86,7 +86,7 @@ operator:
 # Desmos Configuration
 api:
   externalDomain: "http://localhost:8080"
-  version: v2
+  version:
 # Context Broker Configuration
 broker:
   provider:
