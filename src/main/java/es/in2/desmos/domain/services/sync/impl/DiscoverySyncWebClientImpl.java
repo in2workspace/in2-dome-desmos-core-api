@@ -65,7 +65,6 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         } else {
                                             return response.bodyToMono(String.class)
                                                     .flatMapMany(errorBody -> {
-                                                        log.error("ProcessID: {} - Error HTTP {}: {}", processId, status, errorBody);
                                                         if (status.is4xxClientError()) {
                                                             if (status.value() == 404) {
                                                                 log.debug("Different versions found. ProcessId: {} | X-Issuer: {}", processId, externalDomain);
@@ -75,7 +74,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                                                             status.value(), processId, externalDomain)));
                                                         } else if (status.is5xxServerError()) {
                                                             return Flux.error(new DiscoverySyncException(
-                                                                    "Error 5xx occurred while discovery sync. Body: " + errorBody));
+                                                                    String.format("Error %s occurred while discovery sync. Body: %s", status.value(), errorBody)));
                                                         } else {
                                                             return Flux.error(new DiscoverySyncException(
                                                                     String.format("Unexpected HTTP error during discovery sync. Status: %s | Body: %s",
