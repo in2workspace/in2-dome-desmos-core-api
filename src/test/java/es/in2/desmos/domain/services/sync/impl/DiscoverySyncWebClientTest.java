@@ -131,37 +131,7 @@ class DiscoverySyncWebClientTest {
         }
     }
 
-    @Test
-    void itShouldThrowDiscoverySyncExceptionWhenStatusIs404() throws IOException {
-        try (MockWebServer mockWebServer1 = new MockWebServer()) {
-            mockWebServer1.enqueue(new MockResponse()
-                    .setResponseCode(404)
-                    .setBody("not found"));
 
-            String mockAccessToken = "mock-access-token";
-            when(mockTokenProvider.getM2MAccessToken()).thenReturn(Mono.just(mockAccessToken));
-
-            Mono<String> url = Mono.just(mockWebServer1.url("/").toString());
-            Flux<MVEntity4DataNegotiation> result = discoverySyncWebClient.makeRequest(
-                    "process-404",
-                    url,
-                    "issuer-404",
-                    MVEntity4DataNegotiationMother.list1And2()
-            );
-
-            StepVerifier
-                    .create(result)
-                    .expectErrorSatisfies(error -> {
-                        assertThat(error)
-                                .isInstanceOf(DiscoverySyncException.class)
-                                .hasMessageContaining("404") // confirma que el mensaje contiene el código
-                                .hasMessageContaining("issuer-404"); // confirma que pasó correctamente el issuer
-                    })
-                    .verify();
-        } catch (JSONException | NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
 
 }

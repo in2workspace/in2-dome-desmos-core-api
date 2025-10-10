@@ -68,7 +68,6 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                                         if (status.is4xxClientError()) {
                                                             log.debug("Different versions found. ProcessId: {} | X-Issuer: {} | body: {}", processId, externalDomain,
                                                                     errorBody);
-
                                                             return Flux.error(new DiscoverySyncException(
                                                                     String.format("Error %s occurred while discovery sync. ProcessId: %s | X-Issuer: %s",
                                                                             status.value(), processId, externalDomain)));
