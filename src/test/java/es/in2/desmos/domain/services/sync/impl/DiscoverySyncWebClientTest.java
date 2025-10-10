@@ -104,7 +104,7 @@ class DiscoverySyncWebClientTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {400, 500})
+    @ValueSource(ints = {400, 500, 301})
     void itShouldThrowExceptionWhenStatusIs4xxOr5xx(int responseCode) throws IOException {
         try (MockWebServer mockWebServer1 = new MockWebServer()) {
             mockWebServer1.enqueue(new MockResponse()
