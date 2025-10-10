@@ -66,6 +66,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                             return response.bodyToMono(String.class)
                                                     .flatMapMany(errorBody -> {
                                                         if (status.is4xxClientError()) {
+                                                            //If you got a 404, check if nodes version path are the same.
                                                             log.debug("Error {} -  body: {}", status.value(), errorBody);
                                                             return Flux.error(new DiscoverySyncException(
                                                                     String.format("Error %s occurred while discovery sync. ProcessId: %s | X-Issuer: %s",
