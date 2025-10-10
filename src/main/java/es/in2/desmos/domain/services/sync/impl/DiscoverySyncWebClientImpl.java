@@ -66,19 +66,23 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                             return response.bodyToMono(String.class)
                                                     .flatMapMany(errorBody -> {
                                                         if (status.is4xxClientError()) {
-                                                            if (status.value() == 404) {
-                                                                log.debug("Different versions found. ProcessId: {} | X-Issuer: {}", processId, externalDomain);
-                                                            }
+                                                            log.debug("Different versions found. ProcessId: {} | X-Issuer: {} | body: {}", processId, externalDomain,
+                                                                    errorBody);
+
                                                             return Flux.error(new DiscoverySyncException(
                                                                     String.format("Error %s occurred while discovery sync. ProcessId: %s | X-Issuer: %s",
                                                                             status.value(), processId, externalDomain)));
                                                         } else if (status.is5xxServerError()) {
+                                                            log.debug("Error - ProcessId: {} | X-Issuer: {} | body: {}", processId, externalDomain,
+                                                                    errorBody);
                                                             return Flux.error(new DiscoverySyncException(
-                                                                    String.format("Error %s occurred while discovery sync. Body: %s", status.value(), errorBody)));
+                                                                    String.format("Error %s occurred while discovery sync", status.value())));
                                                         } else {
+                                                            log.debug("Unknow Error - ProcessId: {} | X-Issuer: {} | body: {}", processId, externalDomain,
+                                                                    errorBody);
                                                             return Flux.error(new DiscoverySyncException(
-                                                                    String.format("Unexpected HTTP error during discovery sync. Status: %s | Body: %s",
-                                                                            status, errorBody)));
+                                                                    String.format("Unexpected HTTP error during discovery sync. Status: %s",
+                                                                            status)));
                                                         }
                                                     });
                                         }
