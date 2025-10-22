@@ -66,7 +66,10 @@ public class ApplicationRunner {
                 .then(setAccessNodePublicKeysFromExternalYaml(processId)
                         .doOnError(error -> finishApplication("Access Node Public Keys Getting", error)))
                 .thenMany(initializeDataSync(processId)
-                        .doOnError(error -> finishApplication("Initialize Data Sync", error)))
+                        .onErrorResume(error -> {
+                            log.error("ProcessID: {} - Error initializing Data Sync: {}", processId, error.getMessage(), error);
+                            return Flux.empty();
+                        }))
                 .then();
     }
 
