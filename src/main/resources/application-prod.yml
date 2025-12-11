@@ -114,7 +114,7 @@ dlt-adapter:
 
 # Event Subscription Configuration
 tx-subscription:
-  notificationEndpoint: "http://desmos:8080/api/${api.version}/notifications/broker"
+  notificationEndpoint: "http://desmos:8080/api/${api.version}/notifications/dlt"
 
 security:
   privateKey: "0x1aff50dca1ac463a5af99a858c2eef7517b8e46d3bf84723ff6dcfead7dc8db6"
