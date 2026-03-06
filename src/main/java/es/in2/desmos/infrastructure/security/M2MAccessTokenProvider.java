@@ -83,7 +83,7 @@ public class M2MAccessTokenProvider {
 
             return jwtTokenProvider.generateTokenWithPayload(payload.toString());
         } catch (ParseException | JOSEException e) {
-            log.warn("Error parsing JWT", e);
+            log.error("Failed to create M2M client assertion JWT - check VC machine credentials and JWT configuration", e);
             throw new JwtException("Error creating JWT for M2M");
         }
     }
@@ -104,7 +104,7 @@ public class M2MAccessTokenProvider {
         try {
             return jwtTokenProvider.generateTokenWithPayload(payload.toString());
         } catch (JOSEException e) {
-            log.warn("Error parsing JWT", e);
+            log.error("Failed to generate VP token JWT for M2M authentication - check signing key and payload configuration", e);
             throw new JwtException("Error creating JWT for M2M");
         }
     }

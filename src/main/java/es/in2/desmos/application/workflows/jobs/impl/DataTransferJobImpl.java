@@ -46,7 +46,7 @@ public class DataTransferJobImpl implements DataTransferJob {
     @Override
     public Mono<Void> syncData(String processId, Mono<DataNegotiationResult> dataNegotiationResult) {
         return dataNegotiationResult.flatMap(result -> {
-            log.info("ProcessID: {} - Starting Data Transfer Job", processId);
+            log.debug("ProcessID: {} - Starting Data Transfer Job", processId);
 
             log.debug("ProcessID: {} - Issuer: {}", processId, result.issuer());
             log.debug("ProcessID: {} - New Entities to Sync: {}", processId, result.newEntitiesToSync());
@@ -216,10 +216,8 @@ public class DataTransferJobImpl implements DataTransferJob {
                                         if (calculatedHash.equals(hashValue)) {
                                             return Mono.empty();
                                         } else {
-                                            log.warn("ProcessID: {} - P2P replication attempt failed for entity '{}' " +
-                                                    "due to hash mismatch: received hash does not match the " +
-                                                    "calculated hash of the entity", processId, id);
-                                            log.debug("Expected hash: {}\nCurrent hash: {}", hashValue, calculatedHash);
+                                            log.warn("ProcessID: {} - P2P replication attempt failed for entity '{}' due to hash mismatch", processId, id);
+                                            log.debug("ProcessID: {} - Entity '{}' hash mismatch - Expected: {}, Calculated: {}", processId, id, hashValue, calculatedHash);
                                             return Mono.just(id);
                                         }
                                     }));

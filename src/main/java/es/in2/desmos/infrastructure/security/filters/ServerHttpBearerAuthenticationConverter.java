@@ -39,7 +39,7 @@ public class ServerHttpBearerAuthenticationConverter implements Function<ServerW
                 .filter(matchBearerLength)
                 .flatMap(isolateBearerValue)
                 .flatMap(jwtVerifier::validateSignedJwt)
-                .flatMap(ServerHttpBearerAuthenticationConverter::create).log();
+                .flatMap(ServerHttpBearerAuthenticationConverter::create);
     }
 
     public static Mono<String> extract(ServerWebExchange serverWebExchange) {

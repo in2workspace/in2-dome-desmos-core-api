@@ -12,13 +12,13 @@ public class MessageUtils {
     public static final String ERROR_DURING_REQUEST_MESSAGE = "ProcessId: {}, Error during request: {}";
     public static final String BROKER_URL_VALUE_MESSAGE ="ProcessId: {}, Broker URL: {}";
     public static final String RESOURCE_CREATED_MESSAGE = "ProcessId: {}, Resource created successfully.";
-    public static final String ERROR_CREATING_RESOURCE_MESSAGE = "Error while creating resource: {}";
+    public static final String ERROR_CREATING_RESOURCE_MESSAGE = "ProcessId: {}, Error while creating resource: {}";
     public static final String RESOURCE_RETRIEVED_MESSAGE = "ProcessId: {}, Resource retrieved successfully.";
-    public static final String ERROR_RETRIEVING_RESOURCE_MESSAGE = "Error while retrieving resource: {}";
+    public static final String ERROR_RETRIEVING_RESOURCE_MESSAGE = "ProcessId: {}, Error while retrieving resource: {}";
     public static final String RESOURCE_UPDATED_MESSAGE = "ProcessId: {}, Resource updated successfully.";
-    public static final String ERROR_UPDATING_RESOURCE_MESSAGE = "Error while updating resource: {}";
+    public static final String ERROR_UPDATING_RESOURCE_MESSAGE = "ProcessId: {}, Error while updating resource: {}";
     public static final String RESOURCE_DELETED_MESSAGE = "ProcessId: {}, Resource deleted successfully.";
-    public static final String ERROR_DELETING_RESOURCE_MESSAGE = "Error while deleting resource: {}";
+    public static final String ERROR_DELETING_RESOURCE_MESSAGE = "ProcessId: {}, Error while deleting resource: {}";
     public static final String ENTITY_ID_NOT_FOUND_ERROR_MESSAGE = "ProcessId: {}, Entity ID field not found.";
     public static final String READING_JSON_ENTITY_ERROR_MESSAGE = "ProcessId: {}, Error while reading entity JSON: {}";
     public static final String SUBSCRIPTION_OBJECT_CREATED_MESSAGE = "ProcessId: {}, Subscription object created successfully.";

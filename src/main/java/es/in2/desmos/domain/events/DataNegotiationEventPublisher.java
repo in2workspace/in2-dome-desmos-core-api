@@ -10,12 +10,13 @@ import org.springframework.stereotype.Component;
 @Component
 @RequiredArgsConstructor
 public class DataNegotiationEventPublisher {
-    
+
     private final ApplicationEventPublisher applicationEventPublisher;
 
     public void publishEvent(DataNegotiationEvent dataNegotiationEvent) {
-        log.info("ProcessID: {} - Publishing data negotiation event", dataNegotiationEvent.processId());
+        log.debug("ProcessID: {} - Publishing data negotiation event", dataNegotiationEvent.processId());
+
         applicationEventPublisher.publishEvent(dataNegotiationEvent);
     }
-    
+
 }

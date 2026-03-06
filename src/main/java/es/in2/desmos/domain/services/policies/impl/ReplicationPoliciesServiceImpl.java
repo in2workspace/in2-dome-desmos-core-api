@@ -26,16 +26,14 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
     public Mono<Boolean> isMVEntityReplicable(String processId, MVEntityReplicationPoliciesInfo mvEntity) {
         boolean isLifecycleStatusReplicable = isLifecycleStatusReplicable(mvEntity.type(), mvEntity.lifecycleStatus());
         if (!isLifecycleStatusReplicable) {
-            log.warn("ProcessID: {} - Global policies validation failed for Policy '{}' in Entity with ID '{}'. " +
-                            "Reason: lifecycleStatus '{}' is not replicable.",
+            log.warn("ProcessID: {} - Global policy '{}' validation failed for entity '{}' - lifecycleStatus '{}' is not replicable",
                     processId, ReplicationPolicies.GP_1, mvEntity.id(), mvEntity.lifecycleStatus());
 
         }
 
         boolean isValidForReplicable = isValidForReplicable(mvEntity.startDateTime(), mvEntity.endDateTime());
         if (!isValidForReplicable) {
-            log.warn("ProcessID: {} - Global policies validation failed for Policy '{}' in Entity with ID '{}'. " +
-                            "Reason: validFor with startDateTime '{}' and endDateTime '{}' is not replicable.",
+            log.warn("ProcessID: {} - Global policy '{}' validation failed for entity '{}' - validFor period (start: '{}', end: '{}') is not replicable",
                     processId, ReplicationPolicies.GP_2, mvEntity.id(), mvEntity.startDateTime(), mvEntity.endDateTime());
 
         }

@@ -47,11 +47,11 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     @Override
     public Mono<Void> buildAndSaveAuditRecordFromBrokerNotification(String processId, Map<String, Object> dataMap,
                                                                     AuditRecordStatus status, BlockchainTxPayload blockchainTxPayload) {
-        log.info("ProcessID: {} - Building and saving audit record from broker notification...", processId);
         // Extract the entity ID from the data location
         String entityId = dataMap.get("id").toString();
         // Get the most recent audit record for the entityId and get the most recent audit record overall
         return fetchMostRecentAuditRecord()
+                .doFirst(() -> log.info("ProcessID: {} - Building and saving audit record from broker notification", processId))
                 .flatMap(lastAuditRecordRegistered -> {
                     // Create the new audit record
                     AuditRecord auditRecord = AuditRecord.builder()
@@ -200,9 +200,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                          NoSuchAlgorithmException e) {
                                                     return Mono.error(e);
                                                 }
-                                            }).doOnSuccess(result ->
-                                                    log.info("ProcessID: {} - buildAndSaveAuditRecordForSubEntity completed in {} ms",
-                                                            processId, System.currentTimeMillis() - start));
+                                            });
                                 }));
     }
 
@@ -323,9 +321,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
         return entityIdsFlux
                 .collectList()
                 .flatMapMany(entityIds -> {
-                    log.debug("ProcessID: {} - EntityIds received for audit record search: {}", processId, entityIds);
                     if (entityIds.isEmpty()) {
-                        log.debug("ProcessID: {} - EMPTY entityIds, returning empty Mono", processId);
                         return Mono.empty();
                     }
                     return auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(

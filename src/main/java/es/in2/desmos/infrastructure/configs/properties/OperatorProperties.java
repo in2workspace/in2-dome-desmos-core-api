@@ -1,5 +1,6 @@
 package es.in2.desmos.infrastructure.configs.properties;
 
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -8,5 +9,5 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param organizationIdentifier - OrganizationID information
  */
 @ConfigurationProperties(prefix = "operator")
-public record OperatorProperties(String organizationIdentifier) {
+public record OperatorProperties(@NotBlank String organizationIdentifier) {
 }

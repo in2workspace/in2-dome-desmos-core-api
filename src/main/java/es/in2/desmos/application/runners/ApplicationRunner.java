@@ -58,13 +58,13 @@ public class ApplicationRunner {
     @EventListener(ApplicationReadyEvent.class)
     public Mono<Void> onApplicationReady() {
         String processId = UUID.randomUUID().toString();
-        log.info("ProcessID: {} - Setting initial configurations...", processId);
         return setBrokerSubscription(processId)
+                .doFirst(() -> log.info("ProcessID: {} - Starting configuration initialization", processId))
                 .doOnError(error -> finishApplication("Broker Subscription", error))
                 .then(setBlockchainSubscription(processId)
                         .doOnError(error -> finishApplication("Blockchain Subscription", error)))
-                .then(setAccessNodePublicKeysFromExternalYaml(processId)
-                        .doOnError(error -> finishApplication("Access Node Public Keys Getting", error)))
+                .then(getTrustedAccessNodesList(processId)
+                        .doOnError(error -> finishApplication("Access Node Trusted List Getting", error)))
                 .thenMany(initializeDataSync(processId)
                         .onErrorResume(error -> {
                             log.error("ProcessID: {} - Error initializing Data Sync: {}", processId, error.getMessage(), error);
@@ -75,15 +75,14 @@ public class ApplicationRunner {
 
     @Retryable(retryFor = RequestErrorException.class, maxAttempts = 4, backoff = @Backoff(delay = 2000))
     private Mono<Void> setBrokerSubscription(String processId) {
-        log.info("ProcessID: {} - Setting Broker Subscription...", processId);
         // Build Entity Type List to subscribe to
         List<BrokerSubscription.Entity> entities = new ArrayList<>();
         brokerConfig.getEntityTypes().forEach(entityType -> entities.add(BrokerSubscription.Entity.builder()
                 .type(entityType).build()));
         // Create the Broker Subscription object
-        String brokerSubscriptionid = SUBSCRIPTION_ID_PREFIX + UUID.randomUUID();
+        String brokerSubscriptionId = SUBSCRIPTION_ID_PREFIX + UUID.randomUUID();
         BrokerSubscription brokerSubscription = BrokerSubscription.builder()
-                .id(brokerSubscriptionid)
+                .id(brokerSubscriptionId)
                 .type(SUBSCRIPTION_TYPE)
                 .entities(entities)
                 .notification(BrokerSubscription.SubscriptionNotification.builder()
@@ -97,15 +96,17 @@ public class ApplicationRunner {
                         .build())
                 .build();
         // Create the subscription and log the result
-        log.debug("ProcessID: {} - Broker Subscription: {}", processId, brokerSubscription);
         return brokerListenerService.createSubscription(processId, brokerSubscription)
-                .doOnSuccess(response -> log.info("ProcessID: {} - Broker Subscription created successfully.", processId))
+                .doFirst(() -> {
+                    log.info("ProcessID: {} - Starting Broker Subscription creation", processId);
+                    log.debug("ProcessID: {} - Broker Subscription: {}", processId, brokerSubscription);
+                })
+                .doOnSuccess(response -> log.info("ProcessID: {} - Broker Subscription created successfully", processId))
                 .doOnError(e -> log.error("ProcessID: {} - Error creating Broker Subscription", processId, e));
     }
 
     @Retryable(retryFor = RequestErrorException.class, maxAttempts = 4, backoff = @Backoff(delay = 2000))
     private Mono<Void> setBlockchainSubscription(String processId) {
-        log.info("ProcessID: {} - Setting Blockchain Subscription...", processId);
         // Check Subscription
         // Create the Blockchain Subscription object
         BlockchainSubscription blockchainSubscription = BlockchainSubscription.builder()
@@ -115,37 +116,37 @@ public class ApplicationRunner {
                 .build();
         // Create the subscription
         return blockchainListenerService.createSubscription(processId, blockchainSubscription)
-                .doOnSuccess(response -> log.info("ProcessID: {} - Blockchain Subscription created successfully.", processId))
+                .doFirst(() -> log.info("ProcessID: {} - Starting Blockchain Subscription creation", processId))
+                .doOnSuccess(response -> log.info("ProcessID: {} - Blockchain Subscription created successfully", processId))
                 .doOnError(e -> log.error("ProcessID: {} - Error creating Blockchain Subscription", processId, e));
     }
 
     @Retryable(retryFor = RequestErrorException.class, maxAttempts = 4, backoff = @Backoff(delay = 2000))
-    private Mono<Void> setAccessNodePublicKeysFromExternalYaml(String processId) {
-        log.info("ProcessID: {} - Setting Access Node Public Keys into Memory...", processId);
-
+    private Mono<Void> getTrustedAccessNodesList(String processId) {
         return trustFrameworkConfig.initialize()
-                .doOnSuccess(response -> log.info("ProcessID: {} - Public keys loaded successfully in memory.", processId))
-                .doOnError(e -> log.error("ProcessID: {} - Error setting public keys from access node repository", processId, e));
+                .doFirst(() -> log.info("ProcessID: {} - Starting Trusted Access Nodes loading from repository list", processId))
+                .doOnSuccess(response -> log.info("ProcessID: {} - Trusted Access Nodes loaded successfully in memory", processId))
+                .doOnError(e -> log.error("ProcessID: {} - Error getting Trusted Access Nodes from repository list", processId, e));
     }
 
     private Flux<Void> initializeDataSync(String processId) {
-        log.info("ProcessID: {} - Initializing Data Synchronization Workflow...", processId);
         // Start data synchronization process
         return dataSyncWorkflow.startDataSyncWorkflow(processId)
+                .doFirst(() -> log.info("ProcessID: {} - Starting initial Data Synchronization", processId))
                 .doOnComplete(() -> {
-                    log.info("ProcessID: {} - Data Synchronization Workflow has finished.", processId);
-                    log.info("ProcessID: {} - Authorizing queues for Pub-Sub Workflows...", processId);
+                    log.info("ProcessID: {} - Finished Initial Data Synchronization Workflow", processId);
+                    log.info("ProcessID: {} - Authorizing queues for Pub-Sub Workflows", processId);
                     isQueueAuthorizedForEmit.set(true);
                 })
                 .doOnTerminate(() -> {
                     initializeQueueProcessing(processId);
-                    log.info("ProcessID: {} - Queues have been authorized and enabled.", processId);
+                    log.info("ProcessID: {} - Queues have been authorized and enabled", processId);
                 });
     }
 
     private void initializeQueueProcessing(String processId) {
         if (!isQueueProcessingAuthorized()) {
-            log.debug("ProcessID: {} - Queue processing is currently paused.", processId);
+            log.debug("ProcessID: {} - Queue processing is currently paused", processId);
             return;
         }
         log.debug("ProcessID: {} - Starting queue processing...", processId);
@@ -157,14 +158,14 @@ public class ApplicationRunner {
     }
 
     private void restartQueueProcessing(String processId) {
-        log.debug("ProcessID: {} - Restarting queue processing...", processId);
+        log.debug("ProcessID: {} - Restarting queue processing", processId);
         resetActiveSubscriptions(processId);
         startBlockchainEventProcessing(processId);
         startBrokerEventProcessing(processId);
     }
 
     private void resetActiveSubscriptions(String processId) {
-        log.debug("ProcessID: {} - Resetting active subscriptions...", processId);
+        log.debug("ProcessID: {} - Resetting active subscriptions", processId);
         disposeIfActive(publishQueueDisposable);
         disposeIfActive(subscribeQueueDisposable);
     }
@@ -176,27 +177,26 @@ public class ApplicationRunner {
     }
 
     private void startBlockchainEventProcessing(String processId) {
-        publishQueueDisposable = publishWorkflow.startPublishWorkflow(processId)
+        publishQueueDisposable = publishWorkflow.startPublishWorkflow()
                 .subscribe(
                         null,
                         error -> log.error("ProcessID: {} - Error occurred during Publish Workflow", processId, error),
-                        () -> log.info("ProcessID: {} - Publish Workflow completed", processId)
+                        () -> log.info("ProcessID: {} - Blockchain publish Workflow completed", processId)
                 );
     }
 
     private void startBrokerEventProcessing(String processId) {
-        subscribeQueueDisposable = subscribeWorkflow.startSubscribeWorkflow(processId)
+        subscribeQueueDisposable = subscribeWorkflow.startSubscribeWorkflow()
                 .subscribe(
                         null,
                         error -> log.error("ProcessID: {} - Error occurred during Subscribe Workflow", processId, error),
-                        () -> log.info("ProcessID: {} - Subscribe Workflow completed", processId)
+                        () -> log.info("ProcessID: {} - Broker subscribe Workflow completed", processId)
                 );
     }
 
     private void finishApplication(String step, Throwable error) {
-        log.error("Error in {}: {}", step, error.getMessage(), error);
-
         Mono.fromRunnable(() -> {
+            log.error("Error in {}: {}", step, error.getMessage(), error);
             int exitCode = SpringApplication.exit(DesmosApiApplication.getContext(), () -> 0);
             log.info("Application exiting with code {}", exitCode);
             System.exit(exitCode);

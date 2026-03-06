@@ -172,4 +172,13 @@ public class GlobalExceptionHandler {
         String path = String.valueOf(request.getPath());
         return Mono.just(GlobalErrorMessage.builder().title("DiscoverySyncException").message(discoverySyncException.getMessage()).path(path).build());
     }
+
+    @ExceptionHandler(DltAddressDeserializationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseBody
+    public Mono<GlobalErrorMessage> handleDltAddressDeserializationException(DltAddressDeserializationException dltAddressDeserializationException, ServerHttpRequest request) {
+        log.error("DltAddressDeserializationException: {}", dltAddressDeserializationException.getMessage());
+        String path = String.valueOf(request.getPath());
+        return Mono.just(GlobalErrorMessage.builder().title("DltAddressDeserializationException").message(dltAddressDeserializationException.getMessage()).path(path).build());
+    }
 }

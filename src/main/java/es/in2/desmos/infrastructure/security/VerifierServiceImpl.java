@@ -40,9 +40,8 @@ public class VerifierServiceImpl implements VerifierService {
     @Override
     public Mono<Void> verifyToken(String accessToken) {
         return parseAndValidateJwt(accessToken)
-                .doOnSuccess(unused -> log.info("VerifyToken -- IS VALID"))
                 .onErrorResume(e -> {
-                    log.error("Error while verifying token", e);
+                    log.error("Token verification failed - check issuer validation, expiration time, or signature", e);
                     return Mono.error(e);
                 });
     }
@@ -73,7 +72,7 @@ public class VerifierServiceImpl implements VerifierService {
 
                         return Mono.empty(); // Valid token
                     } catch (ParseException | JOSEException e) {
-                        log.error("Error parsing or verifying JWT", e);
+                        log.error("JWT parsing or signature verification failed - check token format, signing algorithm, and JWK configuration", e);
                         return Mono.error(new JWTVerificationException("Error parsing or verifying JWT"));
                     }
                 });

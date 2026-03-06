@@ -50,16 +50,15 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
 
     @Override
     public Mono<Void> processBrokerNotification(String processId, BrokerNotification brokerNotification) {
-        log.info("ProcessID: {} - Processing Broker Notification...", processId);
         // Validate BrokerNotification is not null and has data
         return getDataFromBrokerNotification(brokerNotification)
+                .doFirst(() -> log.info("ProcessID: {} - Processing Broker Notification", processId))
                 // Validate if BrokerNotification is from an external source or self-generated
                 .flatMap(dataMap -> isBrokerNotificationSelfGenerated(processId, dataMap)
                         .flatMap(isSelfGenerated -> {
                             if (Boolean.TRUE.equals(isSelfGenerated)) {
                                 String id = getIdFromDataMap(brokerNotification.data());
-                                log.info("ProcessID: {} - Replication attempt failed for entity '{}' because it is a" +
-                                        " self-generated entity and not eligible for replication.", processId, id);
+                                log.info("ProcessID: {} - Replication attempt failed for entity '{}' - self-generated entity is not eligible for replication", processId, id);
                                 return Mono.empty();
                             } else {
                                 MVEntityReplicationPoliciesInfo mvEntityReplicationPoliciesInfo =

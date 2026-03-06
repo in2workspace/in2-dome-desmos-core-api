@@ -51,7 +51,6 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
 
     @Override
     public Flux<BlockchainSubscription> getSubscriptions(String processId) {
-        log.debug("ProcessId: {} - Getting subscriptions...", processId);
         return webClient.get()
                 .uri(dltAdapterProperties.paths()
                         .subscription())
@@ -59,7 +58,8 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
                 .retrieve()
                 .bodyToMono(BlockchainSubscription[].class)
                 .retry(3)
-                .flatMapMany(Flux::fromArray);
+                .flatMapMany(Flux::fromArray)
+                .doFirst(() -> log.debug("ProcessId: {} - Getting subscriptions...", processId));
     }
 
     public Mono<Void> postTxPayload(String processId, BlockchainTxPayload blockchainTxPayload) {

@@ -114,7 +114,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
                             .retry(3);
                 })
                 .doOnSuccess(result -> log.info(RESOURCE_UPDATED_MESSAGE, processId))
-                .doOnError(e -> log.error(ERROR_UPDATING_RESOURCE_MESSAGE, e.getMessage()));
+                .doOnError(e -> log.error(ERROR_UPDATING_RESOURCE_MESSAGE, processId, e.getMessage()));
     }
 
     @Override
@@ -213,8 +213,6 @@ public class ScorpioAdapter implements BrokerAdapterService {
 
     @Override
     public <T extends BrokerEntityWithIdAndType> Flux<T> findAllIdTypeAndAttributesByType(String processId, String type, String firstAttribute, String secondAttribute, String thirdAttribute, String forthAttribute, Class<T> responseClass) {
-        log.info("ProcessID: {} - Getting Entities With Version And Last Update", processId);
-
         String uri = brokerConfig.getEntitiesPath() + "/" + String.format("?type=%s&options=keyValues&limit=1000", type);
 
         return webClient
@@ -223,7 +221,8 @@ public class ScorpioAdapter implements BrokerAdapterService {
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .bodyToFlux(responseClass)
-                .retry(3);
+                .retry(3)
+                .doFirst(() -> log.debug("ProcessId: {}, Fetching entities of type {} from Scorpio broker", processId, type));
     }
 
     private Mono<Void> postSubscription(BrokerSubscription brokerSubscription) {

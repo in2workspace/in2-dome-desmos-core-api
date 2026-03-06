@@ -70,10 +70,8 @@ public class ApiConfig {
     public String getCurrentEnvironment() {
         List<String> profiles = List.of(environment.getActiveProfiles());
         if (profiles.isEmpty()) {
-            log.debug(environment.getDefaultProfiles()[0]);
             return environment.getDefaultProfiles()[0];
         } else {
-            log.debug(environment.getActiveProfiles()[0]);
             return profiles.get(0);
         }
     }
