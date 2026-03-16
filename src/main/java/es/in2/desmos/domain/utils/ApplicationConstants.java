@@ -8,7 +8,7 @@ public final class ApplicationConstants {
     public static final String HASHLINK_PREFIX = "?hl=";
     public static final String SUBSCRIPTION_ID_PREFIX = "urn:ngsi-ld:Subscription:";
     public static final String SUBSCRIPTION_TYPE = "Subscription";
-    public static final String YAML_FILE_SUFFIX = ".yaml";
+    public static final String PRODUCT_ORDER = "product-order";
     public static final List<String> ROOT_OBJECTS_LIST = List.of("individual",
             "organization",
             "catalog",
@@ -18,7 +18,7 @@ public final class ApplicationConstants {
             "service-specification",
             "resource-specification",
             "category",
-            "product-order",
+            PRODUCT_ORDER,
             "product",
             "usage",
             "usage-specification",
