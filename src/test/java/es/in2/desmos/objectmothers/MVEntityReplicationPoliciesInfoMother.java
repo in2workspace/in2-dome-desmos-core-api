@@ -19,6 +19,7 @@ public final class MVEntityReplicationPoliciesInfoMother {
         MVEntity4DataNegotiation sample1 = MVEntity4DataNegotiationMother.sample1();
         return new MVEntityReplicationPoliciesInfo(
                 sample1.id(),
+                sample1.type(),
                 sample1.lifecycleStatus(),
                 sample1.startDateTime(),
                 sample1.endDateTime()
@@ -28,6 +29,7 @@ public final class MVEntityReplicationPoliciesInfoMother {
     public static @NotNull MVEntityReplicationPoliciesInfo replicationValidFields() {
         return new MVEntityReplicationPoliciesInfo(
                 "entity-1",
+                "type",
                 "Launched",
                 Instant.now().minusSeconds(3600).toString(),
                 Instant.now().plusSeconds(3600000).toString()
@@ -37,6 +39,7 @@ public final class MVEntityReplicationPoliciesInfoMother {
     public static @NotNull MVEntityReplicationPoliciesInfo replicationNullLifecycleStatus() {
         return new MVEntityReplicationPoliciesInfo(
                 "entity-1",
+                "type",
                 null,
                 Instant.now().minusSeconds(3600).toString(),
                 Instant.now().plusSeconds(3600000).toString()
@@ -46,6 +49,7 @@ public final class MVEntityReplicationPoliciesInfoMother {
     public static @NotNull MVEntityReplicationPoliciesInfo replicationValidFieldsAndNullStartDateTime() {
         return new MVEntityReplicationPoliciesInfo(
                 "entity-1",
+                "type",
                 "Launched",
                 null,
                 Instant.now().plusSeconds(3600000).toString()
@@ -55,6 +59,7 @@ public final class MVEntityReplicationPoliciesInfoMother {
     public static @NotNull MVEntityReplicationPoliciesInfo replicationValidFieldsAndNullEndDateTime() {
         return new MVEntityReplicationPoliciesInfo(
                 "entity-1",
+                "type",
                 "Launched",
                 Instant.now().minusSeconds(3600).toString(),
                 null
@@ -64,6 +69,7 @@ public final class MVEntityReplicationPoliciesInfoMother {
     public static @NotNull MVEntityReplicationPoliciesInfo replicationInvalidLifecycleStatus() {
         return new MVEntityReplicationPoliciesInfo(
                 "entity-1",
+                "type",
                 "InvalidLifecycleStatus",
                 Instant.now().minusSeconds(3600).toString(),
                 Instant.now().plusSeconds(360000000).toString()
@@ -73,6 +79,7 @@ public final class MVEntityReplicationPoliciesInfoMother {
     public static @NotNull MVEntityReplicationPoliciesInfo replicationInvalidFutureStartDateTime() {
         return new MVEntityReplicationPoliciesInfo(
                 "entity-1",
+                "type",
                 "Launched",
                 Instant.now().plusSeconds(3600).toString(),
                 "endDateTime"
@@ -81,8 +88,8 @@ public final class MVEntityReplicationPoliciesInfoMother {
 
     public static @NotNull MVEntityReplicationPoliciesInfo replicationInvalidPastEndDateTime() {
         return new MVEntityReplicationPoliciesInfo(
-
                 "entity-1",
+                "type",
                 "Launched",
                 Instant.now().minusSeconds(360000).toString(),
                 Instant.now().minusSeconds(7200).toString()
