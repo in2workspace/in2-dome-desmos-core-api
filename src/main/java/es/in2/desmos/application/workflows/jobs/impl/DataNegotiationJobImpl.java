@@ -221,6 +221,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
         return replicationPoliciesService
                 .isMVEntityReplicable(processId, new MVEntityReplicationPoliciesInfo(
                         externalEntitiesInfo.id(),
+                        externalEntitiesInfo.type(),
                         externalEntitiesInfo.lifecycleStatus(),
                         externalEntitiesInfo.startDateTime(),
                         externalEntitiesInfo.endDateTime()))

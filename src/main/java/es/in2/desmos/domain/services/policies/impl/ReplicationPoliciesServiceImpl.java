@@ -13,6 +13,8 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 import java.util.Set;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.PRODUCT_ORDER;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -22,7 +24,7 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
 
     @Override
     public Mono<Boolean> isMVEntityReplicable(String processId, MVEntityReplicationPoliciesInfo mvEntity) {
-        boolean isLifecycleStatusReplicable = isLifecycleStatusReplicable(mvEntity.lifecycleStatus());
+        boolean isLifecycleStatusReplicable = isLifecycleStatusReplicable(mvEntity.type(), mvEntity.lifecycleStatus());
         if (!isLifecycleStatusReplicable) {
             log.warn("ProcessID: {} - Global policies validation failed for Policy '{}' in Entity with ID '{}'. " +
                             "Reason: lifecycleStatus '{}' is not replicable.",
@@ -56,8 +58,8 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
     }
 
 
-    private boolean isLifecycleStatusReplicable(String lifecycleStatus) {
-        return lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus);
+    private boolean isLifecycleStatusReplicable(String type, String lifecycleStatus) {
+        return PRODUCT_ORDER.equals(type) || (lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus));
     }
 
     private boolean isValidForReplicable(String startDateTime, String endDateTime) {

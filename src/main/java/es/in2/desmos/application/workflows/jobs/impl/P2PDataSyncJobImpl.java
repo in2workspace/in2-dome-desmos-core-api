@@ -128,6 +128,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                 cachedFlux.map(mv ->
                         new MVEntityReplicationPoliciesInfo(
                             mv.id(),
+                            mv.type(),
                             mv.lifecycleStatus(),
                             mv.startDateTime(),
                             mv.endDateTime()

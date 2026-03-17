@@ -124,6 +124,7 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
 
         return new MVEntityReplicationPoliciesInfo(
                 dataMap.get("id").toString(),
+                dataMap.get("type").toString(),
                 lifeCycleStatus,
                 startDateTime,
                 endDateTime
