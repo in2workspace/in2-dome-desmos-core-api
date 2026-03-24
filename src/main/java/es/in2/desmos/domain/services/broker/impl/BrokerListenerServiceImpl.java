@@ -20,6 +20,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static es.in2.desmos.domain.utils.ApplicationUtils.calculateSHA256;
 
@@ -121,9 +122,13 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
             }
         }
 
+        String type = dataMap.get("type") != null
+                ? dataMap.get("type").toString()
+                : null;
+
         return new MVEntityReplicationPoliciesInfo(
                 dataMap.get("id").toString(),
-                dataMap.get("type").toString(),
+                type,
                 lifeCycleStatus,
                 startDateTime,
                 endDateTime
