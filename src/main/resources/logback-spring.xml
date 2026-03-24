@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <springProperty name="LOGS" source="logging.path" defaultValue="logs"/>
-    <appender name="jsonConsole" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level %logger{0} - %msg%n</pattern>
         </encoder>
     </appender>
     <root level="info">
-        <appender-ref ref="jsonConsole"/>
+        <appender-ref ref="console"/>
     </root>
 </configuration>

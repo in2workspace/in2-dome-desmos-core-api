@@ -48,7 +48,8 @@ class GlobalExceptionHandlerTests {
                 UnauthorizedDomeParticipantException.class,
                 UnauthorizedBrokerSubscriptionException.class,
                 EntitySyncException.class,
-                DiscoverySyncException.class
+                DiscoverySyncException.class,
+                DltAddressDeserializationException.class
         ));
         List<String> messages = new ArrayList<>(List.of(
                 "SubscriptionCreationException",
@@ -63,19 +64,10 @@ class GlobalExceptionHandlerTests {
                 "UnauthorizedDomeParticipantException",
                 "UnauthorizedBrokerSubscriptionException",
                 "EntitySyncException",
-                "DiscoverySyncException"
+                "DiscoverySyncException",
+                "DltAddressDeserializationException"
         ));
-        List<Throwable> nullCauseThrowableList = new ArrayList<>();
-        List<Throwable> exceptionCauseThrowableList = new ArrayList<>();
-        for (int i = 0; i < classes.size() / 2; i++) {
-            nullCauseThrowableList.add(null);
-            exceptionCauseThrowableList.add(new RuntimeException("cause"));
-        }
-        List<Throwable> causes = new ArrayList<>();
-        for (int i = 0; i < classes.size() / 2; i++) {
-            causes.add(nullCauseThrowableList.get(i));
-            causes.add(exceptionCauseThrowableList.get(i));
-        }
+
         List<BiFunction<RuntimeException, ServerHttpRequest, Mono<GlobalErrorMessage>>> methods = new ArrayList<>(Arrays.asList(
                 (ex, req) -> globalExceptionHandler.handleBlockchainNodeSubscriptionException((SubscriptionCreationException) ex, req),
                 (ex, req) -> globalExceptionHandler.handleBrokerNotificationParserException((BrokerNotificationParserException) ex, req),
@@ -89,13 +81,14 @@ class GlobalExceptionHandlerTests {
                 (ex, req) -> globalExceptionHandler.handleUnauthorizedDomeParticipantException((UnauthorizedDomeParticipantException) ex, req),
                 (ex, req) -> globalExceptionHandler.handleUnauthorizedBrokerSubscriptionException((UnauthorizedBrokerSubscriptionException) ex, req),
                 (ex, req) -> globalExceptionHandler.handleEntitySyncException((EntitySyncException) ex, req),
-                (ex, req) -> globalExceptionHandler.handleDiscoverySyncException((DiscoverySyncException) ex, req)
+                (ex, req) -> globalExceptionHandler.handleDiscoverySyncException((DiscoverySyncException) ex, req),
+                (ex, req) -> globalExceptionHandler.handleDltAddressDeserializationException((DltAddressDeserializationException) ex, req)
         ));
         classes.addAll(new ArrayList<>(classes));
         messages.addAll(new ArrayList<>(messages));
         methods.addAll(new ArrayList<>(methods));
         return IntStream.range(0, classes.size())
-                .mapToObj(i -> Arguments.of(classes.get(i), messages.get(i), causes.get(i % causes.size()), methods.get(i)));
+                .mapToObj(i -> Arguments.of(classes.get(i), messages.get(i), methods.get(i)));
     }
 
     @BeforeEach
@@ -107,7 +100,7 @@ class GlobalExceptionHandlerTests {
 
     @ParameterizedTest
     @MethodSource("provideData")
-    void testExceptions(Class<?> exceptionClass, String message, Throwable cause,
+    void testExceptions(Class<?> exceptionClass, String message,
                         BiFunction<RuntimeException, ServerHttpRequest, Mono<GlobalErrorMessage>> method) {
         // Mock
         when(request.getPath()).thenReturn(requestPath);

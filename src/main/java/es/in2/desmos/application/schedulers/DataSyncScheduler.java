@@ -20,8 +20,9 @@ public class DataSyncScheduler {
     public Flux<Void> initializeDataSync() {
         String processId = UUID.randomUUID().toString();
 
-        log.info("ProcessID: {} - Starting cron Data Sync Workflow cron job...", processId);
-
-        return dataSyncWorkflow.startDataSyncWorkflow(processId);
+        return dataSyncWorkflow.startDataSyncWorkflow(processId)
+                .doFirst(() -> log.info("ProcessID: {} - Starting Data Sync cron job", processId))
+                .doOnError(error -> log.error("ProcessID: {} - Data Sync cron job failed", processId, error))
+                .doOnComplete(() -> log.info("ProcessID: {} - Data Sync cron job completed", processId));
     }
 }

@@ -22,6 +22,10 @@ public class ApplicationUtils {
         throw new IllegalStateException("Utility class");
     }
 
+    public static String generateProcessId() {
+        return UUID.randomUUID().toString();
+    }
+
     public static String calculateSHA256(String inputData) throws NoSuchAlgorithmException, JsonProcessingException {
         final ObjectMapper objectMapper = new ObjectMapper();
         MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
@@ -44,9 +48,9 @@ public class ApplicationUtils {
 
     public static String calculateHashLink(String previousHash, String entityHash) throws NoSuchAlgorithmException, JsonProcessingException {
         String hashConcatenated = previousHash + entityHash;
-        log.debug("Previous Hash 1 : {}", previousHash);
-        log.debug("Entity Hash 2 : {}", entityHash);
-        log.debug("Hash Concatenated : {}", hashConcatenated);
+        log.debug("Previous Hash 1: {}", previousHash);
+        log.debug("Entity Hash 2: {}", entityHash);
+        log.debug("Hash Concatenated: {}", hashConcatenated);
         return calculateSHA256(hashConcatenated);
     }
 

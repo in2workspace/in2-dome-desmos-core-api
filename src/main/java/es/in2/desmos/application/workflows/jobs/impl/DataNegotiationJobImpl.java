@@ -53,7 +53,7 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
             String processId,
             Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalEntitiesInfoMono,
             Flux<MVEntity4DataNegotiation> localEntitiesFlux) {
-        log.info("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
+        log.debug("ProcessID: {} - Starting Data Negotiation Job with multiple issuers", processId);
 
         Mono<List<MVEntity4DataNegotiation>> localEntitiesListMono = localEntitiesFlux.collectList();
 
@@ -81,13 +81,12 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
     public Mono<Void> negotiateDataSyncFromEvent(DataNegotiationEvent dataNegotiationEvent) {
         String processId = dataNegotiationEvent.processId();
 
-        log.info("ProcessID: {} - Starting Data Negotiation Job", processId);
-
         return getDataNegotiationResultMono(
                 processId,
                 dataNegotiationEvent.localEntitiesInfo(),
                 dataNegotiationEvent.issuer(),
                 dataNegotiationEvent.externalEntitiesInfo().flatMapMany(Flux::fromIterable))
+                .doFirst(() -> log.debug("ProcessID: {} - Starting Data Negotiation Job", processId))
                 .flatMap(dataNegotiationResult ->
                         dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)));
     }
@@ -97,8 +96,6 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
             Mono<List<MVEntity4DataNegotiation>> localEntitiesInfoMono,
             Mono<String> externalIssuerMono,
             Flux<MVEntity4DataNegotiation> externalEntitiesInfoFlux) {
-
-        log.debug("ProcessID: {} - get data Negotiating result", processId);
 
         return externalEntitiesInfoFlux
                 .flatMap(entityInfo -> getReplicableEntity(processId, entityInfo))
@@ -181,9 +178,8 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                                             .map(sameLocalEntityInfo -> {
                                                 if (externalEntityInfo.getInstantLastUpdate().isEmpty() ||
                                                         sameLocalEntityInfo.getInstantLastUpdate().isEmpty()) {
-                                                    log.debug("Negotiation attempt failed for local entity '{}' " +
-                                                                    "because it doesn't have 'lastUpdate' field",
-                                                            externalEntityInfo.id());
+                                                    log.debug("Negotiation attempt failed for local entity '{}' - missing 'lastUpdate' field",
+                                                           externalEntityInfo.id());
                                                     return false;
                                                 }
                                                 return isExternalEntityLastUpdateNewer(

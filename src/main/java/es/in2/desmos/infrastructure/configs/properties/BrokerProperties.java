@@ -1,5 +1,8 @@
 package es.in2.desmos.infrastructure.configs.properties;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 import org.springframework.boot.context.properties.bind.ConstructorBinding;
@@ -14,8 +17,8 @@ import java.util.Optional;
  * @param paths          - ngis-ld paths to be used when connecting the broker
  */
 @ConfigurationProperties(prefix = "broker")
-public record BrokerProperties(String provider, String internalDomain,
-                               @NestedConfigurationProperty BrokerPathProperties paths) {
+public record BrokerProperties(@NotBlank String provider, @NotBlank String internalDomain,
+                               @Valid @NotNull @NestedConfigurationProperty BrokerPathProperties paths) {
 
     @ConstructorBinding
     public BrokerProperties(String provider, String internalDomain, BrokerPathProperties paths) {
@@ -24,7 +27,8 @@ public record BrokerProperties(String provider, String internalDomain,
         this.paths = Optional.ofNullable(paths).orElse(new BrokerPathProperties(null, null, null, null));
     }
 
-    public record BrokerPathProperties(String entities, String entityOperations, String subscriptions, String temporal) {
+    public record BrokerPathProperties(@NotBlank String entities, @NotBlank String entityOperations,
+                                      @NotBlank String subscriptions, @NotBlank String temporal) {
     }
 
 }

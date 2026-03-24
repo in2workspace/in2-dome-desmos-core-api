@@ -33,10 +33,8 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
             Mono<String> externalAccessNodeMono,
             String externalDomain,
             Flux<MVEntity4DataNegotiation> externalMVEntities4DataNegotiation) {
-
-        log.info("ProcessID: {} - Making a Discovery Sync Web Client request for domain: {}", processId, externalDomain);
-
         return externalAccessNodeMono
+                .doFirst(() -> log.debug("ProcessID: {} - Making a Discovery Sync Web Client request for domain: {}", processId, externalDomain))
                 .zipWith(m2MAccessTokenProvider.getM2MAccessToken())
                 .flatMapMany(tuple -> {
                     Flux<MVEntity4DataNegotiation> payloadToSend =
@@ -59,7 +57,7 @@ public class DiscoverySyncWebClientImpl implements DiscoverySyncWebClient {
                                         HttpStatusCode status = response.statusCode();
 
                                         if (status.is2xxSuccessful()) {
-                                            log.info("ProcessID: {} - Discovery Sync successful, HTTP {}", processId, status);
+                                            log.debug("ProcessID: {} - Discovery Sync successful, HTTP {}", processId, status);
                                             return response.bodyToFlux(MVEntity4DataNegotiation.class)
                                                     .doOnNext(entity -> log.debug("ProcessID: {} - Received entity: {}", processId, entity));
                                         } else {

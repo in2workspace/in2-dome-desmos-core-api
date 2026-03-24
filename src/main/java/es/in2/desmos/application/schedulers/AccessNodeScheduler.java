@@ -19,7 +19,7 @@ public class AccessNodeScheduler {
     public void getPublicKeyFromAccessNodeRepository() {
         String processId = UUID.randomUUID().toString();
 
-        log.info("ProcessID: {} - Starting cron Access Node Schedule cron job...", processId);
+        log.debug("ProcessID: {} - Starting cron Access Node Schedule cron job...", processId);
 
         trustFrameworkConfig.initialize().subscribe();
     }

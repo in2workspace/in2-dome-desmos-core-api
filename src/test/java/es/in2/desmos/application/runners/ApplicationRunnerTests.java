@@ -69,8 +69,8 @@ class ApplicationRunnerTests {
         when(blockchainListenerService.createSubscription(anyString(), any(BlockchainSubscription.class))).thenReturn(Mono.empty());
         when(trustFrameworkConfig.initialize()).thenReturn(Mono.empty());
         when(dataSyncWorkflow.startDataSyncWorkflow(anyString())).thenReturn(Flux.empty());
-        when(publishWorkflow.startPublishWorkflow(anyString())).thenReturn(Flux.empty());
-        when(subscribeWorkflow.startSubscribeWorkflow(anyString())).thenReturn(Flux.empty());
+        when(publishWorkflow.startPublishWorkflow()).thenReturn(Flux.empty());
+        when(subscribeWorkflow.startSubscribeWorkflow()).thenReturn(Flux.empty());
         when(apiConfig.getCurrentEnvironment()).thenReturn("dev");
         // Act
         mock(ApplicationReadyEvent.class);
@@ -91,8 +91,8 @@ class ApplicationRunnerTests {
         when(blockchainListenerService.createSubscription(anyString(), any(BlockchainSubscription.class))).thenReturn(Mono.empty());
         when(trustFrameworkConfig.initialize()).thenReturn(Mono.empty());
         when(dataSyncWorkflow.startDataSyncWorkflow(anyString())).thenReturn(Flux.empty());
-        when(publishWorkflow.startPublishWorkflow(anyString())).thenReturn(Flux.empty());
-        when(subscribeWorkflow.startSubscribeWorkflow(anyString())).thenReturn(Flux.empty());
+        when(publishWorkflow.startPublishWorkflow()).thenReturn(Flux.empty());
+        when(subscribeWorkflow.startSubscribeWorkflow()).thenReturn(Flux.empty());
         when(apiConfig.getCurrentEnvironment()).thenReturn("dev");
         // Act
         mock(ApplicationReadyEvent.class);

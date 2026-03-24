@@ -26,33 +26,35 @@ public class EntitySyncWebClientImpl implements EntitySyncWebClient {
     private final EndpointsConfig endpointsConfig;
 
     public Flux<String> makeRequest(String processId, Mono<String> issuerMono, Mono<Id[]> entitySyncRequest) {
-        log.info("ProcessID: {} - Making a Entity Sync Web Client request", processId);
         return m2MAccessTokenProvider.getM2MAccessToken()
                 .flatMapMany(accessToken ->
-                        issuerMono.flatMapMany(issuer -> webClient
-                                .post()
-                                .uri(UriComponentsBuilder.fromHttpUrl(issuer)
-                                        .path(endpointsConfig.p2pEntitiesEndpoint())
-                                        .build()
-                                        .toUriString())
-                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .body(entitySyncRequest, Id[].class)
-                                .retrieve()
-                                .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
-                                        clientResponse -> {
-                                            log.debug("ProcessID: {} - Entity sync successfully", processId);
-                                            return Mono.empty();
-                                        })
-                                .onStatus(status -> status != null && status.is4xxClientError(),
-                                        clientResponse ->
-                                            Mono.error(new EntitySyncException("Error occurred while entity sync")))
-                                .onStatus(status -> status != null && status.is5xxServerError(),
-                                        clientResponse ->
-                                                Mono.error(new EntitySyncException(
-                                                        "Error occurred while entity sync")))
-                                .bodyToFlux(Entity.class)
-                                .retry(3)
-                                .map(Entity::value)));
+                        issuerMono.flatMapMany(issuer -> {
+                            log.debug("ProcessID: {} - Making a Entity Sync Web Client request for Issuer: {}", processId, issuer);
+                            return webClient
+                                    .post()
+                                    .uri(UriComponentsBuilder.fromHttpUrl(issuer)
+                                            .path(endpointsConfig.p2pEntitiesEndpoint())
+                                            .build()
+                                            .toUriString())
+                                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .body(entitySyncRequest, Id[].class)
+                                    .retrieve()
+                                    .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
+                                            clientResponse -> {
+                                                log.debug("ProcessID: {} - Entity sync successfully", processId);
+                                                return Mono.empty();
+                                            })
+                                    .onStatus(status -> status != null && status.is4xxClientError(),
+                                            clientResponse ->
+                                                    Mono.error(new EntitySyncException("Error occurred while entity sync")))
+                                    .onStatus(status -> status != null && status.is5xxServerError(),
+                                            clientResponse ->
+                                                    Mono.error(new EntitySyncException(
+                                                            "Error occurred while entity sync")))
+                                    .bodyToFlux(Entity.class)
+                                    .retry(3)
+                                    .map(Entity::value);
+                        }));
     }
 }

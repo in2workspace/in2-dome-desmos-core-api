@@ -33,7 +33,7 @@ public class QueueServiceImpl implements QueueService {
         }
 
         if (queue.offer(event)) {
-            log.debug(queue.toString());
+            log.debug("Event added to queue - queue: {}", queue);
             emitNext();
         }
         return Mono.empty();
@@ -42,7 +42,7 @@ public class QueueServiceImpl implements QueueService {
     private synchronized void emitNext() {
         EventQueue eventQueue = queue.poll();
         if (eventQueue != null) {
-            log.debug(eventQueue.toString());
+            log.debug("Emitting event from queue - queue: {}", eventQueue);
             sink.tryEmitNext(eventQueue);
         }
     }
@@ -68,7 +68,7 @@ public class QueueServiceImpl implements QueueService {
         EventQueue eventQueue;
         while ((eventQueue = buffer.poll()) != null) {
             if (queue.offer(eventQueue)) {
-                log.debug("Re-processing buffered event: " + eventQueue);
+                log.debug("Re-processing buffered event - queue: {}", eventQueue);
                 emitNext();
             }
         }

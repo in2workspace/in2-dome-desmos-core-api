@@ -152,7 +152,7 @@ public class JwtTokenProvider {
             }
             return builder.build();
         } catch (JsonProcessingException e) {
-            log.error("Error while parsing the JWT payload", e);
+            log.error("Failed to parse JWT payload into claims set - check payload JSON structure and validity", e);
             throw new JwtException("Error while parsing the JWT payload");
         }
     }

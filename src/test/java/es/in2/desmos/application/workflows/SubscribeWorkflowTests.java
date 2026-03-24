@@ -62,7 +62,6 @@ class SubscribeWorkflowTests {
             BrokerDataMother.GET_REAL_CATALOG
     })
     void itShouldVerifyAuditAndPublishedWhenIsRootObject(String retrievedBrokerEntity) throws NoSuchAlgorithmException, JsonProcessingException {
-        String processId = "processId";
         String entityId = getEntityId(retrievedBrokerEntity);
         BlockchainNotification blockchainNotification = BlockchainNotificationMother.FromBrokerDataMother(retrievedBrokerEntity);
         EventQueue eventQueueMock = mock(EventQueue.class);
@@ -73,44 +72,43 @@ class SubscribeWorkflowTests {
                 .thenReturn(Flux.just(eventQueueMock));
         when(eventQueueMock.getEvent().get(0))
                 .thenReturn(List.of(blockchainNotification));
-        when(dataSyncService.getEntityFromExternalSource(processId, blockchainNotification))
+        when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(retrievedBrokerEntity));
-        when(dataSyncService.verifyRetrievedEntityData(processId, blockchainNotification, retrievedBrokerEntity))
+        when(dataSyncService.verifyRetrievedEntityData(anyString(), eq(blockchainNotification), eq(retrievedBrokerEntity)))
                 .thenReturn(Mono.empty());
-        when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
+        when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(anyString(), eq(blockchainNotification), eq(retrievedBrokerEntity), eq(AuditRecordStatus.RETRIEVED)))
                 .thenReturn(Mono.empty());
-        when(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
+        when(brokerPublisherService.publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
                 .thenReturn(Mono.empty());
-        when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED))
+        when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(anyString(), eq(blockchainNotification), eq(retrievedBrokerEntity), eq(AuditRecordStatus.PUBLISHED)))
                 .thenReturn(Mono.empty());
 
-        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow(processId))
+        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
                 .verifyComplete();
 
         verify(dataSyncService, times(1))
-                .getEntityFromExternalSource(processId, blockchainNotification);
+                .getEntityFromExternalSource(anyString(), eq(blockchainNotification));
         verify(dataSyncService, times(1))
-                .verifyRetrievedEntityData(processId, blockchainNotification, retrievedBrokerEntity);
+                .verifyRetrievedEntityData(anyString(), eq(blockchainNotification), eq(retrievedBrokerEntity));
         verify(brokerPublisherService, times(1))
-                .publishDataToBroker(processId, entityId, retrievedBrokerEntity);
+                .publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
         verify(auditRecordService, times(1))
                 .buildAndSaveAuditRecordFromBlockchainNotification(
-                        processId,
-                        blockchainNotification,
-                        retrievedBrokerEntity,
-                        AuditRecordStatus.RETRIEVED);
+                        anyString(),
+                        eq(blockchainNotification),
+                        eq(retrievedBrokerEntity),
+                        eq(AuditRecordStatus.RETRIEVED));
         verify(auditRecordService, times(1))
                 .buildAndSaveAuditRecordFromBlockchainNotification(
-                        processId,
-                        blockchainNotification,
-                        retrievedBrokerEntity,
-                        AuditRecordStatus.PUBLISHED);
+                        anyString(),
+                        eq(blockchainNotification),
+                        eq(retrievedBrokerEntity),
+                        eq(AuditRecordStatus.PUBLISHED));
     }
 
     @Test
     void itShouldAuditAndPublishedWhenHasRootTypeButIsSubEntity() throws JsonProcessingException {
-        String processId = "processId";
         String retrievedBrokerEntity = BrokerDataMother.GET_REAL_PRODUCT_OFFERING;
         String entityId = getEntityId(retrievedBrokerEntity);
         String entityType = getEntityType(retrievedBrokerEntity);
@@ -123,44 +121,43 @@ class SubscribeWorkflowTests {
                 .thenReturn(Flux.just(eventQueueMock));
         when(eventQueueMock.getEvent().get(0))
                 .thenReturn(List.of(blockchainNotification));
-        when(dataSyncService.getEntityFromExternalSource(processId, blockchainNotification))
+        when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(retrievedBrokerEntity));
-        when(auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
+        when(auditRecordService.buildAndSaveAuditRecordForSubEntity(anyString(), eq(entityId), eq(entityType), eq(retrievedBrokerEntity), eq(AuditRecordStatus.RETRIEVED)))
                 .thenReturn(Mono.empty());
-        when(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
+        when(brokerPublisherService.publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
                 .thenReturn(Mono.empty());
-        when(auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED))
+        when(auditRecordService.buildAndSaveAuditRecordForSubEntity(anyString(), eq(entityId), eq(entityType), eq(retrievedBrokerEntity), eq(AuditRecordStatus.PUBLISHED)))
                 .thenReturn(Mono.empty());
 
-        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow(processId))
+        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
                 .verifyComplete();
 
         verify(dataSyncService, times(1))
-                .getEntityFromExternalSource(processId, blockchainNotification);
+                .getEntityFromExternalSource(anyString(), eq(blockchainNotification));
         verify(dataSyncService, times(0))
                 .verifyRetrievedEntityData(any(), any(), any());
         verify(brokerPublisherService, times(1))
-                .publishDataToBroker(processId, entityId, retrievedBrokerEntity);
+                .publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
         verify(auditRecordService, times(1))
                 .buildAndSaveAuditRecordForSubEntity(
-                        processId,
-                        entityId,
-                        entityType,
-                        retrievedBrokerEntity,
-                        AuditRecordStatus.RETRIEVED);
+                        anyString(),
+                        eq(entityId),
+                        eq(entityType),
+                        eq(retrievedBrokerEntity),
+                        eq(AuditRecordStatus.RETRIEVED));
         verify(auditRecordService, times(1))
                 .buildAndSaveAuditRecordForSubEntity(
-                        processId,
-                        entityId,
-                        entityType,
-                        retrievedBrokerEntity,
-                        AuditRecordStatus.PUBLISHED);
+                        anyString(),
+                        eq(entityId),
+                        eq(entityType),
+                        eq(retrievedBrokerEntity),
+                        eq(AuditRecordStatus.PUBLISHED));
     }
 
     @Test
     void itShouldPublishWhenIsSubEntity() throws JsonProcessingException {
-        String processId = "processId";
         String retrievedBrokerEntity = BrokerDataMother.NOT_ROOT_OBJECT;
         String entityId = getEntityId(retrievedBrokerEntity);
         BlockchainNotification blockchainNotification = BlockchainNotificationMother.Empty();
@@ -172,28 +169,26 @@ class SubscribeWorkflowTests {
                 .thenReturn(Flux.just(eventQueueMock));
         when(eventQueueMock.getEvent().get(0))
                 .thenReturn(List.of(blockchainNotification));
-        when(dataSyncService.getEntityFromExternalSource(processId, blockchainNotification))
+        when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(retrievedBrokerEntity));
-        when(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
+        when(brokerPublisherService.publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
                 .thenReturn(Mono.empty());
 
-        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow(processId))
+        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
                 .verifyComplete();
 
         verify(dataSyncService, times(1))
-                .getEntityFromExternalSource(processId, blockchainNotification);
+                .getEntityFromExternalSource(anyString(), eq(blockchainNotification));
         verify(dataSyncService, times(0))
                 .verifyRetrievedEntityData(any(), any(), any());
         verify(brokerPublisherService, times(1))
-                .publishDataToBroker(processId, entityId, retrievedBrokerEntity);
+                .publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
         verifyNoInteractions(auditRecordService);
     }
 
     @Test
     void itShouldReturnMonoEmptyIfEntityFromExternalSourceRaiseExceptionWorkflow() {
-        String processId = "processId";
-
         BlockchainNotification blockchainNotification = BlockchainNotificationMother.Empty();
 
         when(eventQueue.getEvent()).thenReturn(List.of(blockchainNotification));
@@ -204,15 +199,13 @@ class SubscribeWorkflowTests {
                 .thenReturn(List.of(blockchainNotification));
         when(dataSyncService.getEntityFromExternalSource(any(), any())).thenReturn(Flux.error(new JsonReadingException("Error reading json")));
 
-        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow(processId))
+        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
                 .verifyComplete();
     }
 
     @Test
     void itShouldRaiseExceptionIfEntityIdJsonIsIncorrect() throws JsonProcessingException {
-        String processId = "processId";
-
         BlockchainNotification blockchainNotification = BlockchainNotificationMother.Empty();
 
         when(eventQueue.getEvent()).thenReturn(List.of(blockchainNotification));
@@ -221,19 +214,18 @@ class SubscribeWorkflowTests {
                 .thenReturn(Flux.just(eventQueue));
         when(eventQueue.getEvent().get(0))
                 .thenReturn(List.of(blockchainNotification));
-        when(dataSyncService.getEntityFromExternalSource(processId, blockchainNotification))
+        when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(BrokerDataMother.WITHOUT_ID));
-        when(objectMapper.readTree(anyString())).thenThrow(new JsonProcessingException("Error"){});
+        when(objectMapper.readTree(anyString())).thenThrow(new JsonProcessingException("Error") {
+        });
 
-        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow(processId))
+        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
                 .verifyComplete();
     }
 
     @Test
     void itShouldRaiseExceptionIfEntityTypeJsonIsIncorrect() throws JsonProcessingException {
-        String processId = "processId";
-
         BlockchainNotification blockchainNotification = BlockchainNotificationMother.Empty();
 
         when(eventQueue.getEvent()).thenReturn(List.of(blockchainNotification));
@@ -242,13 +234,14 @@ class SubscribeWorkflowTests {
                 .thenReturn(Flux.just(eventQueue));
         when(eventQueue.getEvent().get(0))
                 .thenReturn(List.of(blockchainNotification));
-        when(dataSyncService.getEntityFromExternalSource(processId, blockchainNotification))
+        when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(BrokerDataMother.WITHOUT_ID));
         when(objectMapper.readTree(anyString()))
                 .thenCallRealMethod()
-                .thenThrow(new JsonProcessingException("Error"){});
+                .thenThrow(new JsonProcessingException("Error") {
+                });
 
-        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow(processId))
+        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
                 .verifyComplete();
     }

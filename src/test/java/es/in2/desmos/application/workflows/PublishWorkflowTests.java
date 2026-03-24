@@ -28,8 +28,7 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class PublishWorkflowTests {
-
-    private final String processId = "processId";
+    
     private final String id = "1234";
     private final String type = "TestType";
     private final List<Map<String, Object>> data = List.of(Collections.singletonMap("id", "123"));
@@ -58,8 +57,8 @@ class PublishWorkflowTests {
 
     @Test
     void testBuildBlockchainTxPayload() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("id", "123");
+        Map<String, Object> blockchainData = new HashMap<>();
+        blockchainData.put("id", "123");
         String previousHash = "5d41402abc4b2a76b9719d911017c592";
         EventQueue eventQueueMock = mock(EventQueue.class);
 
@@ -68,23 +67,23 @@ class PublishWorkflowTests {
         when(eventQueueMock.getEvent()).thenReturn(List.of(brokerNotification));
         when(pendingPublishEventsQueue.getEventStream()).thenReturn(Flux.just(eventQueueMock));
         when(eventQueueMock.getEvent().get(0)).thenReturn(List.of(brokerNotification));
-        when(auditRecordService.fetchLatestProducerEntityHashLinkByEntityId(processId, "123")).thenReturn(Mono.empty());
-        when(blockchainTxPayloadFactory.calculatePreviousHashIfEmpty(eq(processId), any())).thenReturn(Mono.just(previousHash));
+        when(auditRecordService.fetchLatestProducerEntityHashLinkByEntityId(anyString(), eq("123"))).thenReturn(Mono.empty());
+        when(blockchainTxPayloadFactory.calculatePreviousHashIfEmpty(anyString(), any())).thenReturn(Mono.just(previousHash));
         when(blockchainTxPayloadFactory.buildBlockchainTxPayload(anyString(), anyMap(), anyString()))
                 .thenReturn(Mono.just(blockchainTxPayload));
-        when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(eq(processId), any(), eq(AuditRecordStatus.CREATED), any()))
+        when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.CREATED), any()))
                 .thenReturn(Mono.empty());
-        when(blockchainPublisherService.publishDataToBlockchain(processId, blockchainTxPayload))
+        when(blockchainPublisherService.publishDataToBlockchain(anyString(), eq(blockchainTxPayload)))
                 .thenReturn(Mono.empty());
-        when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(eq(processId), any(), eq(AuditRecordStatus.PUBLISHED), any()))
+        when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.PUBLISHED), any()))
                 .thenReturn(Mono.empty());
 
-        publishWorkflow.startPublishWorkflow(processId).blockLast();
+        publishWorkflow.startPublishWorkflow().blockLast();
 
-        verify(blockchainTxPayloadFactory).buildBlockchainTxPayload(processId, data, previousHash);
-        verify(auditRecordService).buildAndSaveAuditRecordFromBrokerNotification(eq(processId), any(), eq(AuditRecordStatus.CREATED), any());
-        verify(blockchainPublisherService).publishDataToBlockchain(eq(processId), any());
-        verify(auditRecordService).buildAndSaveAuditRecordFromBrokerNotification(eq(processId), any(), eq(AuditRecordStatus.PUBLISHED), any());
+        verify(blockchainTxPayloadFactory).buildBlockchainTxPayload(anyString(), eq(blockchainData), eq(previousHash));
+        verify(auditRecordService).buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.CREATED), any());
+        verify(blockchainPublisherService).publishDataToBlockchain(anyString(), any());
+        verify(auditRecordService).buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.PUBLISHED), any());
     }
 
 }

@@ -42,62 +42,64 @@ public class SubscribeWorkflowImpl implements SubscribeWorkflow {
     private final ObjectMapper objectMapper;
 
     @Override
-    public Flux<Void> startSubscribeWorkflow(String processId) {
-        log.info("ProcessID: {} - Starting the Subscribe Workflow...", processId);
+    public Flux<Void> startSubscribeWorkflow() {
         // Get the event stream for the events that need to be synchronized to the local broker
         return pendingSubscribeEventsQueue.getEventStream()
+                .doFirst(() -> log.info("Starting the Subscribe Workflow"))
                 // Get the next event (BlockchainNotification) from the queue
-                .flatMap(pendingSubscribeQueueEventStream ->
-                        Mono.just((BlockchainNotification) pendingSubscribeQueueEventStream.getEvent().get(0))
-                                // verify that the DLTNotification is not null
-                                .filter(Objects::nonNull)
-                                // retrieve the entity from the source broker
-                                .flatMap(blockchainNotification ->
-                                        dataSyncService.getEntityFromExternalSource(processId, blockchainNotification)
-                                                // verify the data integrity of the retrieved entity
-                                                .concatMap(retrievedBrokerEntity ->
-                                                        {
-                                                            String entityType = getEntityTypeFromJson(retrievedBrokerEntity);
-                                                            String entityId = getEntityIdFromJson(retrievedBrokerEntity);
+                .flatMap(pendingSubscribeQueueEventStream -> {
+                    String processId = ApplicationUtils.generateProcessId();
+                    return Mono.just((BlockchainNotification) pendingSubscribeQueueEventStream.getEvent().get(0))
+                            // verify that the DLTNotification is not null
+                            .filter(Objects::nonNull)
+                            // retrieve the entity from the source broker
+                            .flatMap(blockchainNotification ->
+                                    dataSyncService.getEntityFromExternalSource(processId, blockchainNotification)
+                                            // verify the data integrity of the retrieved entity
+                                            .concatMap(retrievedBrokerEntity ->
+                                                    {
+                                                        String entityType = getEntityTypeFromJson(retrievedBrokerEntity);
+                                                        String entityId = getEntityIdFromJson(retrievedBrokerEntity);
 
-                                                            log.debug("ProcessID: {} - Receive object with id: {} has type: {}.", processId, entityId, entityType);
+                                                        log.debug("ProcessID: {} - Receive object with id: {} has type: {}.", processId, entityId, entityType);
 
-                                                            if (hasRootObjectType(entityType)) {
-                                                                if (isCurrentRootObject(blockchainNotification, entityId)) {
-                                                                    log.debug("ProcessID: {} - Retrieved entity with id: {} is root object", processId, entityId);
+                                                        if (hasRootObjectType(entityType)) {
+                                                            if (isCurrentRootObject(blockchainNotification, entityId)) {
+                                                                log.debug("ProcessID: {} - Retrieved entity with id: {} is root object", processId, entityId);
 
-                                                                    // Verify the integrity and consistency of the retrieved entity
-                                                                    return dataSyncService.verifyRetrievedEntityData(processId, blockchainNotification, retrievedBrokerEntity)
-                                                                            // Build and save the audit record for RETRIEVED status
-                                                                            .then(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
-                                                                            // Publish the retrieved entity to the local broker
-                                                                            .then(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
-                                                                            // Build and save the audit record for PUBLISHED status
-                                                                            .then(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED));
-                                                                } else {
-                                                                    log.debug("ProcessID: {} - Retrieved entity with id: {} has root object type but it isn't the current root object", processId, entityId);
-                                                                    return auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED)
-                                                                            .then(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
-                                                                            .then(auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED));
-                                                                }
+                                                                // Verify the integrity and consistency of the retrieved entity
+                                                                return dataSyncService.verifyRetrievedEntityData(processId, blockchainNotification, retrievedBrokerEntity)
+                                                                        // Build and save the audit record for RETRIEVED status
+                                                                        .then(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
+                                                                        // Publish the retrieved entity to the local broker
+                                                                        .then(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
+                                                                        // Build and save the audit record for PUBLISHED status
+                                                                        .then(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED));
                                                             } else {
-                                                                String entityHash = calculateHash(retrievedBrokerEntity);
-                                                                log.info("ProcessID: {} - AuditLog: RETRIEVED from Blockchain. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash);
-
-                                                                return brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity)
-                                                                        .doOnSuccess(x -> log.info("ProcessID: {} - AuditLog: PUBLISHED to Broker. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash));
+                                                                log.debug("ProcessID: {} - Retrieved entity with id: {} has root object type but it isn't the current root object", processId, entityId);
+                                                                return auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED)
+                                                                        .then(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
+                                                                        .then(auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED));
                                                             }
+                                                        } else {
+                                                            String entityHash = calculateHash(retrievedBrokerEntity);
+                                                            log.info("ProcessID: {} - AuditLog: RETRIEVED from Blockchain. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash);
+
+                                                            return brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity)
+                                                                    .doOnSuccess(x -> log.info("ProcessID: {} - AuditLog: PUBLISHED to Broker. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash));
                                                         }
-                                                )
-                                                .collectList()
-                                                .then()
-                                                .doOnSuccess(success -> log.info("ProcessID: {} - Subscribe Workflow completed successfully.", processId))
-                                                .onErrorResume(error ->
-                                                        Mono.just(error)
-                                                                .doOnNext(errorObject ->
-                                                                        log.error("ProcessID: {} - Error occurred while processing the Subscribe Workflow: {}", processId, errorObject.getMessage()))
-                                                                .then(Mono.empty()))
-                                ));
+                                                    }
+                                            )
+                                            .collectList()
+                                            .then()
+                                            .doOnSuccess(success -> log.info("ProcessID: {} - Subscribe Workflow completed successfully.", processId))
+                                            .onErrorResume(error ->
+                                                    Mono.just(error)
+                                                            .doOnNext(errorObject ->
+                                                                    log.error("ProcessID: {} - Error occurred while processing the Subscribe Workflow: {}", processId, errorObject.getMessage()))
+                                                            .then(Mono.empty()))
+                            );
+                });
     }
 
     private boolean isCurrentRootObject(BlockchainNotification blockchainNotification, String entityId) {
