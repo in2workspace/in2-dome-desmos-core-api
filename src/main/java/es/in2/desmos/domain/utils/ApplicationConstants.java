@@ -21,7 +21,7 @@ public final class ApplicationConstants {
             PRODUCT_ORDER,
             "product",
             "usage",
-            "usage-specification",
+            "usageSpecification",
             "applied-customer-bill-rate",
             "customer-bill");
 

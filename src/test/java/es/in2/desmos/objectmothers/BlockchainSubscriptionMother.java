@@ -54,7 +54,7 @@ public final class BlockchainSubscriptionMother {
                 "product-order",
                 "product",
                 "usage",
-                "usage-specification",
+                "usageSpecification",
                 "applied-customer-bill-rate",
                 "customer-bill");
 
