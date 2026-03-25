@@ -57,7 +57,7 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
 
 
     private boolean isLifecycleStatusReplicable(String type, String lifecycleStatus) {
-        return PRODUCT_ORDER.equals(type) || (lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus));
+            return (PRODUCT_ORDER.equals(type)) || (lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus));
     }
 
     private boolean isValidForReplicable(String startDateTime, String endDateTime) {
