@@ -140,9 +140,9 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
 
                                 return localEntityWithSameIdOptional
                                         .map(localEntityWithSameId ->
-                                                externalEntityInfo.hasVersion() && isExternalEntityVersionNewer(
-                                                        externalEntityInfo.getFloatVersion(),
-                                                        localEntityWithSameId.getFloatVersion()))
+                                                externalEntityInfo.hasVersion() &&
+                                                        localEntityWithSameId.hasVersion() &&
+                                                        externalEntityInfo.version().compareTo(localEntityWithSameId.version()) > 0)
                                         .orElse(true);
                             });
                 });
@@ -192,10 +192,6 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                                 }
                             });
                 });
-    }
-
-    private boolean isExternalEntityVersionNewer(Float externalEntityVersion, Float sameLocalEntityVersion) {
-        return externalEntityVersion > sameLocalEntityVersion;
     }
 
 

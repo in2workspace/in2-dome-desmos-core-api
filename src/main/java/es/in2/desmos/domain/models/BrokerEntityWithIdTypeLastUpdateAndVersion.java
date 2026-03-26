@@ -11,7 +11,7 @@ import lombok.ToString;
 @EqualsAndHashCode(callSuper = true)
 public final class BrokerEntityWithIdTypeLastUpdateAndVersion extends BrokerEntityWithIdAndType {
     @JsonProperty("version")
-    private final @NotBlank String version;
+    private final Version version;
 
     @JsonProperty("lastUpdate")
     private final @NotBlank String lastUpdate;
@@ -22,7 +22,7 @@ public final class BrokerEntityWithIdTypeLastUpdateAndVersion extends BrokerEnti
     @JsonProperty("validFor")
     private final @NotBlank BrokerEntityValidFor validFor;
 
-    public BrokerEntityWithIdTypeLastUpdateAndVersion(String id, String type, String version, String lastUpdate, String lifecycleStatus, BrokerEntityValidFor validFor) {
+    public BrokerEntityWithIdTypeLastUpdateAndVersion(String id, String type, Version version, String lastUpdate, String lifecycleStatus, BrokerEntityValidFor validFor) {
         super(id, type);
         this.version = version;
         this.lastUpdate = lastUpdate;
