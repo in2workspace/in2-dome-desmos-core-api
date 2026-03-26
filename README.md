@@ -40,6 +40,11 @@ docker-compose up -d
 
 ## Understanding the Configuration
 
+## Documentation
+
+- [Application Flow](docs/APPLICATION_FLOW.md) - Detailed documentation about the application architecture and workflows
+- [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Solutions for common issues and problems
+
 ## Contribution
 
 ### How to contribute
