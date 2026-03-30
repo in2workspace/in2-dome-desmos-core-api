@@ -11,9 +11,9 @@ class BrokerEntityWithIdTypeLastUpdateAndVersionTests {
     @Test
     void itShouldReturnToString() {
         BrokerEntityWithIdAndType brokerEntityWithIdAndType =
-                new BrokerEntityWithIdTypeLastUpdateAndVersion("id", "type", "version", "lastUpdate", "lifecycleStatus", new BrokerEntityValidFor("validFor", "validFor"));
+                new BrokerEntityWithIdTypeLastUpdateAndVersion("id", "type", null, "lastUpdate", "lifecycleStatus", new BrokerEntityValidFor("validFor", "validFor"));
 
-        String expectedResult = "BrokerEntityWithIdTypeLastUpdateAndVersion(super=BrokerEntityWithIdAndType(id=id, type=type), version=version, lastUpdate=lastUpdate, lifecycleStatus=lifecycleStatus, validFor=BrokerEntityValidFor[startDateTime=validFor, endDateTime=validFor])";
+        String expectedResult = "BrokerEntityWithIdTypeLastUpdateAndVersion(super=BrokerEntityWithIdAndType(id=id, type=type), version=null, lastUpdate=lastUpdate, lifecycleStatus=lifecycleStatus, validFor=BrokerEntityValidFor[startDateTime=validFor, endDateTime=validFor])";
 
         String result = brokerEntityWithIdAndType.toString();
 

@@ -2,6 +2,7 @@ package es.in2.desmos.objectmothers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
+import es.in2.desmos.domain.models.Version;
 import es.in2.desmos.domain.utils.ApplicationUtils;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
@@ -69,43 +70,43 @@ public final class MVEntity4DataNegotiationMother {
     }
 
     public static @NotNull MVEntity4DataNegotiation sampleLaunched() {
-        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, "1.9", "2024-06-02T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, null, null);
+        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, Version.parse("1.9"), "2024-06-02T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, null, null);
     }
 
     public static @NotNull MVEntity4DataNegotiation sampleRetired() {
-        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":2", PRODUCT_OFFERING_TYPE_NAME, "1.9", "2024-06-02T12:00:00Z", "Retired", START_DATE_TIME, END_DATE_TIME, null, null);
+        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":2", PRODUCT_OFFERING_TYPE_NAME, Version.parse("1.9"), "2024-06-02T12:00:00Z", "Retired", START_DATE_TIME, END_DATE_TIME, null, null);
     }
 
     public static @NotNull MVEntity4DataNegotiation sampleActive() {
-        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":2", PRODUCT_OFFERING_TYPE_NAME, "1.9", "2024-06-02T12:00:00Z", "Active", START_DATE_TIME, END_DATE_TIME, null, null);
+        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":2", PRODUCT_OFFERING_TYPE_NAME, Version.parse("1.9"), "2024-06-02T12:00:00Z", "Active", START_DATE_TIME, END_DATE_TIME, null, null);
     }
 
     public static @NotNull MVEntity4DataNegotiation sampleCorrectValidFor() {
-        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, "1.9", "2024-06-02T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, null, null);
+        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, Version.parse("1.9"), "2024-06-02T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, null, null);
     }
 
     public static @NotNull MVEntity4DataNegotiation sampleNullValidFor() {
-        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, "1.9", "2024-06-02T12:00:00Z", LAUNCHED, null, null, null, null);
+        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, Version.parse("1.9"), "2024-06-02T12:00:00Z", LAUNCHED, null, null, null, null);
     }
 
     public static @NotNull MVEntity4DataNegotiation sampleIncorrectValidFor() {
-        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, "1.9", "2024-06-02T12:00:00Z", LAUNCHED, "2100-01-01T00:00:00.000Z", "2100-01-01T00:00:00.000Z", null, null);
+        return new MVEntity4DataNegotiation("urn:" + PRODUCT_OFFERING_TYPE_NAME + ":1", PRODUCT_OFFERING_TYPE_NAME, Version.parse("1.9"), "2024-06-02T12:00:00Z", LAUNCHED, "2100-01-01T00:00:00.000Z", "2100-01-01T00:00:00.000Z", null, null);
     }
 
     public static @NotNull MVEntity4DataNegotiation category1() {
-        return new MVEntity4DataNegotiation("urn:" + CATEGORY_TYPE_NAME + ":1", CATEGORY_TYPE_NAME, "1.2", "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
+        return new MVEntity4DataNegotiation("urn:" + CATEGORY_TYPE_NAME + ":1", CATEGORY_TYPE_NAME, Version.parse("1.2"), "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
     }
 
     public static @NotNull MVEntity4DataNegotiation category2() {
-        return new MVEntity4DataNegotiation("urn:" + CATEGORY_TYPE_NAME + ":2", CATEGORY_TYPE_NAME, "1.2", "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
+        return new MVEntity4DataNegotiation("urn:" + CATEGORY_TYPE_NAME + ":2", CATEGORY_TYPE_NAME, Version.parse("1.2"), "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
     }
 
     public static @NotNull MVEntity4DataNegotiation catalog1() {
-        return new MVEntity4DataNegotiation("urn:" + CATALOG_TYPE_NAME + ":1", CATALOG_TYPE_NAME, "1.2", "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
+        return new MVEntity4DataNegotiation("urn:" + CATALOG_TYPE_NAME + ":1", CATALOG_TYPE_NAME, Version.parse("1.2"), "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
     }
 
     public static @NotNull MVEntity4DataNegotiation catalog2() {
-        return new MVEntity4DataNegotiation("urn:" + CATALOG_TYPE_NAME + ":2", CATALOG_TYPE_NAME, "1.2", "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
+        return new MVEntity4DataNegotiation("urn:" + CATALOG_TYPE_NAME + ":2", CATALOG_TYPE_NAME, Version.parse("1.2"), "2024-09-05T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, "prova", "prova");
     }
 
     public static @NotNull MVEntity4DataNegotiation randomIdAndVersion() {
@@ -114,7 +115,7 @@ public final class MVEntity4DataNegotiationMother {
         double randomVersion = random.nextDouble() + 1;
         randomVersion = Math.round(randomVersion * 10.0) / 10.0;
 
-        return new MVEntity4DataNegotiation(id, PRODUCT_OFFERING_TYPE_NAME, String.valueOf(randomVersion), "2024-04-01T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, generateRandomSha256(), generateRandomSha256());
+        return new MVEntity4DataNegotiation(id, PRODUCT_OFFERING_TYPE_NAME, Version.parse(String.valueOf(randomVersion)), "2024-04-01T12:00:00Z", LAUNCHED, START_DATE_TIME, END_DATE_TIME, generateRandomSha256(), generateRandomSha256());
     }
 
     public static @NotNull Flux<MVEntity4DataNegotiation> list1And2() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
@@ -195,9 +196,9 @@ public final class MVEntity4DataNegotiationMother {
         String id = jsonObject.getString("id");
         String type = jsonObject.getString("type");
 
-        String version;
+        Version version;
         if(jsonObject.has("version")){
-            version = jsonObject.getJSONObject("version").getString("value");
+            version = Version.parse(jsonObject.getJSONObject("version").getString("value"));
         } else {
             version = null;
         }

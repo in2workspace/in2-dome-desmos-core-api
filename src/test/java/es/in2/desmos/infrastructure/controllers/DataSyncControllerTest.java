@@ -4,6 +4,7 @@ import es.in2.desmos.application.workflows.jobs.P2PDataSyncJob;
 import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.models.Id;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
+import es.in2.desmos.domain.models.Version;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -143,7 +144,7 @@ class DataSyncControllerTest {
 
     private MVEntity4DataNegotiation createMVEntity4DataNegotiation(String id) {
         return new MVEntity4DataNegotiation(
-                id, "Catalog", "1.0", "2024-01-01T00:00:00Z",
+                id, "Catalog", Version.from("1.0"), "2024-01-01T00:00:00Z",
                 "Launched", "2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z",
                 "hash-" + id, "hashlink-" + id
         );
