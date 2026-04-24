@@ -143,16 +143,22 @@ public class VerifierServiceImpl implements VerifierService {
                                         verifierConfig.getWellKnownContentType(),
                                         verifierConfig.getWellKnownContentTypeUrlEncodedForm())
                                 .bodyValue(body)
-                                .retrieve()
-                                .onStatus(
-                                        HttpStatusCode::isError,
-                                        response -> response.bodyToMono(String.class)
-                                                .flatMap(errorBody ->
-                                                        Mono.error(new PerformTokenRequestException(
-                                                                "Error fetching the token: " + errorBody))))
-                                .bodyToMono(OIDCAccessTokenResponse.class)
+                                .exchangeToMono(response -> {
+                                    System.out.println("The OAuth2 Metadata: " + metadata);
+                                    System.out.println("The Token response: " + response);
+                                    log.warn("Token endpoint: status={}, url={}", response.statusCode(), metadata.tokenEndpoint());
+                                    if (response.statusCode().isError()) {
+                                        return response.bodyToMono(String.class)
+                                                .flatMap(errorBody -> Mono.error(new PerformTokenRequestException(
+                                                        "Error fetching the token: " + errorBody)));
+                                    }
+                                    return response.bodyToMono(OIDCAccessTokenResponse.class);
+                                })
                                 .doOnNext(r -> log.debug("Token endpoint body parsed"))
-                                .switchIfEmpty(Mono.fromRunnable(() -> log.warn("Token endpoint returned EMPTY body")))
+                                .switchIfEmpty(Mono.fromRunnable(() -> {
+                                    System.out.println("The body: " + body);
+                                    log.warn("Token endpoint returned EMPTY body");
+                                }))
                                 .onErrorMap(e -> new TokenFetchException("Error fetching the token", e)));
     }
 }
