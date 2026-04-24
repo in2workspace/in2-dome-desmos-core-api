@@ -33,6 +33,8 @@ public class M2MAccessTokenProvider {
     public Mono<String> getM2MAccessToken() {
         return Mono.fromCallable(this::getM2MFormUrlEncodeBodyValue)
                 .flatMap(verifierService::performTokenRequest)
+                .doOnNext(t -> log.debug("M2M token response received"))
+                .switchIfEmpty(Mono.fromRunnable(() -> log.warn("M2M token Mono completed EMPTY")))
                 .flatMap(tokenReponse ->
                         Mono.just(tokenReponse.accessToken()));
     }

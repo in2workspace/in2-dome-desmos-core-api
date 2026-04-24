@@ -151,6 +151,8 @@ public class VerifierServiceImpl implements VerifierService {
                                                         Mono.error(new PerformTokenRequestException(
                                                                 "Error fetching the token: " + errorBody))))
                                 .bodyToMono(OIDCAccessTokenResponse.class)
+                                .doOnNext(r -> log.debug("Token endpoint body parsed"))
+                                .switchIfEmpty(Mono.fromRunnable(() -> log.warn("Token endpoint returned EMPTY body")))
                                 .onErrorMap(e -> new TokenFetchException("Error fetching the token", e)));
     }
 }
