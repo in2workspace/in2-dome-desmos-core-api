@@ -144,7 +144,6 @@ public class VerifierServiceImpl implements VerifierService {
                                         verifierConfig.getWellKnownContentTypeUrlEncodedForm())
                                 .bodyValue(body)
                                 .exchangeToMono(response -> {
-                                    log.warn("Token endpoint: status={}, url={}", response.statusCode(), metadata.tokenEndpoint());
                                     if (response.statusCode().isError()) {
                                         return response.bodyToMono(String.class)
                                                 .defaultIfEmpty("")
@@ -155,10 +154,8 @@ public class VerifierServiceImpl implements VerifierService {
                                     }
                                     return response.bodyToMono(OIDCAccessTokenResponse.class);
                                 })
-                                .doOnNext(r -> log.debug("Token endpoint body parsed"))
-                                .switchIfEmpty(Mono.fromRunnable(() -> {
-                                    log.warn("Token endpoint returned EMPTY body");
-                                }))
+                                .doOnNext(r -> log.debug("Verifier token endpoint response   received"))
+                                .switchIfEmpty(Mono.fromRunnable(() -> log.warn("Verifier token endpoint returned EMPTY body")))
                                 .onErrorMap(e -> new TokenFetchException("Error fetching the token", e)));
     }
 
