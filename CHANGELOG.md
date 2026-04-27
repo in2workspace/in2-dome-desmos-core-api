@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]: v2.0.9
 - Add logs for Verifier 403 response
+- Update Gradle Sonar version
 
 ## [Released]: v2.0.8
 - Update version entity validation to support three-level versioning
