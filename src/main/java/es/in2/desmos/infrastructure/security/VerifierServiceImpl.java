@@ -143,15 +143,30 @@ public class VerifierServiceImpl implements VerifierService {
                                         verifierConfig.getWellKnownContentType(),
                                         verifierConfig.getWellKnownContentTypeUrlEncodedForm())
                                 .bodyValue(body)
-                                .retrieve()
-                                .onStatus(
-                                        HttpStatusCode::isError,
-                                        response -> response.bodyToMono(String.class)
-                                                .flatMap(errorBody ->
-                                                        Mono.error(new PerformTokenRequestException(
-                                                                "Error fetching the token: " + errorBody))))
-                                .bodyToMono(OIDCAccessTokenResponse.class)
+                                .exchangeToMono(response -> {
+                                    if (response.statusCode().isError()) {
+                                        return response.bodyToMono(String.class)
+                                                .defaultIfEmpty("")
+                                                .flatMap(errorBody -> {
+                                            String message = buildTokenRequestErrorMessage(response.statusCode(), errorBody);
+                                            return Mono.error(new PerformTokenRequestException(message));
+                                        });
+                                    }
+                                    return response.bodyToMono(OIDCAccessTokenResponse.class);
+                                })
+                                .doOnNext(r -> log.debug("Verifier token endpoint response   received"))
+                                .switchIfEmpty(Mono.fromRunnable(() -> log.warn("Verifier token endpoint returned EMPTY body")))
                                 .onErrorMap(e -> new TokenFetchException("Error fetching the token", e)));
+    }
+
+    private String buildTokenRequestErrorMessage(HttpStatusCode status, String body) {
+        String base = "Error fetching the token: " + body;
+
+        if (status.value() == 403) {
+            return base + " | >>> POSSIBLE CAUSE: LEARCredentialMachine EXPIRED <<<";
+        }
+
+        return base;
     }
 }
 
