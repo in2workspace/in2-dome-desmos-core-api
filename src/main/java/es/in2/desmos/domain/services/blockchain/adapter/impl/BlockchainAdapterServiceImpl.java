@@ -68,10 +68,11 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(blockchainTxPayload)
-                .retrieve()
-                .onStatus(status -> status != null && status.is2xxSuccessful(),
-                        response -> Mono.empty())
-                .bodyToMono(Void.class)
+                .exchangeToMono(response -> {
+                    log.debug("ProcessId: {} - Send to DLT with status code: {} for entityId={}",
+                            processId, response.statusCode(), blockchainTxPayload.dataLocation());
+                    return response.releaseBody();
+                })
                 .retry(3)
                 .onErrorResume(e -> recover(processId, blockchainTxPayload));
     }

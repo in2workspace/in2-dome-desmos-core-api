@@ -52,7 +52,7 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
     public Mono<Void> processBrokerNotification(String processId, BrokerNotification brokerNotification) {
         // Validate BrokerNotification is not null and has data
         return getDataFromBrokerNotification(brokerNotification)
-                .doFirst(() -> log.info("ProcessID: {} - Processing Broker Notification", processId))
+                .doFirst(() -> log.info("ProcessID: {} - Processing Broker Notification entity: {}", processId, brokerNotification.data()))
                 // Validate if BrokerNotification is from an external source or self-generated
                 .flatMap(dataMap -> isBrokerNotificationSelfGenerated(processId, dataMap)
                         .flatMap(isSelfGenerated -> {
@@ -92,7 +92,7 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                         .event(Collections.singletonList(brokerNotification))
                         .priority(eventQueuePriority)
                         .build()))
-                .doOnSuccess(unused -> log.info("ProcessID: {} - Broker Notification processed successfully.", processId))
+                .doOnSuccess(unused -> log.info("ProcessID: {} - Broker Notification processed successfully for entityId: {}.", processId, brokerNotification.data().get(0).get("id").toString()))
                 .doOnError(throwable -> {
                     if (throwable instanceof BrokerNotificationSelfGeneratedException) {
                         log.info("ProcessID: {} - Self-Generated Broker Notification. It does not need to do nothing.", processId);
