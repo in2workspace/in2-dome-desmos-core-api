@@ -48,9 +48,9 @@ public class ApplicationUtils {
 
     public static String calculateHashLink(String previousHash, String entityHash) throws NoSuchAlgorithmException, JsonProcessingException {
         String hashConcatenated = previousHash + entityHash;
-        log.debug("Previous Hash 1: {}", previousHash);
-        log.debug("Entity Hash 2: {}", entityHash);
-        log.debug("Hash Concatenated: {}", hashConcatenated);
+        log.trace("Previous Hash 1: {}", previousHash);
+        log.trace("Entity Hash 2: {}", entityHash);
+        log.trace("Hash Concatenated: {}", hashConcatenated);
         return calculateSHA256(hashConcatenated);
     }
 

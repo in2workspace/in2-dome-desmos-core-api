@@ -62,7 +62,7 @@ public class BrokerPublisherServiceImpl implements BrokerPublisherService {
     public Mono<List<Entity>> findEntitiesAndItsSubentitiesByIdInBase64(String processId, Mono<List<Id>> idsMono, List<Id> processedEntities){
         return findEntitiesAndItsSubentitiesById(processId, idsMono, processedEntities)
                 .doOnSuccess(allEntitiesAndSubEntities ->
-                        log.debug("ProcessID: {} - Found local entities and sub-entities in Scorpio. [entities={}]", processId, allEntitiesAndSubEntities))
+                        log.trace("ProcessID: {} - Found local entities and sub-entities in Scorpio. [entities={}]", processId, allEntitiesAndSubEntities))
                 .flatMap(items -> {
                     var entities = Base64Converter.convertStringListToBase64List(items);
                     return Flux.fromIterable(entities)
@@ -70,7 +70,7 @@ public class BrokerPublisherServiceImpl implements BrokerPublisherService {
                             .collectList();
                 })
                 .doOnSuccess(base64Entities ->
-                        log.debug("ProcessID: {} - Convert local entities and sub-entities in Scorpio to Base64. [entities={}]", processId, base64Entities));
+                        log.trace("ProcessID: {} - Convert local entities and sub-entities in Scorpio to Base64. [entities={}]", processId, base64Entities));
 
     }
 

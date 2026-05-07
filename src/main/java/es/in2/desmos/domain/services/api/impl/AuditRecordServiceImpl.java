@@ -51,7 +51,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
         String entityId = dataMap.get("id").toString();
         // Get the most recent audit record for the entityId and get the most recent audit record overall
         return fetchMostRecentAuditRecord()
-                .doFirst(() -> log.info("ProcessID: {} - Building and saving audit record from broker notification", processId))
+                .doFirst(() -> log.info("ProcessID: {} - Building and saving audit record from broker notification for entityId {}", processId, entityId))
                 .flatMap(lastAuditRecordRegistered -> {
                     // Create the new audit record
                     AuditRecord auditRecord = AuditRecord.builder()
@@ -91,7 +91,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         return Mono.error(e);
                     }
                     return auditRecordRepository.save(auditRecord)
-                            .doOnSuccess(unused -> log.info("ProcessID: {} - Audit record saved successfully. - Status: {}", processId, status))
+                            .doOnSuccess(unused -> log.info("ProcessID: {} - Audit record saved successfully for entityId {}. - Status: {}", processId, entityId, status))
                             .then();
                 })
                 .then();

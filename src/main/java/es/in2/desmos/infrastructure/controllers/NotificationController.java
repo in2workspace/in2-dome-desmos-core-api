@@ -26,7 +26,7 @@ public class NotificationController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public Mono<Void> postBrokerNotification(@RequestBody @Valid BrokerNotification brokerNotification) {
         String processId = UUID.randomUUID().toString();
-        log.info("ProcessID: {} - Broker Notification received", processId);
+        log.info("ProcessID: {} - Broker Notification received for id: {}", processId, brokerNotification.id());
         log.debug("ProcessID: {}, Broker Notification received: {}", processId, brokerNotification);
         return brokerListenerService.processBrokerNotification(processId, brokerNotification);
     }
