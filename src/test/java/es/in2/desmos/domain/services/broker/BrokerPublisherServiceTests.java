@@ -135,10 +135,10 @@ class BrokerPublisherServiceTests {
         });
 
 
-        var resultMono = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
+        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
 
         StepVerifier
-                .create(resultMono)
+                .create(resultFlux.collectList())
                 .consumeNextWith(result -> {
                     try {
                         String localEntitiesJson = getJsonNodeFromEntitiesBase64List(base64LocalEntities).toString();
@@ -177,10 +177,10 @@ class BrokerPublisherServiceTests {
         });
 
 
-        var resultMono = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
+        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
 
         StepVerifier
-                .create(resultMono)
+                .create(resultFlux.collectList())
                 .consumeNextWith(result -> {
                     try {
                         String localEntitiesJson = getJsonNodeFromStringsList(localEntities).toString();
@@ -229,10 +229,10 @@ class BrokerPublisherServiceTests {
         });
 
 
-        var resultMono = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
+        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
 
         StepVerifier
-                .create(resultMono)
+                .create(resultFlux.collectList())
                 .consumeNextWith(result -> {
                     try {
                         String localEntitiesJson = getJsonNodeFromStringsList(localEntities).toString();

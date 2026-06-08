@@ -13,5 +13,5 @@ public interface P2PDataSyncJob {
 
     Flux<MVEntity4DataNegotiation> dataDiscovery(String processId, Mono<String> issuer, Flux<MVEntity4DataNegotiation> externalMvEntities4DataNegotiation);
 
-    Mono<List<Entity>> getLocalEntitiesByIdInBase64(String processId, Mono<List<Id>> ids);
+    Flux<Entity> getLocalEntitiesByIdInBase64(String processId, Mono<List<Id>> ids);
 }
