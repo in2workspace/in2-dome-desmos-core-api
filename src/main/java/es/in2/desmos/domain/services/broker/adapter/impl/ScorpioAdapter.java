@@ -40,7 +40,14 @@ public class ScorpioAdapter implements BrokerAdapterService {
 
     @PostConstruct
     public void init() {
-        this.webClient = WebClient.builder().baseUrl(brokerConfig.getInternalDomain()).build();
+        // Raise the in-memory buffer limit above the WebClient default of 256KB, which is
+        // too small for large NGSI-LD entities (e.g. product-specification) and caused
+        // DataBufferLimitException during P2P data sync.
+        this.webClient = WebClient.builder()
+                .baseUrl(brokerConfig.getInternalDomain())
+                .codecs(configurer -> configurer.defaultCodecs()
+                        .maxInMemorySize((int) brokerConfig.getMaxInMemorySize().toBytes()))
+                .build();
     }
 
     @Override
