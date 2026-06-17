@@ -33,6 +33,8 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
     public void init() {
         this.webClient = WebClient.builder()
                 .baseUrl(dltAdapterProperties.externalDomain())
+                .codecs(configurer -> configurer.defaultCodecs()
+                        .maxInMemorySize((int) apiConfig.getMaxInMemorySize().toBytes()))
                 .build();
     }
 
