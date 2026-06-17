@@ -9,6 +9,7 @@ import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
 import es.in2.desmos.domain.models.BrokerEntityWithIdAndType;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
+import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -35,12 +36,20 @@ public class ScorpioAdapter implements BrokerAdapterService {
 
     private final ObjectMapper objectMapper;
     private final BrokerConfig brokerConfig;
+    private final ApiConfig apiConfig;
 
     private WebClient webClient;
 
     @PostConstruct
     public void init() {
-        this.webClient = WebClient.builder().baseUrl(brokerConfig.getInternalDomain()).build();
+        // Raise the in-memory buffer limit above the WebClient default of 256KB, which is
+        // too small for large NGSI-LD entities (e.g. product-specification) and caused
+        // DataBufferLimitException during P2P data sync.
+        this.webClient = WebClient.builder()
+                .baseUrl(brokerConfig.getInternalDomain())
+                .codecs(configurer -> configurer.defaultCodecs()
+                        .maxInMemorySize((int) apiConfig.getMaxInMemorySize().toBytes()))
+                .build();
     }
 
     @Override

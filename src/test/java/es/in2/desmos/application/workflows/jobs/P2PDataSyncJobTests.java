@@ -247,17 +247,15 @@ class P2PDataSyncJobTests {
 
             expectedLocalEntities.add(new Entity(entity));
         }
-        Mono<List<Entity>> localEntitiesMono = Mono.just(expectedLocalEntities);
-
         String processId = "0";
-        when(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(eq(processId), any(), any())).thenReturn(localEntitiesMono);
+        when(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(eq(processId), any(), any())).thenReturn(Flux.fromIterable(expectedLocalEntities));
 
-        Mono<List<Entity>> result = p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, idsMono);
+        Flux<Entity> result = p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, idsMono);
 
         System.out.println(expectedLocalEntities);
 
         StepVerifier
-                .create(result)
+                .create(result.collectList())
                 .assertNext(x -> assertThat(x).isEqualTo(expectedLocalEntities))
                 .verifyComplete();
 

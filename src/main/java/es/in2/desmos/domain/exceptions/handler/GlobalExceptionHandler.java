@@ -115,6 +115,7 @@ public class GlobalExceptionHandler {
         String globalErrorMessage = errorMap.entrySet().stream()
                 .map(entry -> entry.getKey() + ": " + entry.getValue())
                 .collect(Collectors.joining(", "));
+        log.warn("Validation failed for request to {}: {}", path, globalErrorMessage);
         return Mono.just(GlobalErrorMessage.builder()
                 .title("WebExchangeBindException").message(globalErrorMessage).path(path).build());
     }

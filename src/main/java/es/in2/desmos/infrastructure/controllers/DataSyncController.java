@@ -18,7 +18,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -60,11 +59,9 @@ public class DataSyncController {
         return entitySyncRequest
                 .doFirst(() -> log.info("ProcessID: {} - Starting P2P Entities Synchronization Controller", processId))
                 .doOnNext(ids -> log.info("ProcessID: {} - Processing P2P Entities Synchronization for {} entities", processId, ids.length))
-                .map(List::of)
                 .flatMapMany(ids -> {
-                    log.debug("ProcessID: {} - Starting P2P Entities Synchronization. Ids: {}", processId, ids);
-                    return p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, Mono.just(ids))
-                            .flatMapMany(Flux::fromIterable);
+                    log.debug("ProcessID: {} - Starting P2P Entities Synchronization. Ids: {}", processId, List.of(ids));
+                    return p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, Mono.just(List.of(ids)));
                 })
                 .doOnComplete(() -> log.info("ProcessID: {} - P2P Entities Synchronization completed successfully", processId))
                 .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Entities Synchronization Controller", processId, error));
@@ -77,7 +74,6 @@ public class DataSyncController {
 
         return p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, Mono.just(List.of(new Id(id))))
                 .doFirst(() -> log.debug("ProcessID: {} - Starting get entity with id: {}", processId, id))
-                .flatMapMany(Flux::fromIterable)
                 .doOnComplete(() -> log.debug("ProcessID: {} - Entity retrieval completed for id: {}", processId, id))
                 .doOnError(error -> log.error("ProcessID: {} - Error fetching entity with id {}: {}", processId, id, error.getMessage()));
     }

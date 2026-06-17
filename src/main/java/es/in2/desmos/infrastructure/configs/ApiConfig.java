@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.util.List;
@@ -63,7 +64,17 @@ public class ApiConfig {
 
     @Bean
     public WebClient webClient() {
-        return WebClient.builder().build();
+        // Raise the in-memory buffer limit above the WebClient default of 256KB. This bean is shared
+        // by the P2P sync clients, which stream large NGSI-LD entities and hit the per-JSON-object
+        // limit (DataBufferLimitException) otherwise.
+        return WebClient.builder()
+                .codecs(configurer -> configurer.defaultCodecs()
+                        .maxInMemorySize((int) getMaxInMemorySize().toBytes()))
+                .build();
+    }
+
+    public DataSize getMaxInMemorySize() {
+        return apiProperties.maxInMemorySize();
     }
 
     @Bean

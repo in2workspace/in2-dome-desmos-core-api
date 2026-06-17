@@ -16,7 +16,6 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.util.List;
 
@@ -51,7 +50,7 @@ class DataSyncControllerTest {
         );
 
         when(p2PDataSyncJob.getLocalEntitiesByIdInBase64(anyString(), any()))
-                .thenReturn(Mono.just(expectedEntities));
+                .thenReturn(Flux.fromIterable(expectedEntities));
 
         // Act & Assert
         webTestClient
@@ -120,7 +119,7 @@ class DataSyncControllerTest {
         );
 
         when(p2PDataSyncJob.getLocalEntitiesByIdInBase64(anyString(), any()))
-                .thenReturn(Mono.just(expectedEntities));
+                .thenReturn(Flux.fromIterable(expectedEntities));
 
         // Act & Assert
         webTestClient
