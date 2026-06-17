@@ -15,6 +15,7 @@ import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.env.Environment;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.security.NoSuchAlgorithmException;
@@ -94,6 +95,8 @@ class ApiConfigTests {
 
     @Test
     void webClient_Returns_WebClient_Instance() {
+        // Arrange
+        when(apiProperties.maxInMemorySize()).thenReturn(DataSize.ofMegabytes(10));
         // Act
         WebClient webClient = apiConfig.webClient();
         // Assert
