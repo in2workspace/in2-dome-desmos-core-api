@@ -9,6 +9,7 @@ import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
 import es.in2.desmos.domain.models.BrokerEntityWithIdAndType;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
+import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
 
     private final ObjectMapper objectMapper;
     private final BrokerConfig brokerConfig;
+    private final ApiConfig apiConfig;
 
     private WebClient webClient;
 
@@ -46,7 +48,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
         this.webClient = WebClient.builder()
                 .baseUrl(brokerConfig.getInternalDomain())
                 .codecs(configurer -> configurer.defaultCodecs()
-                        .maxInMemorySize((int) brokerConfig.getMaxInMemorySize().toBytes()))
+                        .maxInMemorySize((int) apiConfig.getMaxInMemorySize().toBytes()))
                 .build();
     }
 

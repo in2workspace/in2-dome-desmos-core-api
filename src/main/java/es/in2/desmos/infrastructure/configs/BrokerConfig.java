@@ -5,7 +5,6 @@ import es.in2.desmos.infrastructure.configs.properties.NgsiLdSubscriptionPropert
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.util.unit.DataSize;
 
 import java.util.List;
 
@@ -46,7 +45,5 @@ public class BrokerConfig {
     }
 
     public String getInternalDomain() { return brokerProperties.internalDomain(); }
-
-    public DataSize getMaxInMemorySize() { return brokerProperties.maxInMemorySize(); }
 
 }

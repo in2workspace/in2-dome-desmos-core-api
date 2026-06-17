@@ -87,14 +87,14 @@ operator:
 api:
   externalDomain: "http://localhost:8080"
   version: v2
+  # Max bytes the shared WebClient buffers in memory per response (and per streamed JSON object).
+  # Default WebClient limit is 256KB, too small for large NGSI-LD entities exchanged during P2P sync.
+  max-in-memory-size: 10MB
 
 # Context Broker Configuration
 broker:
   provider: "scorpio"
   internalDomain: "http://scorpio:9090"
-  # Max bytes the broker WebClient buffers in memory per response. Default WebClient
-  # limit is 256KB, too small for large NGSI-LD entities (e.g. product-specification).
-  max-in-memory-size: 10MB
   paths:
     entities: "/ngsi-ld/v1/entities"
     entityOperations: "/ngsi-ld/v1/entityOperations"
