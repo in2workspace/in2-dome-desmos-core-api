@@ -1,5 +1,6 @@
 package es.in2.desmos.infrastructure.configs;
 
+import es.in2.desmos.domain.utils.ApplicationConstants;
 import es.in2.desmos.infrastructure.configs.properties.BrokerProperties;
 import es.in2.desmos.infrastructure.configs.properties.NgsiLdSubscriptionProperties;
 import org.junit.jupiter.api.Test;
@@ -40,14 +41,10 @@ class BrokerConfigTests {
 
     @Test
     void getEntityTypesReturnsCorrectEntities() {
-        // Arrange
-        List<String> expectedEntityTypes = List.of("individual", "organization", "catalog", "product-offering",
-                "product-offering-price", "product-specification", "service-specification", "resource-specification",
-                "category", "product-order", "product", "usage", "usageSpecification","applied-customer-bill-rate", "customer-bill");
         // Act
         List<String> actualEntityTypes = brokerConfig.getEntityTypes();
         // Assert
-        assertEquals(expectedEntityTypes, actualEntityTypes);
+        assertEquals(ApplicationConstants.ROOT_OBJECTS_LIST, actualEntityTypes);
     }
 
     @Test
