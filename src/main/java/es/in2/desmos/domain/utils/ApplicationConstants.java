@@ -23,7 +23,8 @@ public final class ApplicationConstants {
             "usage",
             "usageSpecification",
             "applied-customer-bill-rate",
-            "customer-bill");
+            "customer-bill",
+            "quote");
 
     private ApplicationConstants() {
         throw new IllegalStateException("Utility class");

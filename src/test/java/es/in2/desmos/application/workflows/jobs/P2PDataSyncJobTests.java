@@ -8,6 +8,7 @@ import es.in2.desmos.domain.services.api.impl.AuditRecordServiceImpl;
 import es.in2.desmos.domain.services.broker.impl.BrokerPublisherServiceImpl;
 import es.in2.desmos.domain.services.policies.ReplicationPoliciesService;
 import es.in2.desmos.domain.services.sync.DiscoverySyncWebClient;
+import es.in2.desmos.domain.utils.ApplicationConstants;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.ExternalAccessNodesConfig;
 import es.in2.desmos.objectmothers.*;
@@ -231,7 +232,7 @@ class P2PDataSyncJobTests {
         verifyNoMoreInteractions(brokerPublisherService);
 
         //Should be number of times as BROKER_ENTITY_TYPES lenght is
-        verify(auditRecordService, times(15)).findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any());
+        verify(auditRecordService, times(ApplicationConstants.ROOT_OBJECTS_LIST.size())).findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any());
         verifyNoMoreInteractions(auditRecordService);
     }
 
