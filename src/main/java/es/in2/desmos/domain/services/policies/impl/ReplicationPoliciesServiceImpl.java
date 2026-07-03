@@ -13,7 +13,7 @@ import reactor.core.publisher.Mono;
 import java.time.Instant;
 import java.util.Set;
 
-import static es.in2.desmos.domain.utils.ApplicationConstants.PRODUCT_ORDER;
+import static es.in2.desmos.domain.utils.ApplicationConstants.*;
 
 @Slf4j
 @Service
@@ -57,7 +57,7 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
 
 
     private boolean isLifecycleStatusReplicable(String type, String lifecycleStatus) {
-            return (PRODUCT_ORDER.equals(type)) || (lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus));
+            return (PRODUCT_ORDER.equals(type)) || (QUOTE.equals(type)) || (lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus));
     }
 
     private boolean isValidForReplicable(String startDateTime, String endDateTime) {
