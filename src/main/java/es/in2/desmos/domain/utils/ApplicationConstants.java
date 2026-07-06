@@ -9,6 +9,7 @@ public final class ApplicationConstants {
     public static final String SUBSCRIPTION_ID_PREFIX = "urn:ngsi-ld:Subscription:";
     public static final String SUBSCRIPTION_TYPE = "Subscription";
     public static final String PRODUCT_ORDER = "product-order";
+    public static final String QUOTE = "quote";
     public static final List<String> ROOT_OBJECTS_LIST = List.of("individual",
             "organization",
             "catalog",
@@ -24,7 +25,7 @@ public final class ApplicationConstants {
             "usageSpecification",
             "applied-customer-bill-rate",
             "customer-bill",
-            "quote");
+            QUOTE);
 
     private ApplicationConstants() {
         throw new IllegalStateException("Utility class");
