@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
@@ -28,8 +29,8 @@ public class DataSyncController {
     private final P2PDataSyncJob p2PDataSyncJob;
 
     @PostMapping(path = "/api/${api.version}/sync/p2p/discovery",
-            consumes = "application/x-ndjson",
-            produces = "application/x-ndjson")
+            consumes = MediaType.APPLICATION_NDJSON_VALUE,
+            produces = MediaType.APPLICATION_NDJSON_VALUE)
     @ResponseStatus(HttpStatus.OK)
     public Flux<MVEntity4DataNegotiation> discoverySync(
             @RequestHeader("X-Issuer") @NotBlank String issuer,
@@ -51,7 +52,8 @@ public class DataSyncController {
 
     }
 
-    @PostMapping(value = "/api/${api.version}/sync/p2p/entities")
+    @PostMapping(value = "/api/${api.version}/sync/p2p/entities",
+            produces = MediaType.APPLICATION_NDJSON_VALUE)
     @ResponseStatus(HttpStatus.OK)
     public Flux<Entity> entitiesSync(@RequestBody @Valid Mono<@NotNull Id[]> entitySyncRequest) {
         String processId = ApplicationUtils.generateProcessId();

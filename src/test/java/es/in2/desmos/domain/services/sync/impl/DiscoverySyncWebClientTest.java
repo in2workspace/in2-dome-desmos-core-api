@@ -100,7 +100,7 @@ class DiscoverySyncWebClientTest {
         var recordedRequest = mockWebServer.takeRequest();
         assertThat(recordedRequest.getPath()).isEqualTo(p2pDiscoveryEndpoint);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
-        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/x-ndjson");
+        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo(MediaType.APPLICATION_NDJSON_VALUE);
     }
 
     @ParameterizedTest

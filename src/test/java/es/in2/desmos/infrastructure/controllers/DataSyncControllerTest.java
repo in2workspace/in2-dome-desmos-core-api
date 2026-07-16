@@ -131,6 +131,7 @@ class DataSyncControllerTest {
                 .bodyValue(requestIds)
                 .exchange()
                 .expectStatus().isOk()
+                .expectHeader().contentTypeCompatibleWith(MediaType.APPLICATION_NDJSON)
                 .expectBodyList(Entity.class)
                 .value(entities ->
                         assertThat(entities)

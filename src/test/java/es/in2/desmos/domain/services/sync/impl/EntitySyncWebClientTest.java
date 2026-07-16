@@ -70,20 +70,14 @@ class EntitySyncWebClientTest {
         Id[] ids = {new Id("1"), new Id("2")};
         Mono<Id[]> entitySyncRequest = Mono.just(ids);
 
-        String entitiesJson = """
-                [
-                  {
-                    "value": "value1"
-                  },
-                  {
-                    "value": "value2"
-                  }
-                ]
+        String entitiesNdjson = """
+                {"value":"value1"}
+                {"value":"value2"}
                 """;
 
         mockWebServer.enqueue(new MockResponse()
-                .setBody(entitiesJson)
-                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .setBody(entitiesNdjson)
+                .addHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_NDJSON_VALUE)
                 .setResponseCode(200));
 
         Flux<String> result = entitySyncWebClient.makeRequest("process1", issuerMono, entitySyncRequest);
@@ -97,6 +91,7 @@ class EntitySyncWebClientTest {
         assertThat(recordedRequest.getPath()).isEqualTo(p2pEntitiesEndpoint);
         assertThat(recordedRequest.getHeader(HttpHeaders.AUTHORIZATION)).isEqualTo("Bearer " + mockAccessToken);
         assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_TYPE)).isEqualTo("application/json");
+        assertThat(recordedRequest.getHeader(HttpHeaders.ACCEPT)).isEqualTo(MediaType.APPLICATION_NDJSON_VALUE);
     }
 
     @ParameterizedTest
