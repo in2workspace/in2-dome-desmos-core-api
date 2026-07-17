@@ -38,6 +38,7 @@ public class EntitySyncWebClientImpl implements EntitySyncWebClient {
                                             .toUriString())
                                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                                     .contentType(MediaType.APPLICATION_JSON)
+                                    .accept(MediaType.valueOf(MediaType.APPLICATION_NDJSON_VALUE))
                                     .body(entitySyncRequest, Id[].class)
                                     .retrieve()
                                     .onStatus(status -> status != null && status.isSameCodeAs(HttpStatusCode.valueOf(200)),
