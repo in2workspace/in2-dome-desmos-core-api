@@ -89,7 +89,9 @@ api:
   version: v2
   # Max bytes the shared WebClient buffers in memory per response (and per streamed JSON object).
   # Default WebClient limit is 256KB, too small for large NGSI-LD entities exchanged during P2P sync.
-  max-in-memory-size: 10MB
+  # Applies per JSON object, so it must fit the largest single entity (Base64-encoded) returned by a
+  # peer node during P2P sync. Tune per environment via API_MAX_IN_MEMORY_SIZE.
+  max-in-memory-size: ${API_MAX_IN_MEMORY_SIZE:100MB}
 
 # Context Broker Configuration
 broker:
