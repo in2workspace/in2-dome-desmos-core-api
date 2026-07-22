@@ -19,7 +19,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @RestController
@@ -66,6 +65,7 @@ public class DataSyncController {
                     log.debug("ProcessID: {} - Starting P2P Entities Synchronization. Ids: {}", processId, List.of(ids));
                     return p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, Mono.just(List.of(ids)));
                 })
+                .doOnComplete(() -> log.info("ProcessID: {} - P2P Entities Synchronization completed successfully", processId))
                 .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Entities Synchronization Controller", processId, error));
     }
 
