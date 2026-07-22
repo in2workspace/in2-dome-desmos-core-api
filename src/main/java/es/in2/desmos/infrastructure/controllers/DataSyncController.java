@@ -58,7 +58,6 @@ public class DataSyncController {
     @ResponseStatus(HttpStatus.OK)
     public Flux<Entity> entitiesSync(@RequestBody @Valid Mono<@NotNull Id[]> entitySyncRequest) {
         String processId = ApplicationUtils.generateProcessId();
-        AtomicInteger emittedCount = new AtomicInteger(0);
 
         return entitySyncRequest
                 .doFirst(() -> log.info("ProcessID: {} - Starting P2P Entities Synchronization Controller", processId))
@@ -67,11 +66,6 @@ public class DataSyncController {
                     log.debug("ProcessID: {} - Starting P2P Entities Synchronization. Ids: {}", processId, List.of(ids));
                     return p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, Mono.just(List.of(ids)));
                 })
-                .doOnNext(entity -> log.info(
-                        "ProcessID: {} - Emitting entity #{} to response stream, value size: {} bytes",
-                        processId, emittedCount.incrementAndGet(), entity.value().length()))
-                .doOnComplete(() -> log.info("ProcessID: {} - P2P Entities Synchronization completed successfully, total entities emitted: {}",
-                        processId, emittedCount.get()))
                 .doOnError(error -> log.error("ProcessID: {} - Error occurred while processing the P2P Entities Synchronization Controller", processId, error));
     }
 

@@ -17,8 +17,6 @@ import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -28,7 +26,6 @@ public class EntitySyncWebClientImpl implements EntitySyncWebClient {
     private final EndpointsConfig endpointsConfig;
 
     public Flux<String> makeRequest(String processId, Mono<String> issuerMono, Mono<Id[]> entitySyncRequest) {
-        AtomicInteger receivedCount = new AtomicInteger(0);
         return m2MAccessTokenProvider.getM2MAccessToken()
                 .flatMapMany(accessToken ->
                         issuerMono.flatMapMany(issuer -> {
@@ -57,12 +54,6 @@ public class EntitySyncWebClientImpl implements EntitySyncWebClient {
                                                     Mono.error(new EntitySyncException(
                                                             "Error occurred while entity sync")))
                                     .bodyToFlux(Entity.class)
-                                    .doOnNext(entity -> log.info(
-                                            "ProcessID: {} - Received entity #{} from stream, value size: {} bytes",
-                                            processId, receivedCount.incrementAndGet(), entity.value().length()))
-                                    .doOnComplete(() -> log.info(
-                                            "ProcessID: {} - Entity stream completed, total entities received: {}",
-                                            processId, receivedCount.get()))
                                     .retry(3)
                                     .map(Entity::value);
                         }));

@@ -4,9 +4,6 @@ spring:
     name: "desmos-blockchain-connector"
   main:
     web-application-type: reactive
-  # Max bytes the server-side WebFlux codecs buffer in memory when decoding an incoming request body
-  # (e.g. broker notifications carrying large NGSI-LD entities). Spring default is 256KB, too small.
-  # Separate from api.max-in-memory-size, which only governs the outgoing P2P sync WebClient.
   codec:
     max-in-memory-size: ${SPRING_CODEC_MAX_IN_MEMORY_SIZE:100MB}
   r2dbc:
@@ -94,8 +91,6 @@ api:
   version: v2
   # Max bytes the shared WebClient buffers in memory per response (and per streamed JSON object).
   # Default WebClient limit is 256KB, too small for large NGSI-LD entities exchanged during P2P sync.
-  # Applies per JSON object, so it must fit the largest single entity (Base64-encoded) returned by a
-  # peer node during P2P sync. Tune per environment via API_MAX_IN_MEMORY_SIZE.
   max-in-memory-size: ${API_MAX_IN_MEMORY_SIZE:100MB}
 
 # Context Broker Configuration
