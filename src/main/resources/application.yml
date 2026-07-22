@@ -4,6 +4,8 @@ spring:
     name: "desmos-blockchain-connector"
   main:
     web-application-type: reactive
+  codec:
+    max-in-memory-size: ${SPRING_CODEC_MAX_IN_MEMORY_SIZE:100MB}
   r2dbc:
     url: "r2dbc:postgresql://localhost:5433/it_db"
     username: "postgres"
@@ -89,7 +91,7 @@ api:
   version: v2
   # Max bytes the shared WebClient buffers in memory per response (and per streamed JSON object).
   # Default WebClient limit is 256KB, too small for large NGSI-LD entities exchanged during P2P sync.
-  max-in-memory-size: 10MB
+  max-in-memory-size: ${API_MAX_IN_MEMORY_SIZE:100MB}
 
 # Context Broker Configuration
 broker:
