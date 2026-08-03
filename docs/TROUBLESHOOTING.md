@@ -478,7 +478,7 @@ JWTVerificationException: JWT verification error
 
 ```yaml
 verifier:
-  url: "https://verifier.dome-marketplace-sbx.org"
+  url: "https://verifier.dome-marketplace-sbx.org/verifier"
 ```
 
 2. Verify that the token has not expired
