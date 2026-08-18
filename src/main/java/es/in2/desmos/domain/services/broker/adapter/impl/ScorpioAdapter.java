@@ -3,6 +3,7 @@ package es.in2.desmos.domain.services.broker.adapter.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
 import es.in2.desmos.domain.exceptions.JsonReadingException;
 import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
@@ -17,13 +18,19 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -70,23 +77,9 @@ public class ScorpioAdapter implements BrokerAdapterService {
                             return Mono.empty();
                         }
                 )
+                .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> rejectedRequestError(processId, clientResponse))
                 .bodyToMono(Void.class)
-                .retry(3);
-    }
-
-    @Override
-    public Flux<String> getEntitiesByTimeRange(String processId, String timestamp) {
-        return webClient.get()
-                .uri(brokerConfig.getTemporalPath()
-                        + "?timerel=after"
-                        + "&timeproperty=createdAt"
-                        + "&timeAt="
-                        + timestamp
-                        + "&attrs")
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .bodyToFlux(String.class)
-                .retry(3);
+                .retryWhen(nonRejectedRequestRetry());
     }
 
     @Override
@@ -119,8 +112,9 @@ public class ScorpioAdapter implements BrokerAdapterService {
                             .contentType(mediaType)
                             .bodyValue(requestBodyAsArray)
                             .retrieve()
+                            .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> rejectedRequestError(processId, clientResponse))
                             .bodyToMono(Void.class)
-                            .retry(3);
+                            .retryWhen(nonRejectedRequestRetry());
                 })
                 .doOnSuccess(result -> log.info(RESOURCE_UPDATED_MESSAGE, processId))
                 .doOnError(e -> log.error(ERROR_UPDATING_RESOURCE_MESSAGE, processId, e.getMessage()));
@@ -133,7 +127,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .bodyToMono(Void.class)
-                .retry(3);
+                .retryWhen(nonRejectedRequestRetry());
     }
 
     @Override
@@ -222,16 +216,75 @@ public class ScorpioAdapter implements BrokerAdapterService {
 
     @Override
     public <T extends BrokerEntityWithIdAndType> Flux<T> findAllIdTypeAndAttributesByType(String processId, String type, String firstAttribute, String secondAttribute, String thirdAttribute, String forthAttribute, Class<T> responseClass) {
-        String uri = brokerConfig.getEntitiesPath() + "/" + String.format("?type=%s&options=keyValues&limit=1000", type);
+        int pageSize = brokerConfig.getPageSize();
+        return fetchEntityPage(processId, type, responseClass, pageSize, 0)
+                .flatMap(firstPage -> {
+                    List<T> firstPageEntities = pageBody(firstPage);
+                    long totalCount = extractResultsCount(firstPage, firstPageEntities.size());
+                    if (totalCount <= firstPageEntities.size()) {
+                        return Mono.just(deduplicateAndVerifyCount(processId, type, firstPageEntities, totalCount));
+                    }
+                    return Flux.fromIterable(remainingOffsets(pageSize, totalCount))
+                            .concatMap(offset -> fetchEntityPage(processId, type, responseClass, pageSize, offset).map(this::pageBody))
+                            .collectList()
+                            .map(remainingPages -> {
+                                List<T> allEntities = new ArrayList<>(firstPageEntities);
+                                remainingPages.forEach(allEntities::addAll);
+                                return deduplicateAndVerifyCount(processId, type, allEntities, totalCount);
+                            });
+                })
+                .flatMapMany(Flux::fromIterable)
+                .doFirst(() -> log.debug("ProcessId: {}, Fetching entities of type {} from Scorpio broker", processId, type));
+    }
+
+    private <T extends BrokerEntityWithIdAndType> Mono<ResponseEntity<List<T>>> fetchEntityPage(String processId, String type, Class<T> responseClass, int pageSize, long offset) {
+        String uri = brokerConfig.getEntitiesPath() + "/"
+                + String.format("?type=%s&options=keyValues&limit=%d&offset=%d&count=true", type, pageSize, offset);
 
         return webClient
                 .get()
                 .uri(uri)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
-                .bodyToFlux(responseClass)
-                .retry(3)
-                .doFirst(() -> log.debug("ProcessId: {}, Fetching entities of type {} from Scorpio broker", processId, type));
+                .onStatus(HttpStatusCode::is4xxClientError, clientResponse -> rejectedRequestError(processId, clientResponse))
+                .toEntityList(responseClass)
+                .retryWhen(nonRejectedRequestRetry());
+    }
+
+    private <T> List<T> pageBody(ResponseEntity<List<T>> page) {
+        return Optional.ofNullable(page.getBody()).orElseGet(List::of);
+    }
+
+    private long extractResultsCount(ResponseEntity<?> page, int fallback) {
+        String header = page.getHeaders().getFirst("NGSILD-Results-Count");
+        if (header == null) {
+            return fallback;
+        }
+        try {
+            return Long.parseLong(header);
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private List<Long> remainingOffsets(long pageSize, long totalCount) {
+        long remaining = totalCount - pageSize;
+        long additionalPages = (remaining + pageSize - 1) / pageSize;
+        List<Long> offsets = new ArrayList<>();
+        for (long page = 1; page <= additionalPages; page++) {
+            offsets.add(pageSize * page);
+        }
+        return offsets;
+    }
+
+    private <T extends BrokerEntityWithIdAndType> List<T> deduplicateAndVerifyCount(String processId, String type, List<T> entities, long totalCount) {
+        Map<String, T> entitiesById = new LinkedHashMap<>();
+        entities.forEach(entity -> entitiesById.putIfAbsent(entity.getId(), entity));
+        List<T> deduplicated = new ArrayList<>(entitiesById.values());
+        if (deduplicated.size() != totalCount) {
+            log.warn(ENTITY_COUNT_MISMATCH_MESSAGE, processId, type, totalCount, deduplicated.size());
+        }
+        return deduplicated;
     }
 
     private Mono<Void> postSubscription(BrokerSubscription brokerSubscription) {
@@ -303,6 +356,21 @@ public class ScorpioAdapter implements BrokerAdapterService {
             log.error(READING_JSON_ENTITY_ERROR_MESSAGE, processId, e.getMessage());
             throw new JsonReadingException(e.getMessage());
         }
+    }
+
+    private Mono<Throwable> rejectedRequestError(String processId, ClientResponse clientResponse) {
+        return clientResponse.bodyToMono(String.class)
+                .defaultIfEmpty("")
+                .map(body -> {
+                    log.error(BROKER_REQUEST_REJECTED_MESSAGE, processId, clientResponse.statusCode(), body);
+                    return new BrokerRequestRejectedException(body);
+                });
+    }
+
+    private Retry nonRejectedRequestRetry() {
+        return Retry.max(3)
+                .filter(throwable -> !(throwable instanceof BrokerRequestRejectedException))
+                .onRetryExhaustedThrow((retrySpec, retrySignal) -> retrySignal.failure());
     }
 
 }

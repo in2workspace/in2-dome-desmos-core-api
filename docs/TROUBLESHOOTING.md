@@ -236,6 +236,27 @@ BrokerEntityRetrievalException: Failed to retrieve entity
 curl http://scorpio:9090/ngsi-ld/v1/entities/{entityId}
 ```
 
+### 3. Broker rejects the entity with 400 Bad Request Data
+
+#### Symptoms
+
+```
+BrokerRequestRejectedException: null values are not allowed in NGSI-LD
+BrokerRequestRejectedException: id is not a URI
+```
+
+#### Causes and solutions
+
+This is returned by the Context Broker itself, not by Desmos, and is logged once without retries.
+
+**A. `"value": null` on an attribute** — rejected since Scorpio 5.x. Scorpio 4.1.10 accepted it
+silently, so this can surface right after a broker upgrade even though the entity was previously
+publishable. Fix the source data to omit the attribute instead of sending a null value.
+
+**B. Entity or subscription `id` is not a valid URI** (e.g. contains spaces) — rejected since Scorpio
+6.0.2. Earlier versions accepted it and produced an entity that `GET`/`DELETE` could not address. Fix
+the `id` at the source.
+
 2. Check the configured paths:
 
 ```yaml

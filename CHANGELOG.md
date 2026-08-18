@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Released]: v2.0.17
+- Validate compatibility with Scorpio Broker 6.0.2
+- Stop retrying non-retryable 4xx responses from the Context Broker and surface the broker's error detail
+- Remove unused temporal query support (`getEntitiesByTimeRange`), which was broken on Scorpio 6.x and had no callers
+- Pin the Scorpio image used by integration tests to `java-6.0.2`
+
 ## [Released]: v2.0.16
 - Update SBX Verifier URL by adding path '/verifier'
 

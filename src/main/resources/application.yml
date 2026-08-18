@@ -102,6 +102,10 @@ broker:
     entityOperations: "/ngsi-ld/v1/entityOperations"
     subscriptions: "/ngsi-ld/v1/subscriptions"
     temporal: "/ngsi-ld/v1/temporal/entities"
+  # Entities requested per page when paginating queries by type during P2P sync. Must not exceed the
+  # broker's own max query limit (Scorpio's scorpio.entity.max-limit, 1000 by default) — going over it
+  # returns 403, not a truncated page.
+  pageSize: 1000
 
 # NGSI Subscription Configuration
 ngsi-subscription:

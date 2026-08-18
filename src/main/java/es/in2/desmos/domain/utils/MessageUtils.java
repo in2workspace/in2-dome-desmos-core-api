@@ -21,6 +21,8 @@ public class MessageUtils {
     public static final String ERROR_DELETING_RESOURCE_MESSAGE = "ProcessId: {}, Error while deleting resource: {}";
     public static final String ENTITY_ID_NOT_FOUND_ERROR_MESSAGE = "ProcessId: {}, Entity ID field not found.";
     public static final String READING_JSON_ENTITY_ERROR_MESSAGE = "ProcessId: {}, Error while reading entity JSON: {}";
+    public static final String BROKER_REQUEST_REJECTED_MESSAGE = "ProcessId: {}, Broker rejected the request with status {}: {}";
+    public static final String ENTITY_COUNT_MISMATCH_MESSAGE = "ProcessId: {}, Entity type {}: broker reported {} total entities but {} were collected after deduplication across pages";
     public static final String SUBSCRIPTION_OBJECT_CREATED_MESSAGE = "ProcessId: {}, Subscription object created successfully.";
     public static final String ERROR_CREATING_SUBSCRIPTION_OBJECT_MESSAGE = "ProcessId: {}, Error while creating subscription object: {}";
     public static final String SUBSCRIPTION_CREATED_MESSAGE = "ProcessId: {}, Subscription created successfully.";

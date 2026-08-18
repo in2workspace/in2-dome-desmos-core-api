@@ -19,9 +19,6 @@ public class OrionLdAdapter implements BrokerAdapterService {
     }
 
     @Override
-    public Flux<String> getEntitiesByTimeRange(String processId, String timestamp) {return null;}
-
-    @Override
     public Mono<String> getEntityById(String processId, String entityId) {
         return null;
     }

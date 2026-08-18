@@ -46,4 +46,8 @@ public class BrokerConfig {
 
     public String getInternalDomain() { return brokerProperties.internalDomain(); }
 
+    public int getPageSize() {
+        return brokerProperties.pageSize();
+    }
+
 }

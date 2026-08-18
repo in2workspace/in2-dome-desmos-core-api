@@ -41,6 +41,8 @@ class BrokerPublisherServiceIT {
     @DynamicPropertySource
     static void setDynamicProperties(DynamicPropertyRegistry registry) {
         ContainerManager.postgresqlProperties(registry);
+        // Forces pagination (2 seeded entities, 1 per page) to exercise the multi-page path against a real broker.
+        registry.add("broker.pageSize", () -> 1);
     }
 
     @BeforeAll

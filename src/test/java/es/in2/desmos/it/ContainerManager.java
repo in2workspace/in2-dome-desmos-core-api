@@ -32,6 +32,7 @@ public class ContainerManager {
     private final static String pathVersion = "v2";
     private final static String dltAdapterNotificationEndpoint = "/api/"+ pathVersion + EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
     private final static String brokerNotificationEndpoint="/api/"+pathVersion + EndpointsConstants.CONTEXT_BROKER_NOTIFICATION;
+    private static final String SCORPIO_IMAGE = "scorpiobroker/all-in-one-runner:java-6.0.2";
 
     static {
         // Node A
@@ -52,7 +53,7 @@ public class ContainerManager {
                 .withNetworkAliases("postgis-node-a");
         postgisContainerA.start();
 
-        scorpioContainerA = new GenericContainer<>(DockerImageName.parse("scorpiobroker/all-in-one-runner:java-latest"))
+        scorpioContainerA = new GenericContainer<>(DockerImageName.parse(SCORPIO_IMAGE))
                 .withExposedPorts(9090)
                 .withEnv("DBHOST", "postgis-node-a")
                 .dependsOn(postgisContainerA)
@@ -93,7 +94,7 @@ public class ContainerManager {
                 .withNetworkAliases("postgis-node-b");
         postgisContainerB.start();
 
-        scorpioContainerB = new GenericContainer<>(DockerImageName.parse("scorpiobroker/all-in-one-runner:java-latest"))
+        scorpioContainerB = new GenericContainer<>(DockerImageName.parse(SCORPIO_IMAGE))
                 .withExposedPorts(9090)
                 .withEnv("DBHOST", "postgis-node-b")
                 .dependsOn(postgisContainerB)
