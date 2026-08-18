@@ -40,6 +40,18 @@ docker-compose up -d
 
 ## Understanding the Configuration
 
+### Context Broker compatibility
+
+Desmos communicates with the Context Broker exclusively through the NGSI-LD API
+(`broker.paths.*` in `application.yml`). It has been updated against
+[Scorpio Broker](https://github.com/ScorpioBroker/ScorpioBroker) 4.1.10, 5.0.3 and 6.0.2.
+
+The integration tests (see `ContainerManager`) run against Scorpio `6.0.2`. When upgrading the broker
+in production, keep in mind that Scorpio 5.x rejects NGSI-LD attributes with `"value": null` (`400
+BadRequestData`) and Scorpio 6.0.2 additionally rejects entity/subscription IDs that are not valid URIs
+— both were silently accepted on 4.1.10. See the [Troubleshooting Guide](docs/TROUBLESHOOTING.md) if you
+run into a `400 BadRequestData` while publishing entities after a broker upgrade.
+
 ## Documentation
 
 - [Application Flow](docs/APPLICATION_FLOW.md) - Detailed documentation about the application architecture and workflows

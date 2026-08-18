@@ -101,6 +101,15 @@ public class GlobalExceptionHandler {
         return Mono.just(GlobalErrorMessage.builder().title("BrokerEntityRetrievalException").message(brokerEntityRetrievalException.getMessage()).path(path).build());
     }
 
+    @ExceptionHandler(BrokerRequestRejectedException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseBody
+    public Mono<GlobalErrorMessage> handleBrokerRequestRejectedException(BrokerRequestRejectedException brokerRequestRejectedException, ServerHttpRequest request) {
+        log.error("BrokerRequestRejectedException: {}", brokerRequestRejectedException.getMessage());
+        String path = String.valueOf(request.getPath());
+        return Mono.just(GlobalErrorMessage.builder().title("BrokerRequestRejectedException").message(brokerRequestRejectedException.getMessage()).path(path).build());
+    }
+
     @ExceptionHandler(WebExchangeBindException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ResponseBody

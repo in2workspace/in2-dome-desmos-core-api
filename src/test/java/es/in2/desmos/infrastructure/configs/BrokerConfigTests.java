@@ -124,4 +124,14 @@ class BrokerConfigTests {
         assertEquals(expectedPath, actualPath);
     }
 
+    @Test
+    void getPageSizeReturnsCorrectValue() {
+        // Arrange
+        when(brokerProperties.pageSize()).thenReturn(500);
+        // Act
+        int actualPageSize = brokerConfig.getPageSize();
+        // Assert
+        assertEquals(500, actualPageSize);
+    }
+
 }

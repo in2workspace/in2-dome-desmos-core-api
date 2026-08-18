@@ -9,7 +9,6 @@ import java.util.List;
 
 public interface BrokerAdapterService {
     Mono<Void> postEntity(String processId, String requestBody);
-    Flux<String> getEntitiesByTimeRange(String processId, String timestamp);
     Mono<String> getEntityById(String processId, String entityId);
     Mono<Void> updateEntity(String processId, String requestBody);
     Mono<Void> deleteEntityById(String processId, String entityId);
