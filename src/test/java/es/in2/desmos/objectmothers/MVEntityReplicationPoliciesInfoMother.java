@@ -10,6 +10,8 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.List;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.USAGE_SPECIFICATION;
+
 public final class MVEntityReplicationPoliciesInfoMother {
 
     private MVEntityReplicationPoliciesInfoMother() {
@@ -96,11 +98,22 @@ public final class MVEntityReplicationPoliciesInfoMother {
         );
     }
 
+    public static @NotNull MVEntityReplicationPoliciesInfo replicationUsageSpecificationWithNullLifecycleStatus() {
+        return new MVEntityReplicationPoliciesInfo(
+                "entity-1",
+                USAGE_SPECIFICATION,
+                null,
+                Instant.now().minusSeconds(3600).toString(),
+                Instant.now().plusSeconds(3600000).toString()
+        );
+    }
+
     public static @NotNull List<MVEntityReplicationPoliciesInfo> mvReplicableList() {
         return List.of(
                 replicationValidFields(),
                 replicationValidFieldsAndNullStartDateTime(),
-                replicationValidFieldsAndNullEndDateTime()
+                replicationValidFieldsAndNullEndDateTime(),
+                replicationUsageSpecificationWithNullLifecycleStatus()
         );
     }
 

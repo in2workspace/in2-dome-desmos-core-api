@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Released]: v2.0.18
+- Not check lifecycleStatus for usageSpecification entity type
+
 ## [Released]: v2.0.17
 - Validate compatibility with Scorpio Broker 6.0.2
 - Stop retrying non-retryable 4xx responses from the Context Broker and surface the broker's error detail

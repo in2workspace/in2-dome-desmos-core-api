@@ -1,6 +1,7 @@
 package es.in2.desmos.domain.utils;
 
 import java.util.List;
+import java.util.Set;
 
 public final class ApplicationConstants {
 
@@ -10,6 +11,8 @@ public final class ApplicationConstants {
     public static final String SUBSCRIPTION_TYPE = "Subscription";
     public static final String PRODUCT_ORDER = "product-order";
     public static final String QUOTE = "quote";
+    public static final String USAGE_SPECIFICATION = "usageSpecification";
+    public static final Set<String> LIFECYCLE_STATUS_FREE_TYPES = Set.of(PRODUCT_ORDER, QUOTE, USAGE_SPECIFICATION);
     public static final List<String> ROOT_OBJECTS_LIST = List.of("individual",
             "organization",
             "catalog",
@@ -22,7 +25,7 @@ public final class ApplicationConstants {
             PRODUCT_ORDER,
             "product",
             "usage",
-            "usageSpecification",
+            USAGE_SPECIFICATION,
             "applied-customer-bill-rate",
             "customer-bill",
             QUOTE);

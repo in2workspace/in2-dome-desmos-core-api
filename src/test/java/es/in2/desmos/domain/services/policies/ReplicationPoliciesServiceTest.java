@@ -84,6 +84,19 @@ class ReplicationPoliciesServiceTest {
     }
 
     @Test
+    void itShouldBeReplicableWhenTypeIsUsageSpecificationEvenWithNullLifecycleStatus() {
+        String processId = "process-123";
+        MVEntityReplicationPoliciesInfo mvEntity = MVEntityReplicationPoliciesInfoMother
+                .replicationUsageSpecificationWithNullLifecycleStatus();
+
+        Mono<Boolean> result = replicationPoliciesService.isMVEntityReplicable(processId, mvEntity);
+
+        StepVerifier.create(result)
+                .assertNext(isReplicable -> assertThat(isReplicable).isTrue())
+                .verifyComplete();
+    }
+
+    @Test
     void itShouldBeNotReplicableWhenStartDateTimeIsInTheFuture() {
         String processId = "process-123";
         MVEntityReplicationPoliciesInfo mvEntity = MVEntityReplicationPoliciesInfoMother.replicationInvalidFutureStartDateTime();
