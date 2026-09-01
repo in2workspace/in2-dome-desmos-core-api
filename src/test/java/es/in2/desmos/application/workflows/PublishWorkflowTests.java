@@ -86,4 +86,23 @@ class PublishWorkflowTests {
         verify(auditRecordService).buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.PUBLISHED), any());
     }
 
+    @Test
+    void testStartPublishWorkflow_errorIsCaughtAndDoesNotTerminateTheStream() {
+        String previousHash = "5d41402abc4b2a76b9719d911017c592";
+        EventQueue eventQueueMock = mock(EventQueue.class);
+
+        when(eventQueueMock.getEvent()).thenReturn(List.of(brokerNotification));
+        when(pendingPublishEventsQueue.getEventStream()).thenReturn(Flux.just(eventQueueMock));
+        when(eventQueueMock.getEvent().get(0)).thenReturn(List.of(brokerNotification));
+        when(auditRecordService.fetchLatestProducerEntityHashLinkByEntityId(anyString(), eq("123"))).thenReturn(Mono.empty());
+        when(blockchainTxPayloadFactory.calculatePreviousHashIfEmpty(anyString(), any())).thenReturn(Mono.just(previousHash));
+        when(blockchainTxPayloadFactory.buildBlockchainTxPayload(anyString(), anyMap(), anyString()))
+                .thenReturn(Mono.error(new RuntimeException("Blockchain unavailable")));
+
+        publishWorkflow.startPublishWorkflow().blockLast();
+
+        verify(blockchainPublisherService, never()).publishDataToBlockchain(anyString(), any());
+        verify(auditRecordService, never()).buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.PUBLISHED), any());
+    }
+
 }
