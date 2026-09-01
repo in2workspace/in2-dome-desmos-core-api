@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import es.in2.desmos.domain.models.AuditRecord;
 import es.in2.desmos.domain.models.BrokerNotification;
 import es.in2.desmos.domain.repositories.AuditRecordRepository;
-import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.infrastructure.controllers.NotificationController;
 import es.in2.desmos.it.ContainerManager;
 import org.junit.jupiter.api.*;
@@ -36,9 +35,6 @@ class PublishWorkflowBehaviorTest {
 
     @Autowired
     private AuditRecordRepository auditRecordRepository;
-
-    @Autowired
-    private QueueService pendingPublishEventsQueue;
 
     @DynamicPropertySource
     static void setDynamicProperties(DynamicPropertyRegistry registry) {
@@ -175,8 +171,9 @@ class PublishWorkflowBehaviorTest {
             BrokerNotification brokerNotification = objectMapper.readValue(brokerNotificationJSON, BrokerNotification.class);
 
             notificationController.postBrokerNotification(brokerNotification).block();
-            log.info("1.1. Get the event stream from the pendingPublishEventsQueue and subscribe to it.");
-            pendingPublishEventsQueue.getEventStream().subscribe(event -> log.info("Event: {}", event));
+            // Not subscribing to pendingPublishEventsQueue.getEventStream() here: the queue sink is
+            // unicast (single consumer), and ApplicationRunner's PublishWorkflow subscription is the
+            // one real consumer - a second subscribe() here would throw instead of just observing.
             // Then
             log.info("2. Check values in the AuditRecord table:");
             List<AuditRecord> auditRecordList = auditRecordRepository.findAll().collectList().block();

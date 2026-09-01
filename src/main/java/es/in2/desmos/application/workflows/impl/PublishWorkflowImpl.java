@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 @Slf4j
@@ -42,6 +44,7 @@ public class PublishWorkflowImpl implements PublishWorkflow {
                 // parse it as a BrokerNotification and filter out null values
                 .flatMap(pendingPublishQueueEventStream -> {
                             String processId = ApplicationUtils.generateProcessId();
+                            Instant startTime = Instant.now();
                             return Mono.just((BrokerNotification) pendingPublishQueueEventStream.getEvent().get(0))
                                     .filter(Objects::nonNull)
                                     // Create an event from the BrokerNotification
@@ -64,11 +67,13 @@ public class PublishWorkflowImpl implements PublishWorkflow {
                                                 });
                                     })
                                     .doOnSuccess(success ->
-                                            log.info("ProcessID: {} - Publish Workflow completed successfully.", processId))
+                                            log.info("ProcessID: {} - Publish Workflow completed successfully in {} ms.",
+                                                    processId, Duration.between(startTime, Instant.now()).toMillis()))
                                     .onErrorResume(error ->
                                             Mono.just(error)
                                                     .doOnNext(errorObject ->
-                                                            log.error("ProcessID: {} - Error occurred while processing the Publish Workflow: {}", processId, errorObject.getMessage()))
+                                                            log.error("ProcessID: {} - Error occurred while processing the Publish Workflow after {} ms: {}",
+                                                                    processId, Duration.between(startTime, Instant.now()).toMillis(), errorObject.getMessage()))
                                                     .then(Mono.empty()));
                         }
                 );
