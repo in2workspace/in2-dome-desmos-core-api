@@ -51,7 +51,9 @@ public class QueueServiceImpl implements QueueService {
             Sinks.EmitResult result = sink.tryEmitNext(eventQueue);
             if (result.isFailure()) {
                 log.error("Failed to emit event ({}), re-queueing instead of dropping it - queue: {}", result, eventQueue);
-                queue.offer(eventQueue);
+                if (!queue.offer(eventQueue)) {
+                    log.error("Failed to re-queue event after emission failure, event has been lost - queue: {}", eventQueue);
+                }
             }
         }
     }

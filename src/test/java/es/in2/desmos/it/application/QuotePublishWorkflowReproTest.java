@@ -17,6 +17,11 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.Duration;
+import java.util.List;
+
+import static org.awaitility.Awaitility.await;
+
 /*
  * Repro test for the "Quote replication" issue reported by BAE/Luca:
  * Quotes created on a source Access Node were not appearing on the target Access Node.
@@ -55,7 +60,7 @@ class QuotePublishWorkflowReproTest {
 
     @BeforeEach
     @AfterEach
-    public void cleanUp() {
+    void cleanUp() {
         auditRecordRepository.deleteAll().block();
     }
 
@@ -137,44 +142,36 @@ class QuotePublishWorkflowReproTest {
                 """;
 
         // When
-        try {
-            log.info("1. Create a BrokerNotification from the real Quote payload and send it to the application");
-            BrokerNotification brokerNotification = objectMapper.readValue(brokerNotificationJSON, BrokerNotification.class);
+        log.info("1. Create a BrokerNotification from the real Quote payload and send it to the application");
+        BrokerNotification brokerNotification = Assertions.assertDoesNotThrow(() ->
+                        objectMapper.readValue(brokerNotificationJSON, BrokerNotification.class),
+                "Failed to parse the Quote BrokerNotification payload");
 
-            notificationController.postBrokerNotification(brokerNotification).block();
-            // Note: not subscribing to pendingPublishEventsQueue.getEventStream() here on purpose -
-            // the queue sink is now unicast (single consumer), and ApplicationRunner's PublishWorkflow
-            // subscription is the one and only real consumer. A second subscribe() here would fight it.
+        Assertions.assertDoesNotThrow(() -> notificationController.postBrokerNotification(brokerNotification).block(),
+                "Publishing the Quote entity threw an exception");
+        // Note: not subscribing to pendingPublishEventsQueue.getEventStream() here on purpose -
+        // the queue sink is now unicast (single consumer), and ApplicationRunner's PublishWorkflow
+        // subscription is the one and only real consumer. A second subscribe() here would fight it.
 
-            log.info("2. Check values in the AuditRecord table:");
-            java.util.List<AuditRecord> auditRecordList = auditRecordRepository.findAll().collectList().block();
-            log.info("Result: {}", auditRecordList);
-        } catch (Exception e) {
-            log.error("Error: {}", e.getMessage(), e);
-            Assertions.fail("Publishing the Quote entity threw an exception: " + e.getMessage());
-        }
+        log.info("2. Check values in the AuditRecord table:");
+        List<AuditRecord> auditRecordList = auditRecordRepository.findAll().collectList().block();
+        log.info("Result: {}", auditRecordList);
 
         // Then: the Quote must reach a PUBLISHED AuditRecord, exactly like any other root object type.
-        // Poll instead of a single check: at app startup, the live PublishWorkflow subscription is only
-        // wired up after ApplicationRunner's initial P2P data sync finishes (see ApplicationRunner.java),
-        // which can race with this test posting the notification right after context startup.
-        AuditRecord publishedRecord = null;
-        for (int attempt = 1; attempt <= 15 && publishedRecord == null; attempt++) {
-            publishedRecord = auditRecordRepository
-                    .findMostRecentPublishedAuditRecordByEntityId(QUOTE_ENTITY_ID)
-                    .block();
-            if (publishedRecord == null) {
-                log.info("Attempt {}/15 - no PUBLISHED AuditRecord yet, waiting 2s...", attempt);
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
-
-        Assertions.assertNotNull(publishedRecord,
-                "No PUBLISHED AuditRecord was created for the Quote after 30s - PublishWorkflow silently failed to notarize it");
+        // Poll (via Awaitility, not a fixed sleep) instead of a single check: at app startup, the live
+        // PublishWorkflow subscription is only wired up after ApplicationRunner's initial P2P data sync
+        // finishes (see ApplicationRunner.java), which can race with this test posting the notification
+        // right after context startup.
+        await()
+                .atMost(Duration.ofSeconds(30))
+                .pollInterval(Duration.ofSeconds(2))
+                .untilAsserted(() -> {
+                    AuditRecord publishedRecord = auditRecordRepository
+                            .findMostRecentPublishedAuditRecordByEntityId(QUOTE_ENTITY_ID)
+                            .block();
+                    Assertions.assertNotNull(publishedRecord,
+                            "No PUBLISHED AuditRecord was created for the Quote yet - PublishWorkflow silently failed to notarize it");
+                });
     }
 
 }

@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
 
 /*
  * Repro test for the "Quote replication" issue reported by BAE/Luca, WITHOUT Testcontainers/Docker.
