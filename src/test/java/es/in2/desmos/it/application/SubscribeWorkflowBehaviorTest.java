@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import es.in2.desmos.domain.models.AuditRecord;
 import es.in2.desmos.domain.models.BlockchainNotification;
 import es.in2.desmos.domain.repositories.AuditRecordRepository;
-import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.infrastructure.controllers.NotificationController;
 import es.in2.desmos.it.ContainerManager;
 import okhttp3.mockwebserver.Dispatcher;
@@ -83,9 +82,6 @@ class SubscribeWorkflowBehaviorTest {
 
     @Autowired
     private AuditRecordRepository auditRecordRepository;
-
-    @Autowired
-    private QueueService pendingSubscribeEventsQueue;
 
     private static MockWebServer mockWebServer;
 
@@ -186,8 +182,9 @@ class SubscribeWorkflowBehaviorTest {
             BlockchainNotification blockchainNotification = objectMapper.readValue(blockchainNotificationJson, BlockchainNotification.class);
             StepVerifier.create(notificationController.postDLTNotification(blockchainNotification))
                     .verifyComplete();
-            log.info("1.1. Get the event stream from the pendingSubscribeQueue and subscribe to it.");
-            pendingSubscribeEventsQueue.getEventStream().subscribe(event -> log.info("Event: {}", event));
+            // Not subscribing to pendingSubscribeEventsQueue.getEventStream() here: the queue sink is
+            // unicast (single consumer), and ApplicationRunner's SubscribeWorkflow subscription is the
+            // one real consumer - a second subscribe() here would throw instead of just observing.
             log.info("2. Check values in the AuditRecord table:");
             List<AuditRecord> auditRecordList = auditRecordRepository.findAll().collectList().block();
             log.info("Result: {}", auditRecordList);
@@ -217,8 +214,9 @@ class SubscribeWorkflowBehaviorTest {
             BlockchainNotification blockchainNotification = objectMapper.readValue(blockchainNotificationJson, BlockchainNotification.class);
             StepVerifier.create(notificationController.postDLTNotification(blockchainNotification))
                     .verifyComplete();
-            log.info("1.1. Get the event stream from the pendingSubscribeQueue and subscribe to it.");
-            pendingSubscribeEventsQueue.getEventStream().subscribe(event -> log.info("Event: {}", event));
+            // Not subscribing to pendingSubscribeEventsQueue.getEventStream() here: the queue sink is
+            // unicast (single consumer), and ApplicationRunner's SubscribeWorkflow subscription is the
+            // one real consumer - a second subscribe() here would throw instead of just observing.
             log.info("2. Check values in the AuditRecord table:");
             List<AuditRecord> auditRecordList = auditRecordRepository.findAll().collectList().block();
             log.info("Result: {}", auditRecordList);

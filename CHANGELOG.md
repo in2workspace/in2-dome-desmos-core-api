@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Released]: v2.0.19
+- Fix silent loss of Publish/Subscribe queue events emitted before the workflow subscription is established (e.g. during application startup), which could leave entities like Quote unnotarized until the next P2P data sync
+
 ## [Released]: v2.0.18
 - Not check lifecycleStatus for usageSpecification entity type
 

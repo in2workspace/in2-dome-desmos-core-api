@@ -19,7 +19,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class QueueServiceImpl implements QueueService {
 
-    private final Sinks.Many<EventQueue> sink = Sinks.many().multicast().onBackpressureBuffer();
+    // unicast (not multicast): there is exactly one real consumer per queue (the corresponding
+    // Publish/Subscribe workflow), and unlike multicast, unicast buffers events emitted before that
+    // consumer subscribes instead of silently dropping them - which matters because at application
+    // startup, notifications can arrive and be enqueued before ApplicationRunner finishes wiring up
+    // the workflow's subscription.
+    private final Sinks.Many<EventQueue> sink = Sinks.many().unicast().onBackpressureBuffer();
     private final PriorityBlockingQueue<EventQueue> queue = new PriorityBlockingQueue<>();
 
     private final AtomicBoolean paused = new AtomicBoolean(false);
@@ -43,7 +48,13 @@ public class QueueServiceImpl implements QueueService {
         EventQueue eventQueue = queue.poll();
         if (eventQueue != null) {
             log.debug("Emitting event from queue - queue: {}", eventQueue);
-            sink.tryEmitNext(eventQueue);
+            Sinks.EmitResult result = sink.tryEmitNext(eventQueue);
+            if (result.isFailure()) {
+                log.error("Failed to emit event ({}), re-queueing instead of dropping it - queue: {}", result, eventQueue);
+                if (!queue.offer(eventQueue)) {
+                    log.error("Failed to re-queue event after emission failure, event has been lost - queue: {}", eventQueue);
+                }
+            }
         }
     }
 

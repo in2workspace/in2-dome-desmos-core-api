@@ -19,6 +19,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Objects;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
@@ -49,6 +51,7 @@ public class SubscribeWorkflowImpl implements SubscribeWorkflow {
                 // Get the next event (BlockchainNotification) from the queue
                 .flatMap(pendingSubscribeQueueEventStream -> {
                     String processId = ApplicationUtils.generateProcessId();
+                    Instant startTime = Instant.now();
                     return Mono.just((BlockchainNotification) pendingSubscribeQueueEventStream.getEvent().get(0))
                             // verify that the DLTNotification is not null
                             .filter(Objects::nonNull)
@@ -92,11 +95,13 @@ public class SubscribeWorkflowImpl implements SubscribeWorkflow {
                                             )
                                             .collectList()
                                             .then()
-                                            .doOnSuccess(success -> log.info("ProcessID: {} - Subscribe Workflow completed successfully.", processId))
+                                            .doOnSuccess(success -> log.info("ProcessID: {} - Subscribe Workflow completed successfully in {} ms.",
+                                                    processId, Duration.between(startTime, Instant.now()).toMillis()))
                                             .onErrorResume(error ->
                                                     Mono.just(error)
                                                             .doOnNext(errorObject ->
-                                                                    log.error("ProcessID: {} - Error occurred while processing the Subscribe Workflow: {}", processId, errorObject.getMessage()))
+                                                                    log.error("ProcessID: {} - Error occurred while processing the Subscribe Workflow after {} ms: {}",
+                                                                            processId, Duration.between(startTime, Instant.now()).toMillis(), errorObject.getMessage()))
                                                             .then(Mono.empty()))
                             );
                 });
