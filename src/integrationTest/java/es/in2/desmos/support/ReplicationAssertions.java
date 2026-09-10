@@ -34,7 +34,7 @@ public final class ReplicationAssertions {
                 .extracting(AuditRecord::getStatus)
                 .containsExactly(AuditRecordStatus.RECEIVED, AuditRecordStatus.CREATED, AuditRecordStatus.PUBLISHED);
         assertThat(trail)
-                .allSatisfy(record -> assertThat(record.getTrader()).isEqualTo(AuditRecordTrader.PRODUCER));
+                .allSatisfy(auditRecord -> assertThat(auditRecord.getTrader()).isEqualTo(AuditRecordTrader.PRODUCER));
 
         AuditRecord published = trail.get(trail.size() - 1);
         assertThat(published.getDataLocation())

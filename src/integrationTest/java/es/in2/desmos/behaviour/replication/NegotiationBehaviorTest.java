@@ -84,7 +84,7 @@ class NegotiationBehaviorTest extends AbstractReplicationBehaviorTest {
 
                     boolean hasConsumerRow = auditRecordRepository.findByEntityId(PRODUCT_OFFERING_2_ID)
                             .collectList().block(Duration.ofSeconds(5))
-                            .stream().anyMatch(record -> record.getTrader().name().equalsIgnoreCase("CONSUMER"));
+                            .stream().anyMatch(auditRecord -> auditRecord.getTrader().name().equalsIgnoreCase("CONSUMER"));
                     assertThat(hasConsumerRow)
                             .as("a locally-newer entity should never be synced in, so no CONSUMER audit row should exist for it")
                             .isFalse();
