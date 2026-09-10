@@ -20,10 +20,26 @@ java {
     sourceCompatibility = '17'
 }
 
+sourceSets {
+    integrationTest {
+        // Gradle's default convention already maps this source set to
+        // src/integrationTest/java and src/integrationTest/resources.
+        compileClasspath += sourceSets.main.output + sourceSets.test.output
+        runtimeClasspath += sourceSets.main.output + sourceSets.test.output
+    }
+}
+
 configurations {
     compileOnly {
         extendsFrom annotationProcessor
     }
+    // The integration-test source set shares the lightweight unit-test toolbox
+    // (Mockito, AssertJ, reactor-test, ...) but keeps the Testcontainers stack
+    // out of `test`, so `./gradlew test` never boots Docker.
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
+    integrationTestCompileOnly.extendsFrom testCompileOnly
+    integrationTestAnnotationProcessor.extendsFrom testAnnotationProcessor
 }
 
 configurations.configureEach {
@@ -31,6 +47,15 @@ configurations.configureEach {
         eachDependency { DependencyResolveDetails details ->
             if (details.requested.group.startsWith('com.fasterxml.jackson')) {
                 details.useVersion '2.17.0'
+            }
+            // The Spring Cloud BOM (imported below) ships its own, older
+            // org.testcontainers version and silently wins over the versions
+            // declared in `dependencies {}`, downgrading every testcontainers
+            // artifact here to 1.19.8 regardless of what is requested. That
+            // old client fails to negotiate with newer Docker Engines ("client
+            // version 1.32 is too old"). Force the version we actually declare.
+            if (details.requested.group == 'org.testcontainers') {
+                details.useVersion '1.20.6'
             }
         }
     }
@@ -49,6 +74,10 @@ checkstyleTest {
     source = 'src/test/java'
 }
 
+checkstyleIntegrationTest {
+    source = 'src/integrationTest/java'
+}
+
 sonar {
     properties {
         property "sonar.projectName", "IN2 Desmos API"
@@ -60,6 +89,9 @@ sonar {
                         "src/main/java/es/in2/desmos/infrastructure/configs/properties/**, " +
                         "src/main/java/es/in2/desmos/infrastructure/configs/FlywayConfig.java, " +
                         "src/main/java/es/in2/desmos/infrastructure/configs/QueueConfig.java"
+        property "sonar.tests", "src/test/java,src/integrationTest/java"
+        property "sonar.junit.reportPaths", "build/test-results/test,build/test-results/integrationTest"
+        property "sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml"
     }
 }
 
@@ -117,15 +149,14 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'io.projectreactor:reactor-test:3.6.11'
-    testImplementation 'org.testng:testng:7.10.2'
-    // Integration Test
-    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
-    testImplementation 'org.testcontainers:junit-jupiter:1.20.2'
-    testImplementation 'org.testcontainers:r2dbc:1.20.2'
-    testImplementation 'org.testcontainers:postgresql:1.20.2'
     testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
     // EqualsVerifier
     testImplementation 'nl.jqno.equalsverifier:equalsverifier:3.17.1'
+    // Integration Test (Testcontainers, two-node replication behaviour tests)
+    integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    integrationTestImplementation 'org.testcontainers:junit-jupiter:1.20.6'
+    integrationTestImplementation 'org.testcontainers:r2dbc:1.20.6'
+    integrationTestImplementation 'org.testcontainers:postgresql:1.20.6'
 }
 
 tasks.named('compileJava') {
@@ -149,8 +180,65 @@ tasks.named('test') {
     finalizedBy(tasks.jacocoTestReport)
 }
 
+// ---------------------------------------------------------------------------
+// Node B's image, for the two-node replication tests.
+//   default                  -> build from this working tree (see below)
+//   -Pdesmos.image=<ref>     -> use <ref> verbatim, skip the local build entirely
+//   DESMOS_IMAGE=<ref> (env) -> same, for CI
+// ---------------------------------------------------------------------------
+def desmosImageOverride = providers.gradleProperty('desmos.image')
+        .orElse(providers.environmentVariable('DESMOS_IMAGE'))
+def localDesmosImageTag = "in2-desmos-api:it-${project.version}"
+
+// Stage a minimal build context: the boot jar plus the slim runtime Dockerfile.
+// No Gradle build happens inside Docker here -- bootJar already ran on the host,
+// incrementally, with a warm Gradle cache -- so this is a single COPY layer.
+tasks.register('stageDesmosTestImage', Copy) {
+    from(tasks.named('bootJar').flatMap { it.archiveFile }) { rename { 'desmos-api.jar' } }
+    from('src/integrationTest/docker/Dockerfile')
+    into(layout.buildDirectory.dir('docker/desmos-it'))
+}
+
+tasks.register('buildDesmosTestImage', Exec) {
+    group = 'docker'
+    description = "Builds ${localDesmosImageTag} from the jar this working tree just produced."
+    dependsOn tasks.named('stageDesmosTestImage')
+    workingDir layout.buildDirectory.dir('docker/desmos-it')
+    commandLine 'docker', 'build', '--tag', localDesmosImageTag, '.'
+}
+
+tasks.register('integrationTest', Test) {
+    group = 'verification'
+    description = 'Two-node replication behaviour tests and other Testcontainers-backed integration tests.'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter(tasks.named('test'))
+    finalizedBy(tasks.jacocoTestReport)
+
+    // Containers live in static fields shared across a whole JVM (see ContainerManager);
+    // running forks in parallel would multiply the container topology per fork.
+    maxParallelForks = 1
+    forkEvery = 0
+    maxHeapSize = '2g'
+
+    if (!desmosImageOverride.isPresent()) {
+        dependsOn tasks.named('buildDesmosTestImage')
+    }
+    systemProperty 'desmos.image', desmosImageOverride.getOrElse(localDesmosImageTag)
+    doFirst { logger.lifecycle("Node B image: {}", systemProperties['desmos.image']) }
+
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat = 'full'
+    }
+}
+
 tasks.jacocoTestReport {
     dependsOn(tasks.test)
+    // Picks up integrationTest.exec too, when that task has also run in this invocation,
+    // so a single `sonar` analysis sees combined unit + integration coverage.
+    executionData.setFrom(fileTree(layout.buildDirectory.dir('jacoco')).include('*.exec'))
     reports {
         xml.required.set(true)
         csv.required.set(false)
