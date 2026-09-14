@@ -28,7 +28,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
 
-@SpringBootTest
+// application.runner.enabled=false is load-bearing, not tidying. ContainerManager's postgres and
+// scorpio containers are JVM-wide statics shared with every other IT class, and scorpio-node-a
+// keeps the "category" entities the replication tests posted into it (their audit records get
+// deleted; the broker entities do not). With the runner live, this context's own startup P2P sync
+// -- which runs on reactor threads concurrently with these test methods, since
+// ApplicationRunner.onApplicationReady() returns its Mono rather than blocking -- finds those
+// orphaned entities via P2PDataSyncJobImpl.createLocalMvEntitiesByType and re-registers each one
+// with a fresh PUBLISHED/PRODUCER row (AuditRecordServiceImpl
+// .buildAndSaveAuditRecordFromUnregisteredOrOutdatedEntity). Observed in CI: a row for
+// urn:ngsi-ld:category:6d6714aa-... landed mid-class, between test 0 and test 1, carrying this
+// context's runner processId -- so findMostRecentAuditRecord() below returned it instead of
+// test 0's root and the hash chain assertions failed. This class uses the MOCK web environment,
+// so with the runner off nothing else can write here: no port is bound, and scorpio's leftover
+// subscriptions have nowhere to deliver.
+@SpringBootTest(properties = "application.runner.enabled=false")
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AuditRecordRepositoryIT {
@@ -82,6 +96,12 @@ class AuditRecordRepositoryIT {
 
     private static boolean isCleanupDone = false;
 
+    // Deliberately once per class, NOT once per method. Tests 0-6 are a single ordered hash chain:
+    // test 0 saves the root, test 1 chains off it via findMostRecentAuditRecord() and asserts a
+    // hardcoded hashLink, and tests 3-6 read back what test 1 saved. Emptying the table before
+    // every method would leave test 1 with no parent record to chain from -- turning these two
+    // failures into six. Concurrent writes are kept out by disabling ApplicationRunner (see the
+    // class-level comment), which is what actually makes a single wipe sufficient.
     @BeforeEach
     void cleanup() {
         if (!isCleanupDone) {
@@ -240,7 +260,7 @@ class AuditRecordRepositoryIT {
                 .verifyComplete();
     }
 
-    @Order(8)
+    @Order(9)
     @Test
     void itShouldReturnMostRecentPublishedAuditRecordsByEntityIds() {
 

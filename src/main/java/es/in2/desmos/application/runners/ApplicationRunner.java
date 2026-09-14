@@ -16,6 +16,7 @@ import es.in2.desmos.infrastructure.configs.TrustFrameworkConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
@@ -39,6 +40,13 @@ import static es.in2.desmos.domain.utils.ApplicationUtils.getEnvironmentMetadata
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
+// Enabled by default, so production and the two-node replication tests are unaffected. Integration
+// tests that only exercise a repository or a single service switch this off: onApplicationReady()
+// returns its Mono instead of blocking on it, so the whole startup chain (broker/blockchain
+// subscription, trusted list, initial P2P sync, then the pub-sub queue consumers) runs on reactor
+// threads concurrently with the test methods -- and that sync writes audit records, see
+// P2PDataSyncJobImpl.createLocalMvEntitiesByType.
+@ConditionalOnProperty(name = "application.runner.enabled", matchIfMissing = true)
 public class ApplicationRunner {
 
     private final ApiConfig apiConfig;
