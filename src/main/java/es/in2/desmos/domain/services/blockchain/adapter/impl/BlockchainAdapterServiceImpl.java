@@ -1,5 +1,6 @@
 package es.in2.desmos.domain.services.blockchain.adapter.impl;
 
+import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.models.BlockchainSubscription;
 import es.in2.desmos.domain.models.BlockchainTxPayload;
 import es.in2.desmos.domain.services.blockchain.adapter.BlockchainAdapterService;
@@ -17,6 +18,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import static es.in2.desmos.domain.utils.ApplicationUtils.getEnvironmentMetadata;
+import static es.in2.desmos.domain.utils.MessageUtils.DLT_PUBLICATION_REJECTED_MESSAGE;
 
 @Slf4j
 @Component
@@ -71,6 +73,15 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(blockchainTxPayload)
                 .exchangeToMono(response -> {
+                    if (response.statusCode().isError()) {
+                        return response.bodyToMono(String.class)
+                                .defaultIfEmpty("")
+                                .flatMap(errorBody -> {
+                                    log.error(DLT_PUBLICATION_REJECTED_MESSAGE, processId,
+                                            response.statusCode(), blockchainTxPayload.dataLocation(), errorBody);
+                                    return Mono.<Void>error(new RequestErrorException(errorBody));
+                                });
+                    }
                     log.debug("ProcessId: {} - Send to DLT with status code: {} for entityId={}",
                             processId, response.statusCode(), blockchainTxPayload.dataLocation());
                     return response.releaseBody();
@@ -93,7 +104,7 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
 
     @Recover
     public Mono<Void> recover(String processId, BlockchainTxPayload blockchainTxPayload) {
-        log.debug("ProcessID: {}, Recovering after 3 retries. Data: {}", processId, blockchainTxPayload.toString());
+        log.error("ProcessID: {}, Recovering after 3 retries. Data: {}", processId, blockchainTxPayload.toString());
         return Mono.empty();
     }
 

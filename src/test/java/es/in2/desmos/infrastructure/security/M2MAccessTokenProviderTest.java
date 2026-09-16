@@ -7,7 +7,6 @@ import es.in2.desmos.domain.models.OIDCAccessTokenResponse;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.LearCredentialMachineConfig;
 import es.in2.desmos.infrastructure.configs.VerifierConfig;
-import es.in2.desmos.it.ContainerManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,8 +14,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.oauth2.jwt.JwtException;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -50,11 +47,6 @@ class M2MAccessTokenProviderTest {
 
     @InjectMocks
     private M2MAccessTokenProvider m2mAccessTokenProvider;
-
-    @DynamicPropertySource
-    private static void setDynamicProperties(DynamicPropertyRegistry registry) {
-        ContainerManager.postgresqlProperties(registry);
-    }
 
     @BeforeEach
     void setUp() {
