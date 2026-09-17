@@ -12,7 +12,16 @@ public final class ApplicationConstants {
     public static final String PRODUCT_ORDER = "product-order";
     public static final String QUOTE = "quote";
     public static final String USAGE_SPECIFICATION = "usageSpecification";
-    public static final Set<String> LIFECYCLE_STATUS_FREE_TYPES = Set.of(PRODUCT_ORDER, QUOTE, USAGE_SPECIFICATION);
+    private static final String CUSTOMER_BILL = "customer-bill";
+    private static final String APPLIED_CUSTOMER_BILL_RATE = "applied-customer-bill-rate";
+    private static final String PRODUCT = "product";
+    public static final Set<String> LIFECYCLE_STATUS_FREE_TYPES = Set.of
+            (PRODUCT_ORDER,
+                    QUOTE,
+                    USAGE_SPECIFICATION,
+                    CUSTOMER_BILL,
+                    APPLIED_CUSTOMER_BILL_RATE,
+                    PRODUCT);
     public static final List<String> ROOT_OBJECTS_LIST = List.of("individual",
             "organization",
             "catalog",
@@ -23,11 +32,11 @@ public final class ApplicationConstants {
             "resource-specification",
             "category",
             PRODUCT_ORDER,
-            "product",
+            PRODUCT,
             "usage",
             USAGE_SPECIFICATION,
-            "applied-customer-bill-rate",
-            "customer-bill",
+            APPLIED_CUSTOMER_BILL_RATE,
+            CUSTOMER_BILL,
             QUOTE);
 
     private ApplicationConstants() {
