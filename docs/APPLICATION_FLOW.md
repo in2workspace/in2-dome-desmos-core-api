@@ -436,7 +436,7 @@ ROOT_OBJECTS_LIST = [
     "product",
     "usage",
     "usageSpecification",
-    "applied-customer-bill-rate",
+    "applied-customer-billing-rate",
     "customer-bill",
     "quote"
 ]

@@ -13,14 +13,14 @@ public final class ApplicationConstants {
     public static final String QUOTE = "quote";
     public static final String USAGE_SPECIFICATION = "usageSpecification";
     private static final String CUSTOMER_BILL = "customer-bill";
-    private static final String APPLIED_CUSTOMER_BILL_RATE = "applied-customer-bill-rate";
+    private static final String APPLIED_CUSTOMER_BILLING_RATE = "applied-customer-billing-rate";
     private static final String PRODUCT = "product";
     public static final Set<String> LIFECYCLE_STATUS_FREE_TYPES = Set.of
             (PRODUCT_ORDER,
                     QUOTE,
                     USAGE_SPECIFICATION,
                     CUSTOMER_BILL,
-                    APPLIED_CUSTOMER_BILL_RATE,
+                    APPLIED_CUSTOMER_BILLING_RATE,
                     PRODUCT);
     public static final List<String> ROOT_OBJECTS_LIST = List.of("individual",
             "organization",
@@ -35,7 +35,7 @@ public final class ApplicationConstants {
             PRODUCT,
             "usage",
             USAGE_SPECIFICATION,
-            APPLIED_CUSTOMER_BILL_RATE,
+            APPLIED_CUSTOMER_BILLING_RATE,
             CUSTOMER_BILL,
             QUOTE);
 
