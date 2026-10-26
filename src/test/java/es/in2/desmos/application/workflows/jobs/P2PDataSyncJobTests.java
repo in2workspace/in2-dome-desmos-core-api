@@ -298,6 +298,36 @@ class P2PDataSyncJobTests {
     }
 
     @Test
+    void itShouldIgnoreExternalEntitiesWithoutTypeAndKeepTheRestOfTheNode() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        MVEntity4DataNegotiation externalProductOffering = MVEntity4DataNegotiationMother.sample3();
+        MVEntity4DataNegotiation withoutType = new MVEntity4DataNegotiation("urn:ngsi-ld:unknown:1", null, null,
+                null, null, null, null, null, null);
+        when(brokerPublisherService.findAllIdTypeAndAttributesByType(eq(processId), anyString(), eq("lastUpdate"),
+                eq("version"), eq("lifecycleStatus"), eq("validFor"), eq(BrokerEntityWithIdTypeLastUpdateAndVersion.class)))
+                .thenReturn(Flux.empty());
+        when(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any())).thenReturn(Flux.empty());
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class))).thenReturn(Flux.empty());
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(List.of("https://example1.org")));
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenReturn(Flux.just(withoutType, externalProductOffering));
+        List<String> externalTypes = new ArrayList<>();
+        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalMono = invocation.getArgument(1);
+                    externalMono.block().values().forEach(flux ->
+                            externalTypes.addAll(flux.map(MVEntity4DataNegotiation::type).collectList().block()));
+                    return Mono.empty();
+                });
+
+        StepVerifier
+                .create(p2PDataSyncJob.synchronizeData(processId))
+                .verifyComplete();
+
+        assertThat(externalTypes).containsExactly(MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME);
+    }
+
+    @Test
     void itShouldReturnInternalEntitiesWhenDiscovery() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         Flux<MVEntity4DataNegotiation> internalEntities = Flux.concat(
                 MVEntity4DataNegotiationMother.list3And4(),

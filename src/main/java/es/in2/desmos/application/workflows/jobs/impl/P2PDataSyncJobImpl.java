@@ -156,10 +156,23 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                             .doOnNext(externalMvEntities ->
                                 log.debug("ProcessId: {} - Received {} external MV entities from node {}",
                                         processId, externalMvEntities.size(), externalAccessNode))
-                            .map(externalMvEntities -> Map.entry(new Issuer(externalAccessNode), externalMvEntities.stream()
-                                    .collect(Collectors.groupingBy(MVEntity4DataNegotiation::type))));
+                            .map(externalMvEntities -> Map.entry(new Issuer(externalAccessNode),
+                                    groupByType(processId, externalAccessNode, externalMvEntities)));
                 })
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
+    }
+
+    // Entities without a type cannot belong to any entity type, so they are dropped instead of failing the whole node
+    private static Map<String, List<MVEntity4DataNegotiation>> groupByType(String processId, String genesisUrl,
+                                                                         List<MVEntity4DataNegotiation> externalMvEntities) {
+        long withoutType = externalMvEntities.stream().filter(entity -> entity.type() == null).count();
+        if (withoutType > 0) {
+            log.warn("ProcessID: {} - Ignoring {} external MV entities without type received from node {}",
+                    processId, withoutType, genesisUrl);
+        }
+        return externalMvEntities.stream()
+                .filter(entity -> entity.type() != null)
+                .collect(Collectors.groupingBy(MVEntity4DataNegotiation::type));
     }
 
     private static Map<Issuer, List<MVEntity4DataNegotiation>> externalMvEntitiesOfType(
