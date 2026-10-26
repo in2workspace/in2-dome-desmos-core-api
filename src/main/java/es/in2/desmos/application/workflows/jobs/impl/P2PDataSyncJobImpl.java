@@ -80,15 +80,25 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                             .flatMap(List::stream)
                             .toList();
 
+                    // The local entities of each type are read again right before negotiating it: syncing a type
+                    // also stores its subentities (e.g. a product-offering brings its prices and specifications),
+                    // which belong to later types and must not be fetched a second time.
                     return exchangeMVEntities4DataNegotiationWithGenesisNodes(processId, allLocalMvEntities)
-                            .flatMap(externalMvEntitiesByIssuer -> Flux.fromIterable(localMvEntitiesByType.entrySet())
-                                    .concatMap(localEntry -> dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(
-                                            processId,
-                                            Mono.just(filterExternalMvEntitiesByType(externalMvEntitiesByIssuer, localEntry.getKey())),
-                                            Flux.fromIterable(localEntry.getValue())))
+                            .flatMap(externalMvEntitiesByIssuer -> Flux.fromIterable(localMvEntitiesByType.keySet())
+                                    .concatMap(entityType -> readLocalReplicableMvEntities(processId, entityType)
+                                            .flatMap(currentLocalMvEntities -> dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(
+                                                    processId,
+                                                    Mono.just(filterExternalMvEntitiesByType(externalMvEntitiesByIssuer, entityType)),
+                                                    Flux.fromIterable(currentLocalMvEntities))))
                                     .then());
                 })
                 .doFirst(() -> log.info("ProcessID: {} - Starting P2P Data Synchronization with Genesis Nodes", processId));
+    }
+
+    private Mono<List<MVEntity4DataNegotiation>> readLocalReplicableMvEntities(String processId, String entityType) {
+        return createLocalMvEntitiesByType(processId, entityType)
+                .transform(flux -> filterReplicableMvEntities(processId, flux))
+                .collectList();
     }
 
     /**
