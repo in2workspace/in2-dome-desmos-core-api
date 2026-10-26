@@ -129,8 +129,8 @@ class P2PDataSyncJobTests {
                 .verify();
 
 
-        // Read once for the discovery and again right before negotiating the type
-        verify(brokerPublisherService, times(2)).findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class);
+        // Read only once: the genesis has nothing newer than the local entities, so they are not read again
+        verify(brokerPublisherService, times(1)).findAllIdTypeAndAttributesByType(processId, MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME, "lastUpdate", "version", "lifecycleStatus", "validFor", BrokerEntityWithIdTypeLastUpdateAndVersion.class);
         verifyNoMoreInteractions(brokerPublisherService);
 
         //Should be number of times as BROKER_ENTITY_TYPES lenght is
@@ -279,7 +279,7 @@ class P2PDataSyncJobTests {
                 .thenAnswer(invocation -> {
                     Flux<MVEntity4DataNegotiation> sent = invocation.getArgument(3);
                     sentEntities.add(sent.collectList().block().size());
-                    return Flux.empty();
+                    return MVEntity4DataNegotiationMother.listCategories();
                 });
         Map<String, Integer> localCountByType = new HashMap<>();
         when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
