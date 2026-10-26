@@ -145,6 +145,103 @@ class P2PDataSyncJobTests {
     }
 
     @Test
+    void itShouldMakeOneDiscoveryPerNodeAndNegotiateEachTypeWithItsOwnEntities() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+
+        var brokerEntities = MVBrokerEntity4DataNegotiationMother.list3And4();
+        var brokerCategories = MVBrokerEntity4DataNegotiationMother.listCategories();
+        var brokerCatalogs = MVBrokerEntity4DataNegotiationMother.listCatalogs();
+
+        when(brokerPublisherService.findAllIdTypeAndAttributesByType(
+                eq(processId),
+                anyString(),
+                eq("lastUpdate"),
+                eq("version"),
+                eq("lifecycleStatus"),
+                eq("validFor"),
+                eq(BrokerEntityWithIdTypeLastUpdateAndVersion.class))
+        ).thenAnswer(invocation -> {
+            String entityType = invocation.getArgument(1);
+            List<?> result = switch (entityType) {
+                case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME -> brokerEntities;
+                case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME -> brokerCategories;
+                case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME -> brokerCatalogs;
+                default -> Collections.emptyList();
+            };
+            return Flux.fromIterable(result);
+        });
+
+        when(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    String entityType = invocation.getArgument(1);
+                    return switch (entityType) {
+                        case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME ->
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
+                        case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME ->
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCategories());
+                        case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME ->
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
+                        default -> Flux.fromIterable(Collections.emptyList());
+                    };
+                });
+
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class)))
+                .thenAnswer(invocation -> {
+                    Flux<MVEntityReplicationPoliciesInfo> fluxArg = invocation.getArgument(1);
+                    return fluxArg.map(info -> new Id(info.id()));
+                });
+
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(UrlMother.example1And2urlsList()));
+
+        MVEntity4DataNegotiation externalProductOffering = MVEntity4DataNegotiationMother.sample3();
+        MVEntity4DataNegotiation externalCategory = MVEntity4DataNegotiationMother.listCategories().blockFirst();
+        List<Set<String>> sentTypesByRequest = new ArrayList<>();
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    Flux<MVEntity4DataNegotiation> sent = invocation.getArgument(3);
+                    sentTypesByRequest.add(sent.map(MVEntity4DataNegotiation::type).collect(Collectors.toSet()).block());
+                    return Flux.just(externalProductOffering, externalCategory);
+                });
+
+        List<Set<String>> externalTypesByNegotiation = new ArrayList<>();
+        List<Set<String>> localTypesByNegotiation = new ArrayList<>();
+        List<Integer> issuersByNegotiation = new ArrayList<>();
+        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalMono = invocation.getArgument(1);
+                    Flux<MVEntity4DataNegotiation> localFlux = invocation.getArgument(2);
+                    Map<Issuer, Flux<MVEntity4DataNegotiation>> externalByIssuer = externalMono.block();
+                    issuersByNegotiation.add(externalByIssuer.size());
+                    externalTypesByNegotiation.add(Flux.merge(externalByIssuer.values())
+                            .map(MVEntity4DataNegotiation::type).collect(Collectors.toSet()).block());
+                    localTypesByNegotiation.add(localFlux.map(MVEntity4DataNegotiation::type).collect(Collectors.toSet()).block());
+                    return Mono.empty();
+                });
+
+        StepVerifier
+                .create(p2PDataSyncJob.synchronizeData(processId))
+                .verifyComplete();
+
+        verify(discoverySyncWebClient, times(2)).makeRequest(eq(processId), any(), any(), any());
+        assertThat(sentTypesByRequest).allSatisfy(sentTypes -> assertThat(sentTypes).containsExactlyInAnyOrder(
+                MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME,
+                MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME,
+                MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME));
+
+        int typeCount = ApplicationConstants.ROOT_OBJECTS_LIST.size();
+        verify(dataNegotiationJob, times(typeCount)).negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());
+        assertThat(issuersByNegotiation).containsOnly(2);
+        for (int i = 0; i < typeCount; i++) {
+            String entityType = ApplicationConstants.ROOT_OBJECTS_LIST.get(i);
+            assertThat(externalTypesByNegotiation.get(i)).isSubsetOf(entityType);
+            assertThat(localTypesByNegotiation.get(i)).isSubsetOf(entityType);
+        }
+        int productOfferingIndex = ApplicationConstants.ROOT_OBJECTS_LIST.indexOf(MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME);
+        assertThat(externalTypesByNegotiation.get(productOfferingIndex)).containsExactly(MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME);
+        assertThat(localTypesByNegotiation.get(productOfferingIndex)).containsExactly(MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME);
+    }
+
+    @Test
     void itShouldReturnInternalEntitiesWhenDiscovery() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         Flux<MVEntity4DataNegotiation> internalEntities = Flux.concat(
                 MVEntity4DataNegotiationMother.list3And4(),
