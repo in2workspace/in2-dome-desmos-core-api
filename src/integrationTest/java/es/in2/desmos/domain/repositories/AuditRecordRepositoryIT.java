@@ -303,6 +303,56 @@ class AuditRecordRepositoryIT {
                 .containsExactlyInAnyOrderElementsOf(expectedAuditRecords);
     }
 
+    // Regression: AND binds tighter than OR, so "entity_id = :id AND status = 'RETRIEVED' OR status = 'DELETED'"
+    // matched every DELETED row of any entity and returned it when it was newer than the RETRIEVED of :id.
+    @Order(10)
+    @Test
+    void itShouldNotReturnDeletedAuditRecordOfAnotherEntityWhenFindingMostRecentRetrievedOrDeleted() {
+        var entityIdA = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        var entityIdB = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        long now = System.currentTimeMillis();
+
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdA, AuditRecordStatus.RETRIEVED, new Timestamp(now));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdB, AuditRecordStatus.DELETED, new Timestamp(now + 1000));
+
+        StepVerifier
+                .create(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityId(entityIdA))
+                .assertNext(receivedAuditRecord -> {
+                    assertEquals(entityIdA, receivedAuditRecord.getEntityId());
+                    assertEquals(AuditRecordStatus.RETRIEVED, receivedAuditRecord.getStatus());
+                })
+                .verifyComplete();
+    }
+
+    @Order(11)
+    @Test
+    void itShouldReturnEmptyWhenOnlyAnotherEntityHasDeletedAuditRecord() {
+        var entityIdC = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        var entityIdD = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        long now = System.currentTimeMillis();
+
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdC, AuditRecordStatus.PUBLISHED, new Timestamp(now));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdD, AuditRecordStatus.DELETED, new Timestamp(now + 1000));
+
+        StepVerifier
+                .create(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityId(entityIdC))
+                .verifyComplete();
+    }
+
+    private void saveAuditRecordWithEntityIdStatusAndTimestamp(String entityId, AuditRecordStatus auditRecordStatus, Timestamp timestamp) {
+        AuditRecord auditRecordToSave = AuditRecord
+                .builder()
+                .entityId(entityId)
+                .status(auditRecordStatus)
+                .createdAt(timestamp)
+                .build();
+
+        StepVerifier
+                .create(auditRecordRepository.save(auditRecordToSave))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
     private Timestamp saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(String entityId, AuditRecordStatus auditRecordStatus) {
         Timestamp timestamp = new Timestamp(System.currentTimeMillis());
         System.out.println("El timestamp: " + timestamp);
