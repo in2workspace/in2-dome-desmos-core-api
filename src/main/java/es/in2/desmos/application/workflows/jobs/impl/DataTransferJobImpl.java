@@ -91,9 +91,11 @@ public class DataTransferJobImpl implements DataTransferJob {
                                                     // The remote may not return every requested entity (e.g. it was deleted or
                                                     // changed after the discovery). Those are skipped: no RECEIVED audit record,
                                                     // no integrity check, not stored; the next synchronization will retry them.
+                                                    // The received list is computed once here and is the only one passed on.
                                                     Mono<List<MVEntity4DataNegotiation>> receivedMvEntities4DataNegotiation =
                                                             mvEntities4DataNegotiation.map(mvEntities -> keepReceived(
-                                                                    processId, result.issuer(), mvEntities, entitiesById.keySet()));
+                                                                    processId, result.issuer(), mvEntities, entitiesById.keySet()))
+                                                                    .cache();
 
                                                     return createReceivedAuditRecords(processId, issuer, receivedMvEntities4DataNegotiation)
                                                             .then(getInvalidIntegrityEntitiesIds(processId, entitiesByIdMono, entitiesHashAndHashlinkById))
@@ -102,7 +104,7 @@ public class DataTransferJobImpl implements DataTransferJob {
                                                                 return filterEntitiesById(entitiesByIdMono, invalidIntegrityEntitiesIdsMono)
                                                                         .flatMap(filteredEntitiesById -> {
                                                                             Mono<Map<Id, Entity>> filteredEntitiesByIdMono = Mono.just(filteredEntitiesById);
-                                                                            return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, mvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
+                                                                            return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, receivedMvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
 
                                                                         });
                                                             });
@@ -227,7 +229,7 @@ public class DataTransferJobImpl implements DataTransferJob {
     }
 
     private Mono<List<Id>> getInvalidIntegrityEntitiesIds(String processId, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<Map<Id, HashAndHashLink>> allEntitiesExistingValidationDataById) {
-        // Only received entities are checked; the ones the remote did not return are skipped by the caller
+        // Only received entities are checked (the same set keepReceived keeps: the keys of entitiesById)
         return entitiesByIdMono.flatMap(entitiesById -> allEntitiesExistingValidationDataById
                 .flatMapIterable(Map::entrySet)
                 .filter(entry -> entitiesById.containsKey(entry.getKey()))

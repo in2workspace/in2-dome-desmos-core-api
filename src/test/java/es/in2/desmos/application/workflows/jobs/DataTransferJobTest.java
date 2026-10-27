@@ -418,12 +418,20 @@ class DataTransferJobTest {
                 .isNotEmpty()
                 .doesNotContain(missingId);
 
-        verify(dataPublicationJob).verifyData(eq(processId), any(), idByEntityMonoCaptor.capture(), any(), any());
+        verify(dataPublicationJob).verifyData(eq(processId), any(), idByEntityMonoCaptor.capture(),
+                mvEntities4DataNegotiationCaptor.capture(), any());
         StepVerifier
                 .create(idByEntityMonoCaptor.getValue())
                 .assertNext(entitiesById -> assertThat(entitiesById)
                         .isNotEmpty()
                         .doesNotContainKey(new Id(missingId)))
+                .verifyComplete();
+        StepVerifier
+                .create(mvEntities4DataNegotiationCaptor.getValue())
+                .assertNext(mvEntities -> assertThat(mvEntities)
+                        .extracting(MVEntity4DataNegotiation::id)
+                        .isNotEmpty()
+                        .doesNotContain(missingId))
                 .verifyComplete();
     }
 }
