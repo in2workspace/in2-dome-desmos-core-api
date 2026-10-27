@@ -328,6 +328,23 @@ class P2PDataSyncJobTests {
     }
 
     @Test
+    void itShouldAnswerADiscoveryThatContainsEntitiesWithoutType() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        MVEntity4DataNegotiation withoutType = new MVEntity4DataNegotiation("urn:ngsi-ld:unknown:1", null, null,
+                null, null, null, null, null, null);
+        when(brokerPublisherService.findAllIdTypeAndAttributesByType(eq(processId), anyString(), eq("lastUpdate"),
+                eq("version"), eq("lifecycleStatus"), eq("validFor"), eq(BrokerEntityWithIdTypeLastUpdateAndVersion.class)))
+                .thenReturn(Flux.empty());
+        when(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any())).thenReturn(Flux.empty());
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class))).thenReturn(Flux.empty());
+
+        StepVerifier
+                .create(p2PDataSyncJob.dataDiscovery(processId, Mono.just("https://example.org"),
+                        Flux.just(withoutType, MVEntity4DataNegotiationMother.sample3())))
+                .verifyComplete();
+    }
+
+    @Test
     void itShouldReturnInternalEntitiesWhenDiscovery() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         Flux<MVEntity4DataNegotiation> internalEntities = Flux.concat(
                 MVEntity4DataNegotiationMother.list3And4(),

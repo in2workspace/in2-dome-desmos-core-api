@@ -233,7 +233,8 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                     .collectList()
                                     .flatMapMany(localMvEntities4DataNegotiation -> {
                                         Flux<MVEntity4DataNegotiation> externalFilteredFlux = cachedExternalFlux
-                                                .filter(mv -> mv.type().equals(entityType));
+                                                // A remote entity without type matches no type instead of failing the discovery
+                                                .filter(mv -> entityType.equals(mv.type()));
 
                                         return externalFilteredFlux
                                                 .collectList()
