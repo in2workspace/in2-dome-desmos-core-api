@@ -27,6 +27,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -124,6 +125,54 @@ class ScorpioAdapterTests {
 
         assertEquals(Optional.of(brokerSubscription), found);
         assertEquals(Optional.empty(), notFound);
+    }
+
+    @Test
+    void createSubscriptionShouldDeleteDuplicatedSubscriptionsAndIgnoreOthersWithoutEndpoint() throws Exception {
+        BrokerSubscription withoutNotification = BrokerSubscription.builder()
+                .id("urn:subscription:other-client")
+                .type("Subscription")
+                .entities(List.of(BrokerSubscription.Entity.builder().type("ProductOffering").build()))
+                .build();
+        BrokerSubscription duplicate = BrokerSubscription.builder()
+                .id("urn:subscription:duplicate")
+                .type(brokerSubscription.type())
+                .entities(brokerSubscription.entities())
+                .notification(brokerSubscription.notification())
+                .build();
+        String subscriptionsJson = new ObjectMapper().writeValueAsString(List.of(withoutNotification, brokerSubscription, duplicate));
+        List<String> requests = new CopyOnWriteArrayList<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/ngsi-ld/v1/subscriptions", exchange -> {
+            requests.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
+            if ("GET".equals(exchange.getRequestMethod())) {
+                byte[] responseBody = subscriptionsJson.getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                exchange.sendResponseHeaders(200, responseBody.length);
+                try (OutputStream body = exchange.getResponseBody()) {
+                    body.write(responseBody);
+                }
+            } else {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+            }
+        });
+        server.start();
+
+        try {
+            when(brokerConfig.getSubscriptionsPath()).thenReturn("/ngsi-ld/v1/subscriptions");
+            ReflectionTestUtils.setField(scorpioAdapter, "webClient", WebClient.builder()
+                    .baseUrl("http://localhost:" + server.getAddress().getPort())
+                    .build());
+
+            StepVerifier.create(scorpioAdapter.createSubscription("processId", brokerSubscription))
+                    .verifyComplete();
+
+            assertEquals(List.of("GET /ngsi-ld/v1/subscriptions", "DELETE /ngsi-ld/v1/subscriptions/urn:subscription:duplicate"),
+                    requests);
+        } finally {
+            server.stop(0);
+        }
     }
 
     @Test
