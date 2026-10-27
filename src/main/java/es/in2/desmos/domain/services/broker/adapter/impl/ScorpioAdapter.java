@@ -310,7 +310,10 @@ public class ScorpioAdapter implements BrokerAdapterService {
     private Optional<BrokerSubscription> checkIfSubscriptionExists(BrokerSubscription brokerSubscription, List<BrokerSubscription> subscriptionList) {
         log.debug("Broker Subscription: {}", brokerSubscription);
         log.debug("Broker Subscription List: {}", subscriptionList);
-        return subscriptionList.stream().findAny().filter(subscriptionItem -> checkIfBothSubscriptionsHaveTheSameEndpointAttribute(subscriptionItem, brokerSubscription));
+        // Searches the whole list: the broker may also hold subscriptions of other clients, in any order
+        return subscriptionList.stream()
+                .filter(subscriptionItem -> checkIfBothSubscriptionsHaveTheSameEndpointAttribute(subscriptionItem, brokerSubscription))
+                .findFirst();
     }
 
     private boolean checkIfBothSubscriptionsHaveTheSameEndpointAttribute(BrokerSubscription subscription1, BrokerSubscription subscription2) {

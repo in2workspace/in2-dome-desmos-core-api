@@ -26,6 +26,7 @@ import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -99,6 +100,31 @@ class ScorpioAdapterTests {
 
     @InjectMocks
     private ScorpioAdapter scorpioAdapter;
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void checkIfSubscriptionExistsShouldFindTheSubscriptionAnywhereInTheList() throws Exception {
+        BrokerSubscription otherClientSubscription = BrokerSubscription.builder()
+                .id("urn:subscription:other-client")
+                .type("Subscription")
+                .entities(List.of(BrokerSubscription.Entity.builder().type("ProductOffering").build()))
+                .notification(BrokerSubscription.SubscriptionNotification.builder()
+                        .subscriptionEndpoint(BrokerSubscription.SubscriptionNotification.SubscriptionEndpoint.builder()
+                                .uri("http://other-client:8080/notifications")
+                                .build())
+                        .build())
+                .build();
+        Method method = ScorpioAdapter.class.getDeclaredMethod("checkIfSubscriptionExists", BrokerSubscription.class, List.class);
+        method.setAccessible(true);
+
+        Optional<BrokerSubscription> found = (Optional<BrokerSubscription>) method.invoke(scorpioAdapter, brokerSubscription,
+                List.of(otherClientSubscription, brokerSubscription));
+        Optional<BrokerSubscription> notFound = (Optional<BrokerSubscription>) method.invoke(scorpioAdapter, brokerSubscription,
+                List.of(otherClientSubscription));
+
+        assertEquals(Optional.of(brokerSubscription), found);
+        assertEquals(Optional.empty(), notFound);
+    }
 
     @Test
     void testUpdateSubscription() throws Exception {
