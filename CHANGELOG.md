@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Released]: v2.0.25
 - Fix P2P synchronization failing when the remote node does not return every requested entity
 
+## [Released]: v2.0.24
+- Fix the audit lookup that took entities replicated from other nodes for local changes and republished them
+
 ## [Released]: v2.0.23
 - Fix duplicate Scorpio subscriptions
 
