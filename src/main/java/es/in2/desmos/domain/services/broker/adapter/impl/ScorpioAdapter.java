@@ -150,13 +150,15 @@ public class ScorpioAdapter implements BrokerAdapterService {
                             // endpoint that you are trying to create.
                             BrokerSubscription subscriptionItem = subscriptionItemFound.get();
                             log.debug("ProcessId: {}, Subscription Entity Found: {}", processId, subscriptionItem);
+                            Mono<Void> duplicatesDeleted = deleteDuplicatedSubscriptions(processId, brokerSubscription,
+                                    subscriptionList, subscriptionItem);
 
                             log.debug("ProcessId: {}, Subscription already exists. Checking if it needs to be updated.", processId);
                             if (checkIfBothSubscriptionsHaveTheSameEntityList(subscriptionItem.entities(), brokerSubscription.entities())) {
                                 // Use Case: The subscription you are trying to create already exists in the list
                                 // and the entities are the same.
                                 log.info("ProcessId: {}, Does not need to be created.", processId);
-                                return Mono.empty();
+                                return duplicatesDeleted;
                             } else {
                                 // Use Case: The subscription you are trying to create already exists in the list
                                 // but the endpoint and the entities are different.
@@ -167,9 +169,9 @@ public class ScorpioAdapter implements BrokerAdapterService {
                                         .notification(brokerSubscription.notification())
                                         .build();
                                 log.info("ProcessId: {}, Updating subscription...", processId);
-                                return updateSubscription(updatedSubscription)
+                                return duplicatesDeleted.then(updateSubscription(updatedSubscription)
                                         .doOnSuccess(result -> log.debug(SUBSCRIPTION_UPDATED_MESSAGE, processId))
-                                        .doOnError(e -> log.error(ERROR_UPDATING_SUBSCRIPTION_MESSAGE, processId, e.getMessage()));
+                                        .doOnError(e -> log.error(ERROR_UPDATING_SUBSCRIPTION_MESSAGE, processId, e.getMessage())));
                             }
                         } else {
                             log.debug("ProcessId: {}, Subscription Entity Not Found", processId);
@@ -310,20 +312,60 @@ public class ScorpioAdapter implements BrokerAdapterService {
     private Optional<BrokerSubscription> checkIfSubscriptionExists(BrokerSubscription brokerSubscription, List<BrokerSubscription> subscriptionList) {
         log.debug("Broker Subscription: {}", brokerSubscription);
         log.debug("Broker Subscription List: {}", subscriptionList);
-        return subscriptionList.stream().findAny().filter(subscriptionItem -> checkIfBothSubscriptionsHaveTheSameEndpointAttribute(subscriptionItem, brokerSubscription));
+        // Searches the whole list: the broker may also hold subscriptions of other clients, in any order
+        return subscriptionList.stream()
+                .filter(subscriptionItem -> checkIfBothSubscriptionsHaveTheSameEndpointAttribute(subscriptionItem, brokerSubscription))
+                .findFirst();
+    }
+
+    /*
+     * Before checkIfSubscriptionExists searched the whole list, a node whose subscription was not the first one
+     * created a new one on every start. The extra ones notify the same endpoint, so they are this node's, and every
+     * local change arrived once per subscription. They are deleted, keeping the one that is updated; a failure to
+     * delete one is only logged, as it does not stop the node from working.
+     */
+    private Mono<Void> deleteDuplicatedSubscriptions(String processId, BrokerSubscription brokerSubscription,
+                                                     List<BrokerSubscription> subscriptionList, BrokerSubscription kept) {
+        List<BrokerSubscription> duplicates = subscriptionList.stream()
+                .filter(subscriptionItem -> subscriptionItem != kept)
+                .filter(subscriptionItem -> checkIfBothSubscriptionsHaveTheSameEndpointAttribute(subscriptionItem, brokerSubscription))
+                .toList();
+        if (duplicates.isEmpty()) {
+            return Mono.empty();
+        }
+        log.warn("ProcessId: {}, Deleting {} duplicated subscription(s) to {}: {}", processId, duplicates.size(),
+                endpointUri(brokerSubscription), duplicates.stream().map(BrokerSubscription::id).toList());
+        return Flux.fromIterable(duplicates)
+                .concatMap(duplicate -> deleteSubscription(processId, duplicate.id())
+                        .onErrorResume(error -> {
+                            log.warn("ProcessId: {}, Could not delete duplicated subscription {}: {}", processId,
+                                    duplicate.id(), error.getMessage());
+                            return Mono.empty();
+                        }))
+                .then();
     }
 
     private boolean checkIfBothSubscriptionsHaveTheSameEndpointAttribute(BrokerSubscription subscription1, BrokerSubscription subscription2) {
-        log.debug("Subscription 1 URI: {}", subscription1.notification().subscriptionEndpoint().uri());
-        log.debug("Subscription 2 URI: {}", subscription2.notification().subscriptionEndpoint().uri());
-        return Objects.equals(subscription1.notification().subscriptionEndpoint().uri(),
-                subscription2.notification().subscriptionEndpoint().uri());
+        // Subscriptions of other clients may come without notification or endpoint
+        String uri1 = endpointUri(subscription1);
+        String uri2 = endpointUri(subscription2);
+        log.debug("Subscription 1 URI: {}", uri1);
+        log.debug("Subscription 2 URI: {}", uri2);
+        return uri1 != null && uri1.equals(uri2);
+    }
+
+    private static String endpointUri(BrokerSubscription subscription) {
+        if (subscription.notification() == null || subscription.notification().subscriptionEndpoint() == null) {
+            return null;
+        }
+        return subscription.notification().subscriptionEndpoint().uri();
     }
 
     private boolean checkIfBothSubscriptionsHaveTheSameEntityList(List<BrokerSubscription.Entity> entityList1, List<BrokerSubscription.Entity> entityList2) {
         log.debug("Subscription 1 Entities: {}", entityList1);
         log.debug("Subscription 2 Entities: {}", entityList2);
-        return new HashSet<>(entityList1).equals(new HashSet<>(entityList2));
+        return new HashSet<>(Objects.requireNonNullElse(entityList1, List.of()))
+                .equals(new HashSet<>(Objects.requireNonNullElse(entityList2, List.of())));
     }
 
     private MediaType getContentTypeAndAcceptMediaType(String requestBody) {
