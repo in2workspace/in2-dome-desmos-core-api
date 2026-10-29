@@ -396,4 +396,42 @@ class DataTransferJobTest {
                 })
                 .verifyComplete();
     }
+
+    @Test
+    void itShouldSkipRequestedEntitiesTheRemoteDoesNotReturnAndSyncTheRest() throws Exception {
+        String processId = "0";
+        List<String> response = new ArrayList<>(EntitySyncResponseMother.getSampleWithCategoryBase64());
+        String missingId = new ObjectMapper().readTree(Base64.getDecoder().decode(response.remove(0))).get("id").asText();
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(Flux.fromIterable(response));
+        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)))
+                .verifyComplete();
+
+        verify(auditRecordService, atLeastOnce()).buildAndSaveAuditRecordFromDataSync(
+                eq(processId), any(), mvAuditServiceCaptor.capture(), eq(AuditRecordStatus.RECEIVED));
+        assertThat(mvAuditServiceCaptor.getAllValues())
+                .extracting(MVAuditServiceEntity4DataNegotiation::id)
+                .isNotEmpty()
+                .doesNotContain(missingId);
+
+        verify(dataPublicationJob).verifyData(eq(processId), any(), idByEntityMonoCaptor.capture(),
+                mvEntities4DataNegotiationCaptor.capture(), any());
+        StepVerifier
+                .create(idByEntityMonoCaptor.getValue())
+                .assertNext(entitiesById -> assertThat(entitiesById)
+                        .isNotEmpty()
+                        .doesNotContainKey(new Id(missingId)))
+                .verifyComplete();
+        StepVerifier
+                .create(mvEntities4DataNegotiationCaptor.getValue())
+                .assertNext(mvEntities -> assertThat(mvEntities)
+                        .extracting(MVEntity4DataNegotiation::id)
+                        .isNotEmpty()
+                        .doesNotContain(missingId))
+                .verifyComplete();
+    }
 }

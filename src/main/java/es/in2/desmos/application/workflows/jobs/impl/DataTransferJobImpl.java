@@ -22,6 +22,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -87,14 +88,23 @@ public class DataTransferJobImpl implements DataTransferJob {
                                                             Mono.just(result.existingEntitiesToSync())
                                                     );
 
-                                                    return createReceivedAuditRecords(processId, issuer, mvEntities4DataNegotiation)
+                                                    // The remote may not return every requested entity (e.g. it was deleted or
+                                                    // changed after the discovery). Those are skipped: no RECEIVED audit record,
+                                                    // no integrity check, not stored; the next synchronization will retry them.
+                                                    // The received list is computed once here and is the only one passed on.
+                                                    Mono<List<MVEntity4DataNegotiation>> receivedMvEntities4DataNegotiation =
+                                                            mvEntities4DataNegotiation.map(mvEntities -> keepReceived(
+                                                                    processId, result.issuer(), mvEntities, entitiesById.keySet()))
+                                                                    .cache();
+
+                                                    return createReceivedAuditRecords(processId, issuer, receivedMvEntities4DataNegotiation)
                                                             .then(getInvalidIntegrityEntitiesIds(processId, entitiesByIdMono, entitiesHashAndHashlinkById))
                                                             .flatMap(invalidIntegrityEntitiesIds -> {
                                                                 Mono<List<Id>> invalidIntegrityEntitiesIdsMono = Mono.just(invalidIntegrityEntitiesIds);
                                                                 return filterEntitiesById(entitiesByIdMono, invalidIntegrityEntitiesIdsMono)
                                                                         .flatMap(filteredEntitiesById -> {
                                                                             Mono<Map<Id, Entity>> filteredEntitiesByIdMono = Mono.just(filteredEntitiesById);
-                                                                            return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, mvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
+                                                                            return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, receivedMvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
 
                                                                         });
                                                             });
@@ -105,6 +115,22 @@ public class DataTransferJobImpl implements DataTransferJob {
                 return Mono.empty();
             }
         });
+    }
+
+    private static List<MVEntity4DataNegotiation> keepReceived(String processId, String issuer,
+                                                               List<MVEntity4DataNegotiation> requested,
+                                                               Set<Id> receivedIds) {
+        List<String> missingIds = requested.stream()
+                .map(MVEntity4DataNegotiation::id)
+                .filter(id -> !receivedIds.contains(new Id(id)))
+                .toList();
+        if (!missingIds.isEmpty()) {
+            log.warn("ProcessID: {} - P2P replication skipped {} of {} requested entities not returned by {}: {}",
+                    processId, missingIds.size(), requested.size(), issuer, missingIds);
+        }
+        return requested.stream()
+                .filter(entity -> receivedIds.contains(new Id(entity.id())))
+                .toList();
     }
 
     private Mono<Void> createReceivedAuditRecords(String processId, Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> mvEntities4DataNegotiation) {
@@ -203,13 +229,15 @@ public class DataTransferJobImpl implements DataTransferJob {
     }
 
     private Mono<List<Id>> getInvalidIntegrityEntitiesIds(String processId, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<Map<Id, HashAndHashLink>> allEntitiesExistingValidationDataById) {
-        return allEntitiesExistingValidationDataById
+        // Only received entities are checked (the same set keepReceived keeps: the keys of entitiesById)
+        return entitiesByIdMono.flatMap(entitiesById -> allEntitiesExistingValidationDataById
                 .flatMapIterable(Map::entrySet)
+                .filter(entry -> entitiesById.containsKey(entry.getKey()))
                 .flatMap(entry -> {
                     Id id = entry.getKey();
                     HashAndHashLink hashAndHashLink = entry.getValue();
                     Mono<String> entityRcvdHash = Mono.just(hashAndHashLink.hash());
-                    Mono<String> entityMono = entitiesByIdMono.map(x -> x.get(id).value());
+                    Mono<String> entityMono = Mono.just(entitiesById.get(id).value());
                     return calculateHash(entityMono)
                             .flatMap(calculatedHash ->
                                     entityRcvdHash.flatMap(hashValue -> {
@@ -222,7 +250,7 @@ public class DataTransferJobImpl implements DataTransferJob {
                                         }
                                     }));
                 })
-                .collectList();
+                .collectList());
     }
 
     private Mono<String> calculateHash(Mono<String> retrievedBrokerEntityMono) {
