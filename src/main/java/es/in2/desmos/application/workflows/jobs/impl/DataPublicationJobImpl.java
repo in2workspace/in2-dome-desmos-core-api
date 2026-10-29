@@ -4,6 +4,7 @@ import es.in2.desmos.application.workflows.jobs.DataPublicationJob;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
+import es.in2.desmos.domain.utils.ExpectedFailures;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,15 +53,34 @@ public class DataPublicationJobImpl implements DataPublicationJob {
     // writes still in flight, and only the written entities are returned to be audited as published.
     private Mono<Map<Id, Entity>> createEntitiesToContextBroker(String processId, Mono<Map<Id, Entity>> entitiesByIdMono) {
         return entitiesByIdMono
-                .flatMapIterable(Map::entrySet)
-                .flatMap(entry -> brokerPublisherService.publishDataToBroker(processId, entry.getKey().id(), entry.getValue().value())
-                                .thenReturn(entry)
-                                .onErrorResume(e -> {
-                                    log.error("ProcessID: {} - Entity {} could not be written to the broker and will not be audited as published: {}", processId, entry.getKey().id(), e.getMessage());
-                                    log.debug("ProcessID: {} - Entity rejected by the broker: {}", processId, entry.getValue().value());
-                                    return Mono.empty();
-                                }),
-                        brokerConfig.getWriteConcurrency())
-                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
+                .flatMap(entitiesById -> Flux.fromIterable(entitiesById.entrySet())
+                        .flatMap(entry -> brokerPublisherService.publishDataToBroker(processId, entry.getKey().id(), entry.getValue().value())
+                                        .thenReturn(entry)
+                                        .onErrorResume(e -> {
+                                            logEntityNotWritten(processId, entry, e);
+                                            return Mono.empty();
+                                        }),
+                                brokerConfig.getWriteConcurrency())
+                        .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+                        .doOnNext(writtenEntitiesById -> logEntitiesNotWritten(processId, entitiesById, writtenEntitiesById)));
+    }
+
+    private void logEntityNotWritten(String processId, Map.Entry<Id, Entity> entry, Throwable error) {
+        if (ExpectedFailures.isExpected(error)) {
+            log.error("ProcessID: {} - Entity {} not written to the broker: {}", processId, entry.getKey().id(), ExpectedFailures.describe(error));
+        } else {
+            log.error("ProcessID: {} - Entity {} not written to the broker", processId, entry.getKey().id(), error);
+        }
+        log.debug("ProcessID: {} - Entity not written to the broker: {}", processId, entry.getValue().value());
+    }
+
+    private void logEntitiesNotWritten(String processId, Map<Id, Entity> entitiesById, Map<Id, Entity> writtenEntitiesById) {
+        if (writtenEntitiesById.size() < entitiesById.size()) {
+            List<String> notWrittenIds = entitiesById.keySet().stream()
+                    .filter(id -> !writtenEntitiesById.containsKey(id))
+                    .map(Id::id)
+                    .toList();
+            log.warn("ProcessID: {} - Wrote {} of {} received entities to the broker; not written: {}", processId, writtenEntitiesById.size(), entitiesById.size(), notWrittenIds);
+        }
     }
 }

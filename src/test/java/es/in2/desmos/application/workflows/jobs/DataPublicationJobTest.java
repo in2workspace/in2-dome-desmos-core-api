@@ -166,7 +166,7 @@ class DataPublicationJobTest {
         String productOffering2 = EntityMother.PRODUCT_OFFERING_2;
         String productOffering4 = EntityMother.PRODUCT_OFFERING_4;
         when(brokerPublisherService.publishDataToBroker(processId, MVEntity4DataNegotiationMother.sample2().id(), productOffering2))
-                .thenReturn(Mono.error(new BrokerRequestRejectedException("Duplicated datasetId or multiple entries with no datasetId found")));
+                .thenReturn(Mono.error(new BrokerRequestRejectedException("{}", 400, "Duplicated datasetId or multiple entries with no datasetId found")));
         when(brokerPublisherService.publishDataToBroker(processId, MVEntity4DataNegotiationMother.sample4().id(), productOffering4))
                 .thenReturn(Mono.empty());
 

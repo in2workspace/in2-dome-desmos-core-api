@@ -241,6 +241,48 @@ class ScorpioAdapterTests {
     }
 
     @Test
+    void postEntityRejectionCarriesStatusAndProblemDetail() throws Exception {
+        // Arrange
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/ngsi-ld/v1/entities", exchange -> {
+            byte[] responseBody = ("{\"type\":\"https://uri.etsi.org/ngsi-ld/errors/BadRequestData\",\"title\":\"Bad Request Data.\","
+                    + "\"detail\":\"Duplicated datasetId or multiple entries with no datasetId found\",\"status\":400}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(400, responseBody.length);
+            try (OutputStream body = exchange.getResponseBody()) {
+                body.write(responseBody);
+            }
+        });
+        server.start();
+
+        try {
+            String requestBody = "{\"id\":\"urn:ngsi-ld:ProductOffering:1\",\"type\":\"ProductOffering\"}";
+            when(objectMapper.readTree(anyString())).thenAnswer(invocation -> new ObjectMapper().readTree((String) invocation.getArgument(0)));
+            when(brokerConfig.getEntitiesPath()).thenReturn("/ngsi-ld/v1/entities");
+
+            WebClient realWebClient = WebClient.builder()
+                    .baseUrl("http://localhost:" + server.getAddress().getPort())
+                    .build();
+            ReflectionTestUtils.setField(scorpioAdapter, "webClient", realWebClient);
+
+            // Act
+            Mono<Void> result = scorpioAdapter.postEntity("processId", requestBody);
+
+            // Assert
+            StepVerifier.create(result)
+                    .expectErrorSatisfies(throwable -> {
+                        BrokerRequestRejectedException rejection = assertInstanceOf(BrokerRequestRejectedException.class, throwable);
+                        assertEquals(400, rejection.getStatus());
+                        assertEquals("Duplicated datasetId or multiple entries with no datasetId found", rejection.getDetail());
+                        assertTrue(rejection.getMessage().contains("BadRequestData"));
+                    })
+                    .verify();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void findAllIdTypeAndAttributesByTypePaginatesAndDeduplicatesAcrossPages() throws Exception {
         // Arrange: total=3, pageSize=2. Page 2 (offset=2) re-returns entity "B" from page 1 (offset=0),
         // simulating the kind of overlap that limit/offset without a stable order can produce.
