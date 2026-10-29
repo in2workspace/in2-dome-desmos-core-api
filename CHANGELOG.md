@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Released]: v2.0.26
+- Fix out of memory errors on the node that receives entities in a P2P synchronization: each entity of the response is now parsed as it arrives instead of building the whole response as a single string
+
 ## [Released]: v2.0.25
 - Fix P2P synchronization failing when the remote node does not return every requested entity
 - Send one P2P discovery per genesis node instead of one per entity type
