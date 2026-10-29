@@ -71,7 +71,8 @@ public class DataPublicationJobImpl implements DataPublicationJob {
         } else {
             log.error("ProcessID: {} - Entity {} not written to the broker", processId, entry.getKey().id(), error);
         }
-        log.debug("ProcessID: {} - Entity not written to the broker: {}", processId, entry.getValue().value());
+        // TODO debug -> info
+        log.info("ProcessID: {} - Entity not written to the broker: {}", processId, entry.getValue().value());
     }
 
     private void logEntitiesNotWritten(String processId, Map<Id, Entity> entitiesById, Map<Id, Entity> writtenEntitiesById) {
