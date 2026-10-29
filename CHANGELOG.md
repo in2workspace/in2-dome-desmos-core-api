@@ -6,6 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Released]: v2.0.26
 - Fix out of memory errors on the node that receives entities in a P2P synchronization: each entity of the response is now parsed as it arrives instead of building the whole response as a single string
+- Fix P2P synchronization losing every entity of a batch when the broker rejects one of them: each entity is now written on its own, the rejected one is logged with its id, and only the written entities are audited as published
+- Limit the number of entities written to the broker at the same time during a P2P synchronization (`broker.writeConcurrency`, 8 by default)
 
 ## [Released]: v2.0.25
 - Fix P2P synchronization failing when the remote node does not return every requested entity

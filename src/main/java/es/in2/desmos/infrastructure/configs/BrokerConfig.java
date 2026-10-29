@@ -50,4 +50,8 @@ public class BrokerConfig {
         return brokerProperties.pageSize();
     }
 
+    public int getWriteConcurrency() {
+        return brokerProperties.writeConcurrency();
+    }
+
 }

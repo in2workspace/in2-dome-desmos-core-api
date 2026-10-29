@@ -4,6 +4,7 @@ import es.in2.desmos.application.workflows.jobs.DataPublicationJob;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
+import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,13 +20,14 @@ import java.util.Map;
 public class DataPublicationJobImpl implements DataPublicationJob {
     private final AuditRecordService auditRecordService;
     private final BrokerPublisherService brokerPublisherService;
+    private final BrokerConfig brokerConfig;
 
     public Mono<Void> verifyData(String processId, Mono<String> issuer, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<List<MVEntity4DataNegotiation>> allMVEntity4DataNegotiation, Mono<Map<Id, HashAndHashLink>> existingEntitiesOriginalValidationDataById) {
         log.info("ProcessID: {} - Starting Data Verification Job", processId);
 
         return buildAndSaveAuditRecordFromDataSync(processId, issuer, entitiesByIdMono, allMVEntity4DataNegotiation, AuditRecordStatus.RETRIEVED)
                 .then(createEntitiesToContextBroker(processId, entitiesByIdMono))
-                .then(buildAndSaveAuditRecordFromDataSync(processId, issuer, entitiesByIdMono, allMVEntity4DataNegotiation, AuditRecordStatus.PUBLISHED));
+                .flatMap(publishedEntitiesById -> buildAndSaveAuditRecordFromDataSync(processId, issuer, Mono.just(publishedEntitiesById), allMVEntity4DataNegotiation, AuditRecordStatus.PUBLISHED));
     }
 
     private Mono<Void> buildAndSaveAuditRecordFromDataSync(String processId, Mono<String> issuerMono, Mono<Map<Id, Entity>> rcvdEntitiesByIdMono, Mono<List<MVEntity4DataNegotiation>> mvEntity4DataNegotiationListMono, AuditRecordStatus auditRecordStatus) {
@@ -46,11 +48,19 @@ public class DataPublicationJobImpl implements DataPublicationJob {
                 .then();
     }
 
-    private Mono<Void> createEntitiesToContextBroker(String processId, Mono<Map<Id, Entity>> entitiesByIdMono) {
+    // Each entity is written on its own: a broker rejection only drops that entity instead of cancelling the
+    // writes still in flight, and only the written entities are returned to be audited as published.
+    private Mono<Map<Id, Entity>> createEntitiesToContextBroker(String processId, Mono<Map<Id, Entity>> entitiesByIdMono) {
         return entitiesByIdMono
                 .flatMapIterable(Map::entrySet)
-                .flatMap(x -> brokerPublisherService.publishDataToBroker(processId, x.getKey().id(), x.getValue().value()))
-                .collectList()
-                .then();
+                .flatMap(entry -> brokerPublisherService.publishDataToBroker(processId, entry.getKey().id(), entry.getValue().value())
+                                .thenReturn(entry)
+                                .onErrorResume(e -> {
+                                    log.error("ProcessID: {} - Entity {} could not be written to the broker and will not be audited as published: {}", processId, entry.getKey().id(), e.getMessage());
+                                    log.debug("ProcessID: {} - Entity rejected by the broker: {}", processId, entry.getValue().value());
+                                    return Mono.empty();
+                                }),
+                        brokerConfig.getWriteConcurrency())
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
 }
