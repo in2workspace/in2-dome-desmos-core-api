@@ -134,14 +134,4 @@ class BrokerConfigTests {
         assertEquals(500, actualPageSize);
     }
 
-    @Test
-    void getWriteConcurrencyReturnsCorrectValue() {
-        // Arrange
-        when(brokerProperties.writeConcurrency()).thenReturn(4);
-        // Act
-        int actualWriteConcurrency = brokerConfig.getWriteConcurrency();
-        // Assert
-        assertEquals(4, actualWriteConcurrency);
-    }
-
 }

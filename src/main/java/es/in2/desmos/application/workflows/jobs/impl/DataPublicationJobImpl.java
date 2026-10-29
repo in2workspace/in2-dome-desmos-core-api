@@ -5,7 +5,6 @@ import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.utils.ExpectedFailures;
-import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,9 +18,11 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class DataPublicationJobImpl implements DataPublicationJob {
+    // Writing every received entity at once exhausts Scorpio's database connection pool on large synchronizations
+    private static final int BROKER_WRITE_CONCURRENCY = 8;
+
     private final AuditRecordService auditRecordService;
     private final BrokerPublisherService brokerPublisherService;
-    private final BrokerConfig brokerConfig;
 
     public Mono<Void> verifyData(String processId, Mono<String> issuer, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<List<MVEntity4DataNegotiation>> allMVEntity4DataNegotiation, Mono<Map<Id, HashAndHashLink>> existingEntitiesOriginalValidationDataById) {
         log.info("ProcessID: {} - Starting Data Verification Job", processId);
@@ -60,7 +61,7 @@ public class DataPublicationJobImpl implements DataPublicationJob {
                                             logEntityNotWritten(processId, entry, e);
                                             return Mono.empty();
                                         }),
-                                brokerConfig.getWriteConcurrency())
+                                BROKER_WRITE_CONCURRENCY)
                         .collectMap(Map.Entry::getKey, Map.Entry::getValue)
                         .doOnNext(writtenEntitiesById -> logEntitiesNotWritten(processId, entitiesById, writtenEntitiesById)));
     }

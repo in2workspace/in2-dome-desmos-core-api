@@ -6,13 +6,11 @@ import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
-import es.in2.desmos.infrastructure.configs.BrokerConfig;
 import es.in2.desmos.objectmothers.DataNegotiationResultMother;
 import es.in2.desmos.objectmothers.EntityMother;
 import es.in2.desmos.objectmothers.MVAuditServiceEntity4DataNegotiationMother;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
 import org.json.JSONException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -43,16 +41,10 @@ class DataPublicationJobTest {
     private AuditRecordService auditRecordService;
     @Mock
     private BrokerPublisherService brokerPublisherService;
-    @Mock
-    private BrokerConfig brokerConfig;
 
     @Captor
     private ArgumentCaptor<MVAuditServiceEntity4DataNegotiation> mvAuditServiceEntity4DataNegotiationArgumentCaptor;
 
-    @BeforeEach
-    void setUp() {
-        lenient().when(brokerConfig.getWriteConcurrency()).thenReturn(8);
-    }
 
     @Test
     void itShouldBuildAnSaveAuditRecord() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
@@ -195,11 +187,8 @@ class DataPublicationJobTest {
     }
 
     @Test
-    void itShouldNotWriteMoreEntitiesAtTheSameTimeThanTheConfiguredConcurrency() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
+    void itShouldNotWriteMoreThanEightEntitiesAtTheSameTime() {
         String processId = "0";
-
-        when(brokerConfig.getWriteConcurrency()).thenReturn(1);
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
 
         AtomicInteger writesInFlight = new AtomicInteger();
         AtomicInteger maxWritesInFlight = new AtomicInteger();
@@ -210,23 +199,18 @@ class DataPublicationJobTest {
                 .doOnTerminate(writesInFlight::decrementAndGet)
                 .then());
 
-        Mono<String> issuer = Mono.just("http://example.org");
-
         Map<Id, Entity> entitiesById = new HashMap<>();
-        entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new Entity(EntityMother.PRODUCT_OFFERING_2));
-        entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample4().id()), new Entity(EntityMother.PRODUCT_OFFERING_4));
+        for (int i = 0; i < 20; i++) {
+            entitiesById.put(new Id("urn:ngsi-ld:product-offering:" + i), new Entity("{\"id\":\"urn:ngsi-ld:product-offering:" + i + "\"}"));
+        }
 
-        List<MVEntity4DataNegotiation> allMVEntity4DataNegotiation = new ArrayList<>();
-        allMVEntity4DataNegotiation.add(MVEntity4DataNegotiationMother.sample2());
-        allMVEntity4DataNegotiation.add(MVEntity4DataNegotiationMother.sample4());
-
-        Mono<Void> result = dataVerificationJob.verifyData(processId, issuer, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(new HashMap<>()));
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just("http://example.org"), Mono.just(entitiesById), Mono.just(List.of()), Mono.just(new HashMap<>()));
 
         StepVerifier.
                 create(result)
                 .verifyComplete();
 
-        verify(brokerPublisherService, times(2)).publishDataToBroker(any(), any(), any());
-        assertThat(maxWritesInFlight.get()).isEqualTo(1);
+        verify(brokerPublisherService, times(20)).publishDataToBroker(any(), any(), any());
+        assertThat(maxWritesInFlight.get()).isEqualTo(8);
     }
 }
