@@ -2,6 +2,7 @@ package es.in2.desmos.domain.services.policies;
 
 import es.in2.desmos.domain.models.Id;
 import es.in2.desmos.domain.models.MVEntityReplicationPoliciesInfo;
+import es.in2.desmos.domain.models.ReplicationDecision;
 import es.in2.desmos.domain.services.policies.impl.ReplicationPoliciesServiceImpl;
 import es.in2.desmos.objectmothers.MVEntityReplicationPoliciesInfoMother;
 import org.junit.jupiter.api.Test;
@@ -142,6 +143,30 @@ class ReplicationPoliciesServiceTest {
 
         StepVerifier.create(result)
                 .expectNextSequence(expectedIds)
+                .verifyComplete();
+    }
+
+    @Test
+    void itShouldExplainWhichPolicyRejectedTheEntity() {
+        StepVerifier.create(replicationPoliciesService.evaluate("process-123",
+                        MVEntityReplicationPoliciesInfoMother.replicationInvalidLifecycleStatus()))
+                .assertNext(decision -> {
+                    assertThat(decision.replicable()).isFalse();
+                    assertThat(decision.reason()).startsWith("policy GP_1: lifecycleStatus=");
+                })
+                .verifyComplete();
+
+        StepVerifier.create(replicationPoliciesService.evaluate("process-123",
+                        MVEntityReplicationPoliciesInfoMother.replicationInvalidPastEndDateTime()))
+                .assertNext(decision -> {
+                    assertThat(decision.replicable()).isFalse();
+                    assertThat(decision.reason()).startsWith("policy GP_2: validFor start=");
+                })
+                .verifyComplete();
+
+        StepVerifier.create(replicationPoliciesService.evaluate("process-123",
+                        MVEntityReplicationPoliciesInfoMother.replicationValidFields()))
+                .expectNext(ReplicationDecision.REPLICABLE)
                 .verifyComplete();
     }
 }
