@@ -2,9 +2,11 @@ package es.in2.desmos.application.workflows.jobs;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.application.workflows.jobs.impl.DataTransferJobImpl;
+import es.in2.desmos.domain.exceptions.InvalidSyncResponseException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.sync.EntitySyncWebClient;
+import es.in2.desmos.domain.utils.ApplicationUtils;
 import es.in2.desmos.objectmothers.*;
 import org.json.JSONException;
 import org.junit.jupiter.api.Test;
@@ -433,5 +435,54 @@ class DataTransferJobTest {
                         .isNotEmpty()
                         .doesNotContain(missingId))
                 .verifyComplete();
+    }
+
+    @Test
+    void itShouldStoreEachReceivedEntityAsCompactJson() throws Exception {
+        String processId = "0";
+        String id = "urn:ngsi-ld:product-offering:1";
+        String receivedEntity = """
+                {
+                  "id" : "%s",
+                  "type" : "product-offering",
+                  "name" : {"type": "Property", "value": "Café ñ"},
+                  "price" : 1.50
+                }""".formatted(id);
+        String expectedEntity = "{\"id\":\"%s\",\"type\":\"product-offering\",\"name\":{\"type\":\"Property\",\"value\":\"Café ñ\"},\"price\":1.5}".formatted(id);
+        String hash = ApplicationUtils.calculateSHA256(expectedEntity);
+        MVEntity4DataNegotiation mvEntity = new MVEntity4DataNegotiation(id, "product-offering", null,
+                "2026-01-01T00:00:00Z", "Launched", null, null, hash, hash);
+        DataNegotiationResult dataNegotiationResult = new DataNegotiationResult("https://issuer.org", List.of(mvEntity), List.of());
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any()))
+                .thenReturn(Flux.just(Base64.getEncoder().encodeToString(receivedEntity.getBytes())));
+        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)))
+                .verifyComplete();
+
+        verify(dataPublicationJob).verifyData(eq(processId), any(), idByEntityMonoCaptor.capture(), any(), any());
+        StepVerifier
+                .create(idByEntityMonoCaptor.getValue())
+                .assertNext(entitiesById -> assertThat(entitiesById)
+                        .containsExactly(Map.entry(new Id(id), new Entity(expectedEntity))))
+                .verifyComplete();
+    }
+
+    @Test
+    void itShouldFailWhenAReceivedEntityHasNoId() throws Exception {
+        String processId = "0";
+        List<String> response = new ArrayList<>(EntitySyncResponseMother.getSampleBase64());
+        response.add(Base64.getEncoder().encodeToString("{\"type\":\"product-offering\"}".getBytes()));
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(Flux.fromIterable(response));
+        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)))
+                .expectError(InvalidSyncResponseException.class)
+                .verify();
+
+        verifyNoInteractions(dataPublicationJob, auditRecordService);
     }
 }
