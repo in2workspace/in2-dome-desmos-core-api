@@ -2,6 +2,7 @@ package es.in2.desmos.application.workflows.jobs;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import es.in2.desmos.application.workflows.jobs.impl.DataNegotiationJobImpl;
+import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
 import es.in2.desmos.domain.models.DataNegotiationEvent;
 import es.in2.desmos.domain.models.DataNegotiationResult;
 import es.in2.desmos.domain.models.Issuer;
@@ -330,6 +331,21 @@ class DataNegotiationJobTests {
         StepVerifier
                 .create(dataNegotiationResultCaptured)
                 .expectNext(expectedDataNegotiationResult)
+                .verifyComplete();
+    }
+
+    @Test
+    void itShouldCompleteWhenTheSynchronizationTriggeredByAnEventFails() throws Exception {
+        Mono<String> issuerMono = Mono.just("http://example.org");
+        Mono<List<MVEntity4DataNegotiation>> externalEntityIdsMono = MVEntity4DataNegotiationMother.list1And2().collectList();
+        Mono<List<MVEntity4DataNegotiation>> localEntityIdsMono = Mono.just(List.of());
+        DataNegotiationEvent dataNegotiationEvent = new DataNegotiationEvent("0", issuerMono, externalEntityIdsMono, localEntityIdsMono);
+
+        when(replicationPoliciesService.isMVEntityReplicable(any(), any())).thenReturn(Mono.just(true));
+        when(dataTransferJob.syncData(any(), any())).thenReturn(Mono.error(new BrokerRequestRejectedException("{}", 400, "Duplicated datasetId")));
+
+        StepVerifier
+                .create(dataNegotiationJob.negotiateDataSyncFromEvent(dataNegotiationEvent))
                 .verifyComplete();
     }
 }

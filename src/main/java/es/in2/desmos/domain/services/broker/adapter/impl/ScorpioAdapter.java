@@ -400,13 +400,26 @@ public class ScorpioAdapter implements BrokerAdapterService {
         }
     }
 
+    // Logged at debug only: the caller knows which entity was rejected and logs the error with it.
     private Mono<Throwable> rejectedRequestError(String processId, ClientResponse clientResponse) {
         return clientResponse.bodyToMono(String.class)
                 .defaultIfEmpty("")
                 .map(body -> {
-                    log.error(BROKER_REQUEST_REJECTED_MESSAGE, processId, clientResponse.statusCode(), body);
-                    return new BrokerRequestRejectedException(body);
+                    log.debug(BROKER_REQUEST_REJECTED_MESSAGE, processId, clientResponse.statusCode(), body);
+                    return new BrokerRequestRejectedException(body, clientResponse.statusCode().value(), problemDetail(body));
                 });
+    }
+
+    private String problemDetail(String body) {
+        try {
+            JsonNode problem = objectMapper.readTree(body);
+            if (problem != null && problem.hasNonNull("detail")) {
+                return problem.get("detail").asText();
+            }
+        } catch (JsonProcessingException e) {
+            // Not a problem details body: the whole body is the detail
+        }
+        return body;
     }
 
     private Retry nonRejectedRequestRetry() {
