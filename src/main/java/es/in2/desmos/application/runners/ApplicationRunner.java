@@ -93,26 +93,30 @@ public class ApplicationRunner {
     // by the client and not by this timeout. Downloading the trusted list (shared WebClient, 300s, retried 3 times)
     // can still be cut here; it is idempotent and retried, and the error names the step.
     private static final Duration STARTUP_STEP_ATTEMPT_TIMEOUT = Duration.ofSeconds(200);
+    // Startup step names, used in the retry, timeout and failure logs
+    private static final String BROKER_SUBSCRIPTION_STEP = "Broker Subscription";
+    private static final String BLOCKCHAIN_SUBSCRIPTION_STEP = "Blockchain Subscription";
+    private static final String TRUSTED_LIST_STEP = "Access Node Trusted List Getting";
 
     @EventListener(ApplicationReadyEvent.class)
     public Mono<Void> onApplicationReady() {
         String processId = UUID.randomUUID().toString();
         return Mono.defer(() -> setBrokerSubscription(processId))
-                .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Broker Subscription"))
-                .retryWhen(startupStepRetry(processId, "Broker Subscription", ApplicationRunner::isSubscriptionStepRetryable))
+                .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut(BROKER_SUBSCRIPTION_STEP))
+                .retryWhen(startupStepRetry(processId, BROKER_SUBSCRIPTION_STEP, ApplicationRunner::isSubscriptionStepRetryable))
                 .doFirst(() -> {
                     log.info("{} ProcessID: {} - Starting configuration initialization", INIT, processId);
                     logNodeConfiguration(processId);
                 })
-                .doOnError(error -> finishApplication("Broker Subscription", error))
+                .doOnError(error -> finishApplication(BROKER_SUBSCRIPTION_STEP, error))
                 .then(Mono.defer(() -> setBlockchainSubscription(processId))
-                        .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Blockchain Subscription"))
-                        .retryWhen(startupStepRetry(processId, "Blockchain Subscription", ApplicationRunner::isSubscriptionStepRetryable))
-                        .doOnError(error -> finishApplication("Blockchain Subscription", error)))
+                        .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut(BLOCKCHAIN_SUBSCRIPTION_STEP))
+                        .retryWhen(startupStepRetry(processId, BLOCKCHAIN_SUBSCRIPTION_STEP, ApplicationRunner::isSubscriptionStepRetryable))
+                        .doOnError(error -> finishApplication(BLOCKCHAIN_SUBSCRIPTION_STEP, error)))
                 .then(Mono.defer(() -> getTrustedAccessNodesList(processId))
-                        .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Access Node Trusted List Getting"))
-                        .retryWhen(startupStepRetry(processId, "Access Node Trusted List Getting", ApplicationRunner::isTransientStartupError))
-                        .doOnError(error -> finishApplication("Access Node Trusted List Getting", error)))
+                        .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut(TRUSTED_LIST_STEP))
+                        .retryWhen(startupStepRetry(processId, TRUSTED_LIST_STEP, ApplicationRunner::isTransientStartupError))
+                        .doOnError(error -> finishApplication(TRUSTED_LIST_STEP, error)))
                 .thenMany(initializeDataSync(processId)
                         .onErrorResume(error -> {
                             if (error instanceof P2PDataSyncException) {

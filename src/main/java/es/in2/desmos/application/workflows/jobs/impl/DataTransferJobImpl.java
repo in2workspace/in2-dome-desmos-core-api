@@ -54,8 +54,8 @@ public class DataTransferJobImpl implements DataTransferJob {
 
     @Override
     public Mono<Void> syncData(String processId, Mono<DataNegotiationResult> dataNegotiationResult) {
-        // During the P2P sync the job puts a P2PSyncTypeMetrics in the context to report per-type counters;
-        // other callers (e.g. negotiation events) get a throwaway instance.
+        // During the P2P sync the job puts a P2PSyncTypeMetrics in the context to report per-type counters. Other
+        // callers, such as negotiation events, get a throwaway instance.
         return Mono.deferContextual(context -> {
             P2PSyncTypeMetrics metrics = context.getOrDefault(P2PSyncTypeMetrics.CONTEXT_KEY, new P2PSyncTypeMetrics());
             return syncData(processId, dataNegotiationResult, metrics);
@@ -138,7 +138,7 @@ public class DataTransferJobImpl implements DataTransferJob {
         Set<Id> requestedIds = new HashSet<>(Arrays.asList(requested));
         List<Id> missingIds = requestedIds.stream().filter(id -> !fetchedIds.contains(id)).toList();
         // fetched= counts only the requested entities; the subentities the response also carries go to subentities=
-        metrics.addFetched(requestedIds.size() - missingIds.size());
+        metrics.addFetched((long) requestedIds.size() - missingIds.size());
         metrics.addSubentities(fetchedIds.stream().filter(id -> !requestedIds.contains(id)).count());
         metrics.addMissing(missingIds.size());
         if (!missingIds.isEmpty()) {

@@ -29,6 +29,7 @@ import static es.in2.desmos.domain.utils.LogUtils.truncate;
 public class BrokerListenerServiceImpl implements BrokerListenerService {
 
     private static final int MAX_NAME_LENGTH = 80;
+    private static final String VALUE_FIELD = "value";
 
     private final ObjectMapper objectMapper;
     private final BrokerAdapterService brokerAdapter;
@@ -104,7 +105,7 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
     private static String getNameFromDataMap(Map<String, Object> dataMap) {
         Object name = dataMap.get("name");
         if (name instanceof Map<?, ?> nameProperty) {
-            name = ((Map<String, Object>) nameProperty).get("value");
+            name = ((Map<String, Object>) nameProperty).get(VALUE_FIELD);
         }
         return name != null ? truncate(name.toString(), MAX_NAME_LENGTH) : null;
     }
@@ -143,14 +144,14 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
         String lifeCycleStatus = null;
         if (dataMap.containsKey("lifecycleStatus")) {
             Map<String, Object> lifeCycleStatusMap = (Map<String, Object>) dataMap.get("lifecycleStatus");
-            lifeCycleStatus = (String) lifeCycleStatusMap.get("value");
+            lifeCycleStatus = (String) lifeCycleStatusMap.get(VALUE_FIELD);
         }
 
         String startDateTime = null;
         String endDateTime = null;
         if (dataMap.containsKey("validFor")) {
             Map<String, Object> validForMap = (Map<String, Object>) dataMap.get("validFor");
-            Map<String, Object> validForValueMap = (Map<String, Object>) validForMap.get("value");
+            Map<String, Object> validForValueMap = (Map<String, Object>) validForMap.get(VALUE_FIELD);
             if (validForValueMap != null) {
                 startDateTime = (String) validForValueMap.get("startDateTime");
                 endDateTime = (String) validForValueMap.get("endDateTime");
