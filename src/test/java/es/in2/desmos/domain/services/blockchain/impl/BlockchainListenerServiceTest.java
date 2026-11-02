@@ -154,6 +154,33 @@ class BlockchainListenerServiceTest {
     }
 
     @Test
+    void itShouldLogAnEventFromATrustedPublisherWhenItIsEnqueued() {
+        BlockchainNotification blockchainNotification = BlockchainNotification.builder()
+                .id(1039312)
+                .publisherAddress("0x3d4bb0c562a44d4e579b8e0f98934f104c8bd1410e7c54660d70c147eaf9faa6")
+                .eventType("product-offering")
+                .timestamp(1762104240L)
+                .dataLocation("http://desmos-node-b:8080/api/v2/entities/urn:product-offering:b-2?hl=abcd")
+                .relevantMetadata(List.of())
+                .entityId("0x1234")
+                .previousEntityHashLink("0x0000")
+                .ethereumAddress("0x4bae4559eC81efc94210134Cc5b2Ef692387b233")
+                .build();
+        when(trustFrameworkConfig.getDltAddresses()).thenReturn(Set.of("0x4bae4559ec81efc94210134cc5b2ef692387b233"));
+        when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(pendingSubscribeEventsQueue.enqueueEvent(any())).thenReturn(Mono.empty());
+
+        try (LogCapture logCapture = LogCapture.of(BlockchainListenerServiceImpl.class)) {
+            StepVerifier.create(blockchainListenerService.processBlockchainNotification("0", blockchainNotification))
+                    .verifyComplete();
+
+            assertThat(logCapture.messages(Level.INFO)).containsExactly("[subscribe] ProcessID: 0 - product-offering "
+                    + "urn:product-offering:b-2 event=1039312 from 0x4bae4559eC81efc94210134Cc5b2Ef692387b233 "
+                    + "(DLT Address valid) -> enqueued");
+        }
+    }
+
+    @Test
     void itShouldLogAnEventFromAnUntrustedPublisherAsAnUnexpectedError() {
         BlockchainNotification blockchainNotification = BlockchainNotification.builder()
                 .id(1039319)

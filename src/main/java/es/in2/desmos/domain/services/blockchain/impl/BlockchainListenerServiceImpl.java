@@ -65,6 +65,11 @@ public class BlockchainListenerServiceImpl implements BlockchainListenerService 
                                     .priority(eventQueuePriority)
                                     .build());
                         })
+                        // Logged on arrival: the [subscribe] "stored" line only comes once the queue processes the event
+                        .doOnSuccess(unused -> log.info("{} ProcessID: {} - {} {} event={} from {} (DLT Address valid) -> enqueued",
+                                SUBSCRIBE, processId, blockchainNotification.eventType(),
+                                entityIdOf(blockchainNotification.dataLocation()), blockchainNotification.id(),
+                                blockchainNotification.ethereumAddress()))
                 );
     }
 
