@@ -183,6 +183,17 @@ public class GlobalExceptionHandler {
         return Mono.just(GlobalErrorMessage.builder().title("DiscoverySyncException").message(discoverySyncException.getMessage()).path(path).build());
     }
 
+    // An incomplete P2P synchronization (e.g. from the backoffice sync endpoint): the failures are caused by other
+    // nodes or dependencies and each one is already logged in detail, so only the summary is logged here.
+    @ExceptionHandler(P2PDataSyncException.class)
+    @ResponseStatus(HttpStatus.BAD_GATEWAY)
+    @ResponseBody
+    public Mono<GlobalErrorMessage> handleP2PDataSyncException(P2PDataSyncException p2pDataSyncException, ServerHttpRequest request) {
+        log.warn("P2PDataSyncException: {}", p2pDataSyncException.getMessage());
+        String path = String.valueOf(request.getPath());
+        return Mono.just(GlobalErrorMessage.builder().title("P2PDataSyncException").message(p2pDataSyncException.getMessage()).path(path).build());
+    }
+
     @ExceptionHandler(DltAddressDeserializationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ResponseBody

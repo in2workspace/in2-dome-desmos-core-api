@@ -1,8 +1,16 @@
 package es.in2.desmos.application.workflows.jobs;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import es.in2.desmos.application.workflows.jobs.impl.P2PDataSyncJobImpl;
 import es.in2.desmos.domain.events.DataNegotiationEventPublisher;
+import es.in2.desmos.domain.exceptions.BrokerEntityRetrievalException;
+import es.in2.desmos.domain.exceptions.DiscoverySyncException;
+import es.in2.desmos.domain.exceptions.EntitySyncException;
+import es.in2.desmos.domain.exceptions.P2PDataSyncException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.impl.AuditRecordServiceImpl;
 import es.in2.desmos.domain.services.broker.impl.BrokerPublisherServiceImpl;
@@ -19,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -244,6 +253,191 @@ class P2PDataSyncJobTests {
     }
 
     @Test
+    void itShouldSkipFailingGenesisNodeAndSynchronizeWithTheOthers() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        stubLocalEntitiesAndPolicies(processId);
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(UrlMother.example1And2urlsList()));
+
+        MVEntity4DataNegotiation externalProductOffering = MVEntity4DataNegotiationMother.sample3();
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenAnswer(invocation -> {
+                    Mono<String> node = invocation.getArgument(1);
+                    return "https://example1.org".equals(node.block())
+                            ? Flux.error(new DiscoverySyncException("Error 504 occurred while discovery sync."))
+                            : Flux.just(externalProductOffering);
+                });
+
+        List<Set<Issuer>> issuersByNegotiation = new ArrayList<>();
+        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    Mono<Map<Issuer, Flux<MVEntity4DataNegotiation>>> externalMono = invocation.getArgument(1);
+                    issuersByNegotiation.add(externalMono.block().keySet());
+                    return Mono.empty();
+                });
+
+        // The other node is still synchronized, but the failed one leaves the synchronization incomplete
+        List<ILoggingEvent> logs = captureLogs(() -> StepVerifier
+                .create(p2PDataSyncJob.synchronizeData(processId))
+                .expectErrorSatisfies(error -> assertThat(error)
+                        .isInstanceOf(P2PDataSyncException.class)
+                        .hasMessageContaining("1 of 2 genesis nodes failed [https://example1.org]"))
+                .verify());
+
+        // A peer failing is expected, so it is logged in one line
+        assertThat(logs)
+                .filteredOn(event -> event.getFormattedMessage().contains("Skipping genesis node"))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                    assertThat(event.getFormattedMessage()).endsWith("discovery failed: Error 504 occurred while discovery sync.");
+                    assertThat(event.getThrowableProxy()).isNull();
+                });
+
+        verify(dataNegotiationJob, times(ApplicationConstants.ROOT_OBJECTS_LIST.size()))
+                .negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());
+        assertThat(issuersByNegotiation).containsOnly(Set.of(new Issuer("https://example2.org")));
+    }
+
+    @Test
+    void itShouldContinueWithNextEntityTypesWhenNegotiationOfOneTypeFails() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        stubLocalEntitiesAndPolicies(processId);
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(UrlMother.example1And2urlsList()));
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenReturn(Flux.just(MVEntity4DataNegotiationMother.sample3()));
+
+        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
+                .thenReturn(Mono.error(new EntitySyncException("Error occurred while entity sync")))
+                .thenReturn(Mono.empty());
+
+        // Every type is still processed, but the synchronization as a whole reports the failure at the end
+        List<ILoggingEvent> logs = captureLogs(() -> StepVerifier
+                .create(p2PDataSyncJob.synchronizeData(processId))
+                .expectError(P2PDataSyncException.class)
+                .verify());
+
+        verify(dataNegotiationJob, times(ApplicationConstants.ROOT_OBJECTS_LIST.size()))
+                .negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());
+        // A failed entity sync is expected, so it is logged in one line
+        assertThat(logs)
+                .filteredOn(event -> event.getFormattedMessage().contains("P2P Data Synchronization failed for entity type"))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+                    assertThat(event.getFormattedMessage()).endsWith(": Error occurred while entity sync");
+                    assertThat(event.getThrowableProxy()).isNull();
+                });
+    }
+
+    @Test
+    void itShouldSkipEntityTypeWhenLocalEntitiesCannotBeRead() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        stubLocalEntitiesAndPolicies(processId);
+        when(brokerPublisherService.findAllIdTypeAndAttributesByType(
+                processId,
+                MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME,
+                "lastUpdate",
+                "version",
+                "lifecycleStatus",
+                "validFor",
+                BrokerEntityWithIdTypeLastUpdateAndVersion.class)
+        ).thenReturn(Flux.error(new BrokerEntityRetrievalException("Error retrieving entities from broker")));
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(UrlMother.example1And2urlsList()));
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenReturn(Flux.just(MVEntity4DataNegotiationMother.sample3()));
+
+        List<Set<String>> localTypesByNegotiation = new ArrayList<>();
+        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    Flux<MVEntity4DataNegotiation> localFlux = invocation.getArgument(2);
+                    localTypesByNegotiation.add(localFlux.map(MVEntity4DataNegotiation::type).collect(Collectors.toSet()).block());
+                    return Mono.empty();
+                });
+
+        // Every type is still processed, but the synchronization as a whole reports the failure at the end
+        List<ILoggingEvent> logs = captureLogs(() -> StepVerifier
+                .create(p2PDataSyncJob.synchronizeData(processId))
+                .expectError(P2PDataSyncException.class)
+                .verify());
+
+        // Not an expected failure, so it keeps its stack trace
+        assertThat(logs)
+                .filteredOn(event -> event.getFormattedMessage().contains("Skipping entity type"))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+                    assertThat(event.getThrowableProxy()).isNotNull();
+                    assertThat(event.getThrowableProxy().getClassName()).isEqualTo(BrokerEntityRetrievalException.class.getName());
+                });
+        verify(dataNegotiationJob, times(ApplicationConstants.ROOT_OBJECTS_LIST.size() - 1))
+                .negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());
+        assertThat(localTypesByNegotiation).noneMatch(types -> types.contains(MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME));
+    }
+
+    @Test
+    void itShouldFailWithoutNegotiatingWhenEveryGenesisNodeFails() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        stubLocalEntitiesAndPolicies(processId);
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(UrlMother.example1And2urlsList()));
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenReturn(Flux.error(new DiscoverySyncException("Error 504 occurred while discovery sync.")));
+
+        StepVerifier
+                .create(p2PDataSyncJob.synchronizeData(processId))
+                .expectErrorSatisfies(error -> assertThat(error)
+                        .isInstanceOf(P2PDataSyncException.class)
+                        .hasMessageContaining("2 of 2 genesis nodes failed"))
+                .verify();
+
+        verify(dataNegotiationJob, never()).negotiateDataSyncWithMultipleIssuers(any(), any(), any());
+    }
+
+    private void stubLocalEntitiesAndPolicies(String processId) throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        var brokerEntities = MVBrokerEntity4DataNegotiationMother.list3And4();
+        var brokerCategories = MVBrokerEntity4DataNegotiationMother.listCategories();
+        var brokerCatalogs = MVBrokerEntity4DataNegotiationMother.listCatalogs();
+
+        lenient().when(brokerPublisherService.findAllIdTypeAndAttributesByType(
+                eq(processId),
+                anyString(),
+                eq("lastUpdate"),
+                eq("version"),
+                eq("lifecycleStatus"),
+                eq("validFor"),
+                eq(BrokerEntityWithIdTypeLastUpdateAndVersion.class))
+        ).thenAnswer(invocation -> {
+            String entityType = invocation.getArgument(1);
+            List<?> result = switch (entityType) {
+                case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME -> brokerEntities;
+                case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME -> brokerCategories;
+                case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME -> brokerCatalogs;
+                default -> Collections.emptyList();
+            };
+            return Flux.fromIterable(result);
+        });
+
+        when(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    String entityType = invocation.getArgument(1);
+                    return switch (entityType) {
+                        case MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME ->
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.sample3and4());
+                        case MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME ->
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCategories());
+                        case MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME ->
+                                Flux.fromIterable(MVAuditServiceEntity4DataNegotiationMother.listCatalogs());
+                        default -> Flux.fromIterable(Collections.emptyList());
+                    };
+                });
+
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class)))
+                .thenAnswer(invocation -> {
+                    Flux<MVEntityReplicationPoliciesInfo> fluxArg = invocation.getArgument(1);
+                    return fluxArg.map(info -> new Id(info.id()));
+                });
+    }
+
+    @Test
     void itShouldNegotiateEachTypeWithTheLocalEntitiesStoredByThePreviousTypes() {
         String processId = "0";
         var brokerCategories = MVBrokerEntity4DataNegotiationMother.listCategories();
@@ -462,5 +656,18 @@ class P2PDataSyncJobTests {
 
         verify(brokerPublisherService, times(1)).findEntitiesAndItsSubentitiesByIdInBase64(eq(processId), any(), any());
         verifyNoMoreInteractions(brokerPublisherService);
+    }
+
+    private List<ILoggingEvent> captureLogs(Runnable action) {
+        Logger logger = (Logger) LoggerFactory.getLogger(P2PDataSyncJobImpl.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            action.run();
+            return appender.list;
+        } finally {
+            logger.detachAppender(appender);
+        }
     }
 }

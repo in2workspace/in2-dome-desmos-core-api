@@ -3,11 +3,13 @@ package es.in2.desmos.application.workflows.jobs.impl;
 import es.in2.desmos.application.workflows.jobs.DataNegotiationJob;
 import es.in2.desmos.application.workflows.jobs.P2PDataSyncJob;
 import es.in2.desmos.domain.events.DataNegotiationEventPublisher;
+import es.in2.desmos.domain.exceptions.P2PDataSyncException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.services.policies.ReplicationPoliciesService;
 import es.in2.desmos.domain.services.sync.DiscoverySyncWebClient;
+import es.in2.desmos.domain.utils.ExpectedFailures;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.ExternalAccessNodesConfig;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -56,6 +60,19 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
      */
     @Override
     public Mono<Void> synchronizeData(String processId) {
+        Queue<String> failedEntityTypes = new ConcurrentLinkedQueue<>();
+        Queue<String> failedGenesisNodes = new ConcurrentLinkedQueue<>();
+        return externalAccessNodesConfig.getExternalAccessNodesUrls()
+                .flatMap(genesisUrls -> synchronizeDataWithGenesisNodes(processId, genesisUrls, failedEntityTypes, failedGenesisNodes)
+                        // Failures are isolated so the rest of the types and nodes still sync, but the synchronization
+                        // as a whole must not look successful: it fails at the end if any type or any genesis node
+                        // failed, even when the other genesis nodes synced fine.
+                        .then(Mono.defer(() -> reportIncompleteSynchronization(genesisUrls, failedEntityTypes, failedGenesisNodes))))
+                .doFirst(() -> log.info("ProcessID: {} - Starting P2P Data Synchronization with Genesis Nodes", processId));
+    }
+
+    private Mono<Void> synchronizeDataWithGenesisNodes(String processId, List<String> genesisUrls,
+                                                       Queue<String> failedEntityTypes, Queue<String> failedGenesisNodes) {
         return Flux.fromIterable(ROOT_OBJECTS_LIST)
                 .concatMap(entityType -> {
                             log.debug("ProcessID: {} - Starting P2P Data Synchronization with Genesis Nodes for entity type: {}", processId, entityType);
@@ -71,6 +88,17 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                             log.warn("ProcessID: {} -  No local replicable MV Entities found for entity type: {}", processId, entityType);
                                         }
                                         return Map.entry(entityType, replicableMvEntitiesList);
+                                    })
+                                    .onErrorResume(error -> {
+                                        failedEntityTypes.add(entityType);
+                                        if (ExpectedFailures.isExpected(error)) {
+                                            log.error("ProcessID: {} - Skipping entity type {} in P2P Data Synchronization: error reading local MV Entities: {}",
+                                                    processId, entityType, ExpectedFailures.describe(error));
+                                        } else {
+                                            log.error("ProcessID: {} - Skipping entity type {} in P2P Data Synchronization: error reading local MV Entities",
+                                                    processId, entityType, error);
+                                        }
+                                        return Mono.empty();
                                     });
                         }
                 )
@@ -80,21 +108,50 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                             .flatMap(List::stream)
                             .toList();
 
-                    return exchangeMVEntities4DataNegotiationWithGenesisNodes(processId, allLocalMvEntities)
-                            .flatMap(externalMvEntitiesByIssuerAndType -> Flux.fromIterable(localMvEntitiesByType.entrySet())
-                                    .concatMap(localEntry -> {
-                                        String entityType = localEntry.getKey();
-                                        Map<Issuer, List<MVEntity4DataNegotiation>> externalOfType =
-                                                externalMvEntitiesOfType(externalMvEntitiesByIssuerAndType, entityType);
-                                        return currentLocalMvEntities(processId, entityType, localEntry.getValue(), externalOfType)
-                                                .flatMap(currentLocalMvEntities -> dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(
-                                                        processId,
-                                                        Mono.just(toFluxByIssuer(externalOfType)),
-                                                        Flux.fromIterable(currentLocalMvEntities)));
-                                    })
-                                    .then());
-                })
-                .doFirst(() -> log.info("ProcessID: {} - Starting P2P Data Synchronization with Genesis Nodes", processId));
+                    return exchangeMVEntities4DataNegotiationWithGenesisNodes(processId, genesisUrls, allLocalMvEntities, failedGenesisNodes)
+                            .flatMap(externalMvEntitiesByIssuerAndType -> {
+                                if (externalMvEntitiesByIssuerAndType.isEmpty() && !failedGenesisNodes.isEmpty()) {
+                                    // Every genesis node failed: there is nothing to negotiate
+                                    return Mono.empty();
+                                }
+                                return Flux.fromIterable(localMvEntitiesByType.entrySet())
+                                        .concatMap(localEntry -> {
+                                            String entityType = localEntry.getKey();
+                                            Map<Issuer, List<MVEntity4DataNegotiation>> externalOfType =
+                                                    externalMvEntitiesOfType(externalMvEntitiesByIssuerAndType, entityType);
+                                            return currentLocalMvEntities(processId, entityType, localEntry.getValue(), externalOfType)
+                                                    .flatMap(currentLocalMvEntities -> dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(
+                                                            processId,
+                                                            Mono.just(toFluxByIssuer(externalOfType)),
+                                                            Flux.fromIterable(currentLocalMvEntities)))
+                                                    .onErrorResume(error -> {
+                                                        failedEntityTypes.add(entityType);
+                                                        if (ExpectedFailures.isExpected(error)) {
+                                                            log.error("ProcessID: {} - P2P Data Synchronization failed for entity type {}: {}",
+                                                                    processId, entityType, ExpectedFailures.describe(error));
+                                                        } else {
+                                                            log.error("ProcessID: {} - P2P Data Synchronization failed for entity type {}",
+                                                                    processId, entityType, error);
+                                                        }
+                                                        return Mono.empty();
+                                                    });
+                                        })
+                                        .then();
+                            });
+                });
+    }
+
+    // Any failed type or genesis node leaves data unsynchronized, so the synchronization is reported as incomplete
+    // even if the rest succeeded.
+    private Mono<Void> reportIncompleteSynchronization(List<String> genesisUrls, Queue<String> failedEntityTypes,
+                                                       Queue<String> failedGenesisNodes) {
+        if (failedEntityTypes.isEmpty() && failedGenesisNodes.isEmpty()) {
+            return Mono.empty();
+        }
+        return Mono.error(new P2PDataSyncException(String.format(
+                "P2P Data Synchronization incomplete: %d of %d entity types failed %s, %d of %d genesis nodes failed %s",
+                failedEntityTypes.size(), ROOT_OBJECTS_LIST.size(), failedEntityTypes,
+                failedGenesisNodes.size(), genesisUrls.size(), failedGenesisNodes)));
     }
 
     /**
@@ -135,15 +192,21 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
      * por issuer, las entidades externas recibidas agrupadas por tipo. La respuesta se recoge entera y se agrupa una
      * sola vez para poder repartirla después entre los tipos sin repetir la petición.
      *
+     * <p>Si la discovery con un nodo falla, ese nodo se omite, se anota en {@code failedGenesisNodes} y se sigue
+     * con el resto.
+     *
      * @param processId identificador del proceso
+     * @param genesisUrls URLs de los nodos génesis
      * @param localMvEntities4DataNegotiation entidades MV locales replicables de todos los tipos
+     * @param failedGenesisNodes nodos génesis cuya discovery ha fallado
      * @return Mono con mapa de Issuer a las entidades externas recibidas de ese nodo, por tipo
      */
     private Mono<Map<Issuer, Map<String, List<MVEntity4DataNegotiation>>>> exchangeMVEntities4DataNegotiationWithGenesisNodes(
             String processId,
-            List<MVEntity4DataNegotiation> localMvEntities4DataNegotiation) {
-        return externalAccessNodesConfig.getExternalAccessNodesUrls()
-                .flatMapIterable(externalAccessNodesList -> externalAccessNodesList)
+            List<String> genesisUrls,
+            List<MVEntity4DataNegotiation> localMvEntities4DataNegotiation,
+            Queue<String> failedGenesisNodes) {
+        return Flux.fromIterable(genesisUrls)
                 .flatMap(externalAccessNode -> {
                     log.debug("ProcessID: {} - Exchanging MV Entities with External Genesis Node: {}", processId, externalAccessNode);
 
@@ -157,7 +220,18 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                                 log.debug("ProcessId: {} - Received {} external MV entities from node {}",
                                         processId, externalMvEntities.size(), externalAccessNode))
                             .map(externalMvEntities -> Map.entry(new Issuer(externalAccessNode),
-                                    groupByType(processId, externalAccessNode, externalMvEntities)));
+                                    groupByType(processId, externalAccessNode, externalMvEntities)))
+                            .onErrorResume(error -> {
+                                failedGenesisNodes.add(externalAccessNode);
+                                if (ExpectedFailures.isExpected(error)) {
+                                    log.warn("ProcessID: {} - Skipping genesis node {} in P2P Data Synchronization: discovery failed: {}",
+                                            processId, externalAccessNode, ExpectedFailures.describe(error));
+                                } else {
+                                    log.warn("ProcessID: {} - Skipping genesis node {} in P2P Data Synchronization: discovery failed",
+                                            processId, externalAccessNode, error);
+                                }
+                                return Mono.empty();
+                            });
                 })
                 .collectMap(Map.Entry::getKey, Map.Entry::getValue);
     }
