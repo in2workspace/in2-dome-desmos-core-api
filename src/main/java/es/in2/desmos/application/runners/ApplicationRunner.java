@@ -3,16 +3,20 @@ package es.in2.desmos.application.runners;
 import es.in2.desmos.application.workflows.DataSyncWorkflow;
 import es.in2.desmos.application.workflows.PublishWorkflow;
 import es.in2.desmos.application.workflows.SubscribeWorkflow;
+import es.in2.desmos.domain.exceptions.P2PDataSyncException;
 import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
 import es.in2.desmos.domain.exceptions.SubscriptionUpdateException;
 import es.in2.desmos.domain.models.BlockchainSubscription;
 import es.in2.desmos.domain.models.BrokerSubscription;
+import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.blockchain.BlockchainListenerService;
 import es.in2.desmos.domain.services.broker.BrokerListenerService;
+import es.in2.desmos.domain.utils.LogUtils;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.BlockchainConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
+import es.in2.desmos.infrastructure.configs.LearCredentialMachineConfig;
 import es.in2.desmos.infrastructure.configs.TrustFrameworkConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,12 +36,15 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 import reactor.util.retry.Retry;
 
+import java.lang.management.ManagementFactory;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.SUBSCRIPTION_ID_PREFIX;
@@ -45,6 +52,7 @@ import static es.in2.desmos.domain.utils.ApplicationConstants.SUBSCRIPTION_TYPE;
 import static es.in2.desmos.domain.utils.ApplicationUtils.anyCause;
 import static es.in2.desmos.domain.utils.ApplicationUtils.getEnvironmentMetadata;
 import static es.in2.desmos.domain.utils.ApplicationUtils.isSafeToResend;
+import static es.in2.desmos.domain.utils.LogUtils.INIT;
 
 @Slf4j
 @Configuration
@@ -68,6 +76,9 @@ public class ApplicationRunner {
     private final PublishWorkflow publishWorkflow;
     private final SubscribeWorkflow subscribeWorkflow;
     private final ApplicationContext applicationContext;
+    private final LearCredentialMachineConfig learCredentialMachineConfig;
+    private final QueueService pendingPublishEventsQueue;
+    private final QueueService pendingSubscribeEventsQueue;
     private final AtomicBoolean isQueueAuthorizedForEmit = new AtomicBoolean(false);
     private final String getCurrentEnvironment;
     private Disposable publishQueueDisposable;
@@ -89,7 +100,10 @@ public class ApplicationRunner {
         return Mono.defer(() -> setBrokerSubscription(processId))
                 .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Broker Subscription"))
                 .retryWhen(startupStepRetry(processId, "Broker Subscription", ApplicationRunner::isSubscriptionStepRetryable))
-                .doFirst(() -> log.info("ProcessID: {} - Starting configuration initialization", processId))
+                .doFirst(() -> {
+                    log.info("{} ProcessID: {} - Starting configuration initialization", INIT, processId);
+                    logNodeConfiguration(processId);
+                })
                 .doOnError(error -> finishApplication("Broker Subscription", error))
                 .then(Mono.defer(() -> setBlockchainSubscription(processId))
                         .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Blockchain Subscription"))
@@ -101,7 +115,12 @@ public class ApplicationRunner {
                         .doOnError(error -> finishApplication("Access Node Trusted List Getting", error)))
                 .thenMany(initializeDataSync(processId)
                         .onErrorResume(error -> {
-                            log.error("ProcessID: {} - Error initializing Data Sync: {}", processId, error.getMessage(), error);
+                            if (error instanceof P2PDataSyncException) {
+                                // Each failed type and node is already logged in detail by the P2P sync
+                                log.warn("{} ProcessID: {} - Initial Data Sync incomplete: {}", INIT, processId, error.getMessage());
+                            } else {
+                                log.error("{} ProcessID: {} - Error initializing Data Sync: {}", INIT, processId, error.getMessage(), error);
+                            }
                             return Flux.empty();
                         }))
                 .then();
@@ -118,8 +137,8 @@ public class ApplicationRunner {
     private Retry startupStepRetry(String processId, String step, Predicate<Throwable> retryable) {
         return Retry.fixedDelay(STARTUP_STEP_MAX_RETRIES, STARTUP_STEP_RETRY_DELAY)
                 .filter(retryable)
-                .doBeforeRetry(retrySignal -> log.warn("ProcessID: {} - {} failed (attempt {} of {}), retrying in {} s: {}",
-                        processId, step, retrySignal.totalRetries() + 1, STARTUP_STEP_MAX_RETRIES + 1,
+                .doBeforeRetry(retrySignal -> log.warn("{} ProcessID: {} - {} failed (attempt {} of {}), retrying in {} s: {}",
+                        INIT, processId, step, retrySignal.totalRetries() + 1, STARTUP_STEP_MAX_RETRIES + 1,
                         STARTUP_STEP_RETRY_DELAY.toSeconds(), retrySignal.failure().getMessage()))
                 .onRetryExhaustedThrow((retrySpec, retrySignal) -> retrySignal.failure());
     }
@@ -169,11 +188,11 @@ public class ApplicationRunner {
         // Create the subscription and log the result
         return brokerListenerService.createSubscription(processId, brokerSubscription)
                 .doFirst(() -> {
-                    log.info("ProcessID: {} - Starting Broker Subscription creation", processId);
+                    log.info("{} ProcessID: {} - Starting Broker Subscription creation", INIT, processId);
                     log.debug("ProcessID: {} - Broker Subscription: {}", processId, brokerSubscription);
                 })
-                .doOnSuccess(response -> log.info("ProcessID: {} - Broker Subscription created successfully", processId))
-                .doOnError(e -> log.error("ProcessID: {} - Error creating Broker Subscription", processId, e));
+                .doOnSuccess(response -> log.info("{} ProcessID: {} - Broker Subscription created successfully", INIT, processId))
+                .doOnError(e -> log.error("{} ProcessID: {} - Error creating Broker Subscription", INIT, processId, e));
     }
 
     private Mono<Void> setBlockchainSubscription(String processId) {
@@ -186,32 +205,57 @@ public class ApplicationRunner {
                 .build();
         // Create the subscription
         return blockchainListenerService.createSubscription(processId, blockchainSubscription)
-                .doFirst(() -> log.info("ProcessID: {} - Starting Blockchain Subscription creation", processId))
-                .doOnSuccess(response -> log.info("ProcessID: {} - Blockchain Subscription created successfully", processId))
-                .doOnError(e -> log.error("ProcessID: {} - Error creating Blockchain Subscription", processId, e));
+                .doFirst(() -> log.info("{} ProcessID: {} - Starting Blockchain Subscription creation", INIT, processId))
+                .doOnSuccess(response -> log.info("{} ProcessID: {} - Blockchain Subscription created successfully", INIT, processId))
+                .doOnError(e -> log.error("{} ProcessID: {} - Error creating Blockchain Subscription", INIT, processId, e));
     }
 
     private Mono<Void> getTrustedAccessNodesList(String processId) {
         return trustFrameworkConfig.initialize()
-                .doFirst(() -> log.info("ProcessID: {} - Starting Trusted Access Nodes loading from repository list", processId))
-                .doOnSuccess(response -> log.info("ProcessID: {} - Trusted Access Nodes loaded successfully in memory", processId))
-                .doOnError(e -> log.error("ProcessID: {} - Error getting Trusted Access Nodes from repository list", processId, e));
+                .doFirst(() -> log.info("{} ProcessID: {} - Starting Trusted Access Nodes loading from repository list", INIT, processId))
+                .doOnSuccess(response -> log.info("{} ProcessID: {} - Trusted Access Nodes loaded successfully in memory", INIT, processId))
+                .doOnError(e -> log.error("{} ProcessID: {} - Error getting Trusted Access Nodes from repository list", INIT, processId, e));
+    }
+
+    // Never logs keys, tokens or the credential itself, only where and as whom the node runs. It runs inside the
+    // first startup step, so it must never throw: a failure here would be taken as that step failing.
+    private void logNodeConfiguration(String processId) {
+        try {
+            log.info("{} ProcessID: {} - profile={} externalDomain={} operator={} learCredentialMachineExpiration={}",
+                    INIT, processId, apiConfig.getCurrentEnvironment(), apiConfig.getExternalDomain(),
+                    apiConfig.getOrganizationId(),
+                    learCredentialMachineConfig.getLearCredentialMachineExpiration()
+                            .map(Instant::toString)
+                            .orElse("unknown"));
+        } catch (RuntimeException e) {
+            log.warn("{} ProcessID: {} - Could not log the node configuration: {}", INIT, processId, e.getMessage());
+        }
     }
 
     private Flux<Void> initializeDataSync(String processId) {
+        AtomicReference<String> syncResult = new AtomicReference<>("not run");
         // Start data synchronization process. The Pub-Sub queues are enabled whether or not it succeeds:
         // new local changes and blockchain events do not depend on the initial sync, and leaving the
         // queues disabled would stop the node from publishing or receiving anything until a restart.
         // Data the sync could not fetch is picked up by the scheduled synchronization.
         return dataSyncWorkflow.startDataSyncWorkflow(processId)
-                .doFirst(() -> log.info("ProcessID: {} - Starting initial Data Synchronization", processId))
-                .doOnComplete(() -> log.info("ProcessID: {} - Finished Initial Data Synchronization Workflow", processId))
-                .doOnError(error -> log.warn("ProcessID: {} - Initial Data Synchronization did not complete; enabling Pub-Sub queues anyway", processId))
+                .doFirst(() -> log.info("{} ProcessID: {} - Starting initial Data Synchronization", INIT, processId))
+                .doOnComplete(() -> {
+                    syncResult.set("completed");
+                    log.info("{} ProcessID: {} - Finished Initial Data Synchronization Workflow", INIT, processId);
+                })
+                // Logged once, by the caller's onErrorResume; here it is only kept for the READY line
+                .doOnError(error -> syncResult.set("failed (" + error.getMessage() + ")"))
                 .doOnTerminate(() -> {
-                    log.info("ProcessID: {} - Authorizing queues for Pub-Sub Workflows", processId);
+                    log.info("{} ProcessID: {} - Authorizing queues for Pub-Sub Workflows", INIT, processId);
                     isQueueAuthorizedForEmit.set(true);
                     initializeQueueProcessing(processId);
-                    log.info("ProcessID: {} - Queues have been authorized and enabled", processId);
+                    log.info("{} ProcessID: {} - Queues have been authorized and enabled", INIT, processId);
+                    log.info("{} ProcessID: {} - READY startup={} sync={} pendingPublish={} pendingSubscribe={}",
+                            INIT, processId,
+                            LogUtils.formatDuration(Duration.ofMillis(ManagementFactory.getRuntimeMXBean().getUptime())),
+                            syncResult.get(), pendingPublishEventsQueue.pendingEvents(),
+                            pendingSubscribeEventsQueue.pendingEvents());
                 });
     }
 
@@ -251,8 +295,8 @@ public class ApplicationRunner {
         publishQueueDisposable = publishWorkflow.startPublishWorkflow()
                 .subscribe(
                         null,
-                        error -> log.error("ProcessID: {} - Error occurred during Publish Workflow", processId, error),
-                        () -> log.info("ProcessID: {} - Blockchain publish Workflow completed", processId)
+                        error -> log.error("{} ProcessID: {} - Error occurred during Publish Workflow", INIT, processId, error),
+                        () -> log.info("{} ProcessID: {} - Blockchain publish Workflow completed", INIT, processId)
                 );
     }
 
@@ -260,8 +304,8 @@ public class ApplicationRunner {
         subscribeQueueDisposable = subscribeWorkflow.startSubscribeWorkflow()
                 .subscribe(
                         null,
-                        error -> log.error("ProcessID: {} - Error occurred during Subscribe Workflow", processId, error),
-                        () -> log.info("ProcessID: {} - Broker subscribe Workflow completed", processId)
+                        error -> log.error("{} ProcessID: {} - Error occurred during Subscribe Workflow", INIT, processId, error),
+                        () -> log.info("{} ProcessID: {} - Broker subscribe Workflow completed", INIT, processId)
                 );
     }
 
@@ -269,15 +313,15 @@ public class ApplicationRunner {
         // A step that fails because the context is already shutting down (e.g. SIGTERM during startup)
         // must not force an exit with an error code on top of the ongoing shutdown.
         if (applicationContext instanceof ConfigurableApplicationContext configurableContext && !configurableContext.isActive()) {
-            log.warn("{} failed while the application is shutting down: {}", step, error.getMessage());
+            log.warn("{} {} failed while the application is shutting down: {}", INIT, step, error.getMessage());
             return;
         }
         Mono.fromRunnable(() -> {
-            log.error("Error in {}: {}", step, error.getMessage(), error);
+            log.error("{} Error in {}: {}", INIT, step, error.getMessage(), error);
             // Uses the injected context, not DesmosApiApplication.getContext(): that static field is only set
             // after SpringApplication.run() returns, which is after ApplicationReadyEvent has been published.
             int exitCode = SpringApplication.exit(applicationContext, () -> 1);
-            log.info("Application exiting with code {}", exitCode);
+            log.info("{} Application exiting with code {}", INIT, exitCode);
             exit(exitCode);
         }).subscribeOn(Schedulers.boundedElastic()).subscribe();
     }

@@ -1,22 +1,27 @@
 package es.in2.desmos.application.runners;
 
+import ch.qos.logback.classic.Level;
 import es.in2.desmos.application.workflows.DataSyncWorkflow;
 import es.in2.desmos.application.workflows.PublishWorkflow;
 import es.in2.desmos.application.workflows.SubscribeWorkflow;
+import es.in2.desmos.domain.exceptions.P2PDataSyncException;
 import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
 import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
 import es.in2.desmos.domain.exceptions.SubscriptionUpdateException;
 import es.in2.desmos.domain.models.BlockchainSubscription;
+import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.blockchain.BlockchainListenerService;
 import es.in2.desmos.domain.services.broker.BrokerListenerService;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.BlockchainConfig;
 import es.in2.desmos.infrastructure.configs.BrokerConfig;
+import es.in2.desmos.infrastructure.configs.LearCredentialMachineConfig;
 import es.in2.desmos.infrastructure.configs.TrustFrameworkConfig;
+import es.in2.desmos.testutils.LogCapture;
 import io.netty.handler.timeout.ReadTimeoutException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import es.in2.desmos.domain.exceptions.DiscoverySyncException;
@@ -36,9 +41,13 @@ import java.lang.reflect.Method;
 import java.net.ConnectException;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -78,8 +87,27 @@ class ApplicationRunnerTests {
     @Mock
     private ApplicationContext applicationContext;
 
-    @InjectMocks
+    @Mock
+    private LearCredentialMachineConfig learCredentialMachineConfig;
+
+    @Mock
+    private QueueService pendingPublishEventsQueue;
+
+    @Mock
+    private QueueService pendingSubscribeEventsQueue;
+
     private ApplicationRunner applicationRunner;
+
+    @BeforeEach
+    void setUp() {
+        applicationRunner = newApplicationRunner(applicationContext);
+    }
+
+    private ApplicationRunner newApplicationRunner(ApplicationContext context) {
+        return new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig, brokerListenerService,
+                blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow, publishWorkflow, subscribeWorkflow,
+                context, learCredentialMachineConfig, pendingPublishEventsQueue, pendingSubscribeEventsQueue, "dev");
+    }
 
     @Test
     void whenApplicationIsReady_thenSetBrokerSubscriptionAndBlockchainSubscription() {
@@ -100,8 +128,7 @@ class ApplicationRunnerTests {
     @Test
     void whenDisposeIsActive() throws NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         // Arrange
-        String getCurrentEnvironment = "dev";
-        ApplicationRunner localApplicationRunner  = new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig, brokerListenerService, blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow, publishWorkflow, subscribeWorkflow, applicationContext, getCurrentEnvironment);
+        ApplicationRunner localApplicationRunner  = newApplicationRunner(applicationContext);
         Method disposeIfActive = ApplicationRunner.class.getDeclaredMethod("disposeIfActive", Disposable.class);
         disposeIfActive.setAccessible(true);
         Disposable disposable = mock(Disposable.class);
@@ -186,15 +213,43 @@ class ApplicationRunnerTests {
         when(brokerListenerService.createSubscription(anyString(), any()))
                 .thenReturn(Mono.error(new IllegalStateException("Context has been closed already")));
         when(dataSyncWorkflow.startDataSyncWorkflow(anyString())).thenReturn(Flux.empty());
-        ApplicationRunner localApplicationRunner = spy(new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig,
-                brokerListenerService, blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow,
-                publishWorkflow, subscribeWorkflow, closingContext, "dev"));
+        ApplicationRunner localApplicationRunner = spy(newApplicationRunner(closingContext));
 
         StepVerifier.create(localApplicationRunner.onApplicationReady())
                 .expectError(IllegalStateException.class)
                 .verify();
 
         verify(localApplicationRunner, after(500).never()).exit(anyInt());
+    }
+
+    @Test
+    void whenStartupFinishes_thenNodeConfigurationAndReadySummaryAreLogged() {
+        when(brokerListenerService.createSubscription(anyString(), any())).thenReturn(Mono.empty());
+        when(blockchainListenerService.createSubscription(anyString(), any(BlockchainSubscription.class))).thenReturn(Mono.empty());
+        when(trustFrameworkConfig.initialize()).thenReturn(Mono.empty());
+        when(dataSyncWorkflow.startDataSyncWorkflow(anyString())).thenReturn(Flux.empty());
+        when(publishWorkflow.startPublishWorkflow()).thenReturn(Flux.never());
+        when(subscribeWorkflow.startSubscribeWorkflow()).thenReturn(Flux.never());
+        when(apiConfig.getCurrentEnvironment()).thenReturn("dev");
+        when(apiConfig.getExternalDomain()).thenReturn("https://node.example.org/desmos");
+        when(apiConfig.getOrganizationId()).thenReturn("VATES-B12345678");
+        when(learCredentialMachineConfig.getLearCredentialMachineExpiration())
+                .thenReturn(Optional.of(Instant.parse("2027-01-31T00:00:00Z")));
+        when(pendingPublishEventsQueue.pendingEvents()).thenReturn(2L);
+        when(pendingSubscribeEventsQueue.pendingEvents()).thenReturn(5L);
+
+        try (LogCapture logCapture = LogCapture.of(ApplicationRunner.class)) {
+            StepVerifier.create(applicationRunner.onApplicationReady()).verifyComplete();
+
+            List<String> infoLines = logCapture.messages(Level.INFO);
+            assertThat(infoLines).anySatisfy(line -> assertThat(line).endsWith(" - profile=dev "
+                    + "externalDomain=https://node.example.org/desmos operator=VATES-B12345678 "
+                    + "learCredentialMachineExpiration=2027-01-31T00:00:00Z"));
+            assertThat(infoLines).anySatisfy(line -> assertThat(line).startsWith("[init] ProcessID: ")
+                    .contains(" - READY startup=")
+                    .endsWith(" sync=completed pendingPublish=2 pendingSubscribe=5"));
+            assertThat(infoLines).allSatisfy(line -> assertThat(line).startsWith("[init] "));
+        }
     }
 
     @Test
@@ -244,6 +299,48 @@ class ApplicationRunnerTests {
 
         assertEquals(4, attempts.get());
         verify(spiedRunner, timeout(5000)).exit(1);
+    }
+
+    @Test
+    void whenInitialDataSyncIsIncomplete_thenReadySummaryReportsTheFailure() {
+        when(brokerListenerService.createSubscription(anyString(), any())).thenReturn(Mono.empty());
+        when(blockchainListenerService.createSubscription(anyString(), any(BlockchainSubscription.class))).thenReturn(Mono.empty());
+        when(trustFrameworkConfig.initialize()).thenReturn(Mono.empty());
+        when(dataSyncWorkflow.startDataSyncWorkflow(anyString())).thenReturn(Flux.error(new P2PDataSyncException(
+                "P2P Data Synchronization incomplete: 0 of 16 entity types failed [], 1 of 1 genesis nodes failed [https://genesis.org]")));
+        when(publishWorkflow.startPublishWorkflow()).thenReturn(Flux.never());
+        when(subscribeWorkflow.startSubscribeWorkflow()).thenReturn(Flux.never());
+        when(apiConfig.getCurrentEnvironment()).thenReturn("dev");
+
+        try (LogCapture logCapture = LogCapture.of(ApplicationRunner.class)) {
+            StepVerifier.create(applicationRunner.onApplicationReady()).verifyComplete();
+
+            assertThat(logCapture.messages(Level.INFO)).anySatisfy(line -> assertThat(line)
+                    .contains(" - READY startup=")
+                    .contains(" sync=failed (P2P Data Synchronization incomplete: 0 of 16 entity types failed [], "
+                            + "1 of 1 genesis nodes failed [https://genesis.org]) "));
+            assertThat(logCapture.messages(Level.WARN)).singleElement().satisfies(line -> assertThat(line)
+                    .contains(" - Initial Data Sync incomplete: P2P Data Synchronization incomplete"));
+            assertThat(logCapture.messages(Level.ERROR)).noneMatch(line -> line.contains("Error initializing Data Sync"));
+        }
+    }
+
+    @Test
+    void whenNodeConfigurationCannotBeLogged_thenStartupGoesOn() {
+        when(brokerListenerService.createSubscription(anyString(), any())).thenReturn(Mono.empty());
+        when(blockchainListenerService.createSubscription(anyString(), any(BlockchainSubscription.class))).thenReturn(Mono.empty());
+        when(trustFrameworkConfig.initialize()).thenReturn(Mono.empty());
+        when(dataSyncWorkflow.startDataSyncWorkflow(anyString())).thenReturn(Flux.empty());
+        when(publishWorkflow.startPublishWorkflow()).thenReturn(Flux.never());
+        when(subscribeWorkflow.startSubscribeWorkflow()).thenReturn(Flux.never());
+        when(apiConfig.getCurrentEnvironment()).thenReturn("dev");
+        when(learCredentialMachineConfig.getLearCredentialMachineExpiration()).thenThrow(new IllegalStateException("unexpected claim"));
+        ApplicationRunner spiedRunner = spy(applicationRunner);
+
+        StepVerifier.create(spiedRunner.onApplicationReady()).verifyComplete();
+
+        verify(spiedRunner, never()).exit(anyInt());
+        verify(publishWorkflow).startPublishWorkflow();
     }
 
     @Test

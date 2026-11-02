@@ -25,7 +25,7 @@ public class DataPublicationJobImpl implements DataPublicationJob {
     private final BrokerPublisherService brokerPublisherService;
 
     public Mono<Void> verifyData(String processId, Mono<String> issuer, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<List<MVEntity4DataNegotiation>> allMVEntity4DataNegotiation, Mono<Map<Id, HashAndHashLink>> existingEntitiesOriginalValidationDataById) {
-        log.info("ProcessID: {} - Starting Data Verification Job", processId);
+        log.debug("ProcessID: {} - Starting Data Verification Job", processId);
 
         return buildAndSaveAuditRecordFromDataSync(processId, issuer, entitiesByIdMono, allMVEntity4DataNegotiation, AuditRecordStatus.RETRIEVED)
                 .then(createEntitiesToContextBroker(processId, entitiesByIdMono))

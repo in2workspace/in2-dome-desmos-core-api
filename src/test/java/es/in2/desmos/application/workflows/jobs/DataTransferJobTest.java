@@ -1,5 +1,8 @@
 package es.in2.desmos.application.workflows.jobs;
 
+import es.in2.desmos.testutils.LogCapture;
+import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
+import ch.qos.logback.classic.Level;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.application.workflows.jobs.impl.DataTransferJobImpl;
 import es.in2.desmos.domain.exceptions.InvalidSyncResponseException;
@@ -39,6 +42,9 @@ class DataTransferJobTest {
 
     @Mock
     private AuditRecordService auditRecordService;
+
+    @Spy
+    private LoggingProperties loggingProperties = new LoggingProperties(null, null, null);
 
     @SuppressWarnings("CanBeFinal")
     @Spy
@@ -484,5 +490,55 @@ class DataTransferJobTest {
                 .verify();
 
         verifyNoInteractions(dataPublicationJob, auditRecordService);
+    }
+
+    @Test
+    void itShouldReportFetchedEntitiesAndSubentitiesToTheSyncMetricsInContext() throws JSONException, NoSuchAlgorithmException, IOException {
+        String processId = "0";
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any()))
+                .thenReturn(Flux.fromIterable(EntitySyncResponseMother.getSampleWithCategoryBase64()));
+        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
+        int requested = dataNegotiationResult.newEntitiesToSync().size() + dataNegotiationResult.existingEntitiesToSync().size();
+        P2PSyncTypeMetrics metrics = new P2PSyncTypeMetrics();
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult))
+                        .contextWrite(context -> context.put(P2PSyncTypeMetrics.CONTEXT_KEY, metrics)))
+                .verifyComplete();
+
+        assertThat(metrics.fetched()).isEqualTo((long) requested);
+        assertThat(metrics.subentities()).isEqualTo(1L);
+        assertThat(metrics.missing()).isZero();
+        assertThat(metrics.invalidIntegrity()).isZero();
+    }
+
+    @Test
+    void itShouldCountRequestedEntitiesTheRemoteLeftOutAsMissing() throws JSONException, NoSuchAlgorithmException, IOException {
+        String processId = "0";
+        // The remote answers with all requested entities but the first one, plus a subentity (a category)
+        List<String> response = new ArrayList<>(EntitySyncResponseMother.getSampleWithCategoryBase64());
+        response.remove(0);
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(Flux.fromIterable(response));
+        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
+        int requested = dataNegotiationResult.newEntitiesToSync().size() + dataNegotiationResult.existingEntitiesToSync().size();
+        P2PSyncTypeMetrics metrics = new P2PSyncTypeMetrics();
+
+        try (LogCapture logCapture = LogCapture.of(DataTransferJobImpl.class)) {
+            StepVerifier
+                    .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult))
+                            .contextWrite(context -> context.put(P2PSyncTypeMetrics.CONTEXT_KEY, metrics)))
+                    .verifyComplete();
+
+            assertThat(logCapture.messages(Level.WARN)).anySatisfy(line -> assertThat(line)
+                    .startsWith("[p2p-sync] ProcessID: 0 - genesis ")
+                    .contains(" did not return 1 of " + requested + " requested entities, they are skipped: "));
+        }
+        assertThat(metrics.fetched()).isEqualTo(requested - 1L);
+        assertThat(metrics.subentities()).isEqualTo(1L);
+        assertThat(metrics.missing()).isEqualTo(1L);
     }
 }

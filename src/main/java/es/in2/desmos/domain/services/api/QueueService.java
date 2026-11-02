@@ -14,4 +14,10 @@ public interface QueueService {
 
     void resume();
 
+    /**
+     * Number of events waiting to be consumed: queued, buffered while paused, or emitted but not yet
+     * requested by the consumer. Only used for logging.
+     */
+    long pendingEvents();
+
 }

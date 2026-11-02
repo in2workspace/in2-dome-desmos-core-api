@@ -5,6 +5,7 @@ import es.in2.desmos.domain.services.api.QueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -73,6 +74,12 @@ public class QueueServiceImpl implements QueueService {
         log.debug("Queue resumed.");
         // Procesar todos los eventos almacenados en buffer
         processBufferedEvents();
+    }
+
+    @Override
+    public long pendingEvents() {
+        Integer bufferedInSink = sink.scan(Scannable.Attr.BUFFERED);
+        return (long) queue.size() + buffer.size() + (bufferedInSink != null ? bufferedInSink : 0);
     }
 
     private synchronized void processBufferedEvents() {

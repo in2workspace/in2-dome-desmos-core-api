@@ -1,5 +1,8 @@
 package es.in2.desmos.application.workflows.jobs;
 
+import org.mockito.Spy;
+import es.in2.desmos.testutils.LogCapture;
+import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -44,6 +47,9 @@ import static org.mockito.Mockito.*;
 class P2PDataSyncJobTests {
     @InjectMocks
     private P2PDataSyncJobImpl p2PDataSyncJob;
+
+    @Spy
+    private LoggingProperties loggingProperties = new LoggingProperties(null, null, null);
 
     @Mock
     private ExternalAccessNodesConfig externalAccessNodesConfig;
@@ -289,7 +295,9 @@ class P2PDataSyncJobTests {
                 .singleElement()
                 .satisfies(event -> {
                     assertThat(event.getLevel()).isEqualTo(Level.WARN);
-                    assertThat(event.getFormattedMessage()).endsWith("discovery failed: Error 504 occurred while discovery sync.");
+                    assertThat(event.getFormattedMessage())
+                            .contains(" discovery failed after ")
+                            .endsWith(": Error 504 occurred while discovery sync.");
                     assertThat(event.getThrowableProxy()).isNull();
                 });
 
@@ -320,7 +328,7 @@ class P2PDataSyncJobTests {
                 .negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any());
         // A failed entity sync is expected, so it is logged in one line
         assertThat(logs)
-                .filteredOn(event -> event.getFormattedMessage().contains("P2P Data Synchronization failed for entity type"))
+                .filteredOn(event -> event.getFormattedMessage().contains(" FAILED after "))
                 .singleElement()
                 .satisfies(event -> {
                     assertThat(event.getLevel()).isEqualTo(Level.ERROR);
@@ -362,7 +370,7 @@ class P2PDataSyncJobTests {
 
         // Not an expected failure, so it keeps its stack trace
         assertThat(logs)
-                .filteredOn(event -> event.getFormattedMessage().contains("Skipping entity type"))
+                .filteredOn(event -> event.getFormattedMessage().contains(" FAILED reading local MV Entities, type skipped"))
                 .singleElement()
                 .satisfies(event -> {
                     assertThat(event.getLevel()).isEqualTo(Level.ERROR);
@@ -668,6 +676,95 @@ class P2PDataSyncJobTests {
             return appender.list;
         } finally {
             logger.detachAppender(appender);
+        }
+    }
+
+    @Test
+    void itShouldLogStartBeginDoneAndEndWithTheCountersOfEachType() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        stubLocalEntitiesAndPolicies(processId);
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(List.of("https://example1.org")));
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenReturn(Flux.just(MVEntity4DataNegotiationMother.sample3()));
+        when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any()))
+                .thenAnswer(invocation -> {
+                    Flux<MVEntity4DataNegotiation> localFlux = invocation.getArgument(2);
+                    Set<String> localTypes = localFlux.map(MVEntity4DataNegotiation::type).collect(Collectors.toSet()).block();
+                    if (localTypes.contains(MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME)) {
+                        return Mono.error(new EntitySyncException("Error occurred while entity sync"));
+                    }
+                    if (localTypes.contains(MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME)) {
+                        return Mono.deferContextual(context -> {
+                            P2PSyncTypeMetrics metrics = context.get(P2PSyncTypeMetrics.CONTEXT_KEY);
+                            metrics.addFetched(1);
+                            metrics.addSubentities(1);
+                            return Mono.empty();
+                        });
+                    }
+                    return Mono.empty();
+                });
+
+        try (LogCapture logCapture = LogCapture.of(P2PDataSyncJobImpl.class)) {
+            StepVerifier
+                    .create(p2PDataSyncJob.synchronizeData(processId))
+                    .expectError(P2PDataSyncException.class)
+                    .verify();
+
+            int typeCount = ApplicationConstants.ROOT_OBJECTS_LIST.size();
+            String productOfferingPosition = "(" + (ApplicationConstants.ROOT_OBJECTS_LIST.indexOf(
+                    MVEntity4DataNegotiationMother.PRODUCT_OFFERING_TYPE_NAME) + 1) + "/" + typeCount + ")";
+            String catalogPosition = "(" + (ApplicationConstants.ROOT_OBJECTS_LIST.indexOf(
+                    MVEntity4DataNegotiationMother.CATALOG_TYPE_NAME) + 1) + "/" + typeCount + ")";
+            List<String> infoLines = logCapture.messages(Level.INFO);
+
+            assertThat(infoLines.get(0)).isEqualTo("[p2p-sync] ProcessID: 0 - START genesis=[https://example1.org] types=" + typeCount);
+            assertThat(infoLines).anySatisfy(line -> assertThat(line)
+                    .startsWith("[p2p-sync] ProcessID: 0 - discovery genesis=https://example1.org sent=")
+                    .contains(" received=1 "));
+            assertThat(infoLines).filteredOn(line -> line.contains(" BEGIN local=")).hasSize(typeCount);
+            assertThat(infoLines).filteredOn(line -> line.contains(" DONE remote=")).hasSize(typeCount - 1);
+            assertThat(infoLines).anySatisfy(line -> assertThat(line).startsWith("[p2p-sync] ProcessID: 0 - "
+                    + productOfferingPosition + " product-offering DONE remote=1 fetched=1 subentities=1 missing=0 invalidIntegrity=0 "));
+            List<String> errorLines = logCapture.messages(Level.ERROR);
+            assertThat(errorLines).anySatisfy(line -> assertThat(line).startsWith(
+                    "[p2p-sync] ProcessID: 0 - " + catalogPosition + " catalog FAILED after "));
+            assertThat(errorLines).noneSatisfy(line -> assertThat(line).contains(" END "));
+            List<String> warnLines = logCapture.messages(Level.WARN);
+            assertThat(warnLines.get(warnLines.size() - 1))
+                    .startsWith("[p2p-sync] ProcessID: 0 - END with error after ")
+                    .contains(": ok=" + (typeCount - 1) + " failed=1 entities=1 cause=P2P Data Synchronization incomplete: 1 of "
+                            + typeCount + " entity types failed [catalog]");
+        }
+    }
+
+    @Test
+    void itShouldLogWhenReReadingTheLocalEntitiesOfATypeFails() {
+        String processId = "0";
+        AtomicInteger categoryReads = new AtomicInteger();
+        when(brokerPublisherService.findAllIdTypeAndAttributesByType(eq(processId), anyString(), eq("lastUpdate"),
+                eq("version"), eq("lifecycleStatus"), eq("validFor"), eq(BrokerEntityWithIdTypeLastUpdateAndVersion.class)))
+                .thenAnswer(invocation -> MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME.equals(invocation.getArgument(1))
+                        && categoryReads.incrementAndGet() > 1
+                        ? Flux.error(new BrokerEntityRetrievalException("Broker answered 503"))
+                        : Flux.empty());
+        when(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(eq(processId), any(), any())).thenReturn(Flux.empty());
+        when(replicationPoliciesService.filterReplicableMvEntitiesList(eq(processId), any(Flux.class))).thenReturn(Flux.empty());
+        when(externalAccessNodesConfig.getExternalAccessNodesUrls()).thenReturn(Mono.just(List.of("https://example1.org")));
+        // The genesis has categories the initial read did not have, so categories are read again
+        when(discoverySyncWebClient.makeRequest(eq(processId), any(), any(), any()))
+                .thenReturn(MVEntity4DataNegotiationMother.listCategories());
+        lenient().when(dataNegotiationJob.negotiateDataSyncWithMultipleIssuers(eq(processId), any(), any())).thenReturn(Mono.empty());
+
+        try (LogCapture logCapture = LogCapture.of(P2PDataSyncJobImpl.class)) {
+            StepVerifier
+                    .create(p2PDataSyncJob.synchronizeData(processId))
+                    .expectError(P2PDataSyncException.class)
+                    .verify();
+
+            String categoryPosition = "(" + (ApplicationConstants.ROOT_OBJECTS_LIST.indexOf(
+                    MVEntity4DataNegotiationMother.CATEGORY_TYPE_NAME) + 1) + "/" + ApplicationConstants.ROOT_OBJECTS_LIST.size() + ")";
+            assertThat(logCapture.messages(Level.ERROR)).anySatisfy(line -> assertThat(line).isEqualTo(
+                    "[p2p-sync] ProcessID: 0 - " + categoryPosition + " category FAILED re-reading local MV Entities: Broker answered 503"));
         }
     }
 }

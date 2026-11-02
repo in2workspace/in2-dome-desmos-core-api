@@ -1,12 +1,16 @@
 package es.in2.desmos.domain.services.blockchain.adapter.impl;
 
 import ch.qos.logback.classic.Level;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import es.in2.desmos.domain.exceptions.DltPublicationException;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import es.in2.desmos.domain.models.BlockchainTxPayload;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.properties.DLTAdapterProperties;
+import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
+import es.in2.desmos.testutils.LogCapture;
 import io.netty.handler.timeout.ReadTimeoutException;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -69,7 +73,8 @@ class BlockchainAdapterServiceImplTest {
         lenient().when(dltAdapterProperties.publicationTimeout()).thenReturn(Duration.ofMinutes(10));
         lenient().when(apiConfig.clientHttpConnector(any())).thenReturn(new ReactorClientHttpConnector());
 
-        blockchainAdapterService = new BlockchainAdapterServiceImpl(dltAdapterProperties, apiConfig);
+        blockchainAdapterService = new BlockchainAdapterServiceImpl(dltAdapterProperties, apiConfig,
+                new LoggingProperties(null, null, null), new ObjectMapper());
         blockchainAdapterService.init();
         ReflectionTestUtils.setField(blockchainAdapterService, "publicationRetryBackoff", Duration.ofMillis(1));
     }
@@ -93,15 +98,13 @@ class BlockchainAdapterServiceImplTest {
     }
 
     @Test
-    void itShouldNotRetryWhenDltRejectsThePublicationWithAnErrorBody() {
-        // The adapter may already have processed it: sending it again could publish a second transaction
+    void itShouldNotRetryAndPropagateTheErrorWhenDltRejectsThePublication() {
+        // The adapter may already have processed it: sending it again could publish a second transaction. The error
+        // is propagated so that the caller does not record the entity as PUBLISHED.
         mockWebServer.enqueue(new MockResponse().setResponseCode(500).setBody("dlt-adapter-error"));
 
-        BlockchainTxPayload payload = blockchainTxPayload();
-
-        // The failure is propagated so that the caller does not record the entity as PUBLISHED
-        StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payload))
-                .expectError(WebClientResponseException.class)
+        StepVerifier.create(blockchainAdapterService.postTxPayload("process1", blockchainTxPayload()))
+                .expectError(DltPublicationException.class)
                 .verify();
 
         assertThat(mockWebServer.getRequestCount()).isEqualTo(1);
@@ -113,11 +116,8 @@ class BlockchainAdapterServiceImplTest {
             mockWebServer.enqueue(new MockResponse().setResponseCode(503));
         }
 
-        BlockchainTxPayload payload = blockchainTxPayload();
-
-        // The failure is propagated so that the caller does not record the entity as PUBLISHED
-        StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payload))
-                .expectError(WebClientResponseException.class)
+        StepVerifier.create(blockchainAdapterService.postTxPayload("process1", blockchainTxPayload()))
+                .expectError(DltPublicationException.class)
                 .verify();
 
         assertThat(mockWebServer.getRequestCount()).isEqualTo(4);
@@ -158,10 +158,10 @@ class BlockchainAdapterServiceImplTest {
             assertThat(appender.list).noneMatch(event -> event.getFormattedMessage().contains("outcome unknown"));
 
             StepVerifier.create(blockchainAdapterService.postTxPayload("process1", blockchainTxPayload()))
-                    .expectError(WebClientRequestException.class)
+                    .expectError(DltPublicationException.class)
                     .verify();
             assertThat(appender.list).anyMatch(event -> event.getLevel() == Level.ERROR
-                    && event.getFormattedMessage().contains("DLT publication outcome unknown for entityId="));
+                    && event.getFormattedMessage().contains(" -> outcome unknown after 1 attempt(s)"));
         } finally {
             logger.detachAppender(appender);
         }
@@ -188,6 +188,61 @@ class BlockchainAdapterServiceImplTest {
         assertThat(BlockchainAdapterServiceImpl.isSafeToRetryPublication(new WebClientRequestException(
                 ReadTimeoutException.INSTANCE, HttpMethod.POST, uri, new HttpHeaders()))).isFalse();
         assertThat(BlockchainAdapterServiceImpl.isSafeToRetryPublication(new IllegalStateException("boom"))).isFalse();
+    }
+
+    @Test
+    void itShouldLogTheDurationOfTheSuccessfulAttemptAndTheNumberOfAttempts() {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(503));
+        mockWebServer.enqueue(new MockResponse().setResponseCode(200));
+
+        try (LogCapture logCapture = LogCapture.of(BlockchainAdapterServiceImpl.class)) {
+            StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payloadWithDataLocation()))
+                    .verifyComplete();
+
+            assertThat(logCapture.messages(Level.INFO)).singleElement().asString()
+                    .startsWith("[publish] ProcessID: process1 - product-offering urn:ngsi-ld:product-offering:1 -> tx=n/a (")
+                    .endsWith(", attempts=2)");
+        }
+    }
+
+    @Test
+    void itShouldLogTheTransactionHashReturnedByTheDltAdapter() {
+        String txHash = "0x" + "ab".repeat(32);
+        mockWebServer.enqueue(new MockResponse().setResponseCode(200)
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"transactionHash\":\"" + txHash + "\"}"));
+
+        try (LogCapture logCapture = LogCapture.of(BlockchainAdapterServiceImpl.class)) {
+            StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payloadWithDataLocation()))
+                    .verifyComplete();
+
+            assertThat(logCapture.messages(Level.INFO)).singleElement().asString()
+                    .startsWith("[publish] ProcessID: process1 - product-offering urn:ngsi-ld:product-offering:1 -> tx=" + txHash + " (");
+        }
+    }
+
+    @Test
+    void itShouldLogOneErrorWithStatusAndBodyWhenThePublicationFails() {
+        mockWebServer.enqueue(new MockResponse().setResponseCode(400).setBody("replacement transaction underpriced"));
+
+        try (LogCapture logCapture = LogCapture.of(BlockchainAdapterServiceImpl.class)) {
+            StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payloadWithDataLocation()))
+                    .expectError(DltPublicationException.class)
+                    .verify();
+
+            assertThat(logCapture.messages(Level.ERROR)).containsExactly(
+                    "[publish] ProcessID: process1 - product-offering urn:ngsi-ld:product-offering:1 -> failed after 1 attempt(s): "
+                            + "HTTP 400: replacement transaction underpriced");
+        }
+    }
+
+    private BlockchainTxPayload payloadWithDataLocation() {
+        return BlockchainTxPayload.builder()
+                .eventType("product-offering")
+                .organizationIdentifier("VATFR-12345")
+                .entityId("0x1234")
+                .dataLocation("https://node.example.org/desmos/api/v2/entities/urn:ngsi-ld:product-offering:1?hl=abcd")
+                .build();
     }
 
     @Test

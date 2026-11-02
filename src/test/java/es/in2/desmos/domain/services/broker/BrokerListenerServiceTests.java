@@ -1,5 +1,6 @@
 package es.in2.desmos.domain.services.broker;
 
+import ch.qos.logback.classic.Level;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
@@ -13,14 +14,18 @@ import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
 import es.in2.desmos.domain.services.broker.adapter.factory.BrokerAdapterFactory;
 import es.in2.desmos.domain.services.broker.impl.BrokerListenerServiceImpl;
+import es.in2.desmos.domain.services.broker.impl.NotificationStats;
 import es.in2.desmos.domain.services.policies.ReplicationPoliciesService;
 import es.in2.desmos.domain.utils.ApplicationUtils;
+import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
+import es.in2.desmos.testutils.LogCapture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -32,10 +37,17 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BrokerListenerServiceTests {
+    @Spy
+    private LoggingProperties loggingProperties = new LoggingProperties(null, null, null);
+
+    @Spy
+    private NotificationStats notificationStats = new NotificationStats(new LoggingProperties(null, null, null));
+
 
     private static final AuditRecord auditRecord = AuditRecord.builder()
             .id(UUID.randomUUID())
@@ -262,11 +274,18 @@ class BrokerListenerServiceTests {
                   "notifiedAt": "2023-03-14T16:38:15.123456Z"
                 }""");
 
-        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.notReplicable("policy GP_1: lifecycleStatus=null")));
+        when(replicationPoliciesService.evaluate(anyString(), any()))
+                .thenReturn(Mono.just(ReplicationDecision.notReplicable("policy GP_1: lifecycleStatus=Active")));
 
+        try (LogCapture logCapture = LogCapture.of(BrokerListenerServiceImpl.class)) {
+            StepVerifier.create(brokerListenerService.processBrokerNotification(processId, brokerNotification))
+                    .verifyComplete();
 
-        StepVerifier.create(brokerListenerService.processBrokerNotification(processId, brokerNotification))
-                .verifyComplete();
+            // A policy rejection of a local change is a WARN, so it is not missed among the INFO outcomes
+            assertThat(logCapture.messages(Level.WARN)).containsExactly("[notif] ProcessID: " + processId
+                    + " - ProductOffering urn:ngsi-ld:ProductOffering:122355255 -> not replicable: policy GP_1: lifecycleStatus=Active");
+            assertThat(logCapture.messages(Level.INFO)).isEmpty();
+        }
 
         verify(auditRecordService, never()).buildAndSaveAuditRecordFromBrokerNotification(eq(processId), any(), any(), any());
         verify(queueService, never()).enqueueEvent(any());
