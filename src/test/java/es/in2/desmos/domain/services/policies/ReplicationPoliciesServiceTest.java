@@ -1,5 +1,9 @@
 package es.in2.desmos.domain.services.policies;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import es.in2.desmos.domain.models.Id;
 import es.in2.desmos.domain.models.MVEntityReplicationPoliciesInfo;
 import es.in2.desmos.domain.models.ReplicationDecision;
@@ -11,8 +15,10 @@ import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import org.slf4j.LoggerFactory;
 import reactor.test.StepVerifier;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -168,5 +174,40 @@ class ReplicationPoliciesServiceTest {
                         MVEntityReplicationPoliciesInfoMother.replicationValidFields()))
                 .expectNext(ReplicationDecision.REPLICABLE)
                 .verifyComplete();
+    }
+
+    @Test
+    void itShouldLogTheNotReplicableEntitiesOfABatchGroupedByReason() {
+        String pastStart = Instant.now().minusSeconds(360000).toString();
+        String pastEnd = Instant.now().minusSeconds(7200).toString();
+        Flux<MVEntityReplicationPoliciesInfo> batch = Flux.just(
+                new MVEntityReplicationPoliciesInfo("urn:ngsi-ld:product-offering:1", "product-offering", "Launched", null, null),
+                new MVEntityReplicationPoliciesInfo("urn:ngsi-ld:product-offering:2", "product-offering", "Active", null, null),
+                new MVEntityReplicationPoliciesInfo("urn:ngsi-ld:product-offering:3", "product-offering", "Active", null, null),
+                new MVEntityReplicationPoliciesInfo("urn:ngsi-ld:product-offering:4", "product-offering", "Launched", pastStart, pastEnd));
+
+        Logger logger = (Logger) LoggerFactory.getLogger(ReplicationPoliciesServiceImpl.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            StepVerifier.create(replicationPoliciesService.filterReplicableMvEntitiesList("process-123", batch))
+                    .expectNext(new Id("urn:ngsi-ld:product-offering:1"))
+                    .verifyComplete();
+        } finally {
+            logger.detachAppender(appender);
+        }
+
+        assertThat(appender.list).filteredOn(event -> event.getLevel() == Level.INFO)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly("ProcessID: process-123 - Replication policies - product-offering: 1 of 4 replicable; "
+                        + "not replicable: policy GP_1: lifecycleStatus=Active (2), policy GP_2: validFor (1)");
+        assertThat(appender.list).filteredOn(event -> event.getLevel() == Level.WARN)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .containsExactly(
+                        "ProcessID: process-123 - Replication policies - product-offering: policy GP_1: lifecycleStatus=Active (2): "
+                                + "[urn:ngsi-ld:product-offering:2, urn:ngsi-ld:product-offering:3]",
+                        "ProcessID: process-123 - Replication policies - product-offering: policy GP_2: validFor (1): "
+                                + "[urn:ngsi-ld:product-offering:4 (start=" + pastStart + ", end=" + pastEnd + ")]");
     }
 }

@@ -33,38 +33,20 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
     // Callers that report the outcome (e.g. broker notifications) log the returned reason.
     @Override
     public Mono<ReplicationDecision> evaluate(String processId, MVEntityReplicationPoliciesInfo mvEntity) {
-        boolean isLifecycleStatusReplicable = isLifecycleStatusReplicable(mvEntity.type(), mvEntity.lifecycleStatus());
-        if (!isLifecycleStatusReplicable) {
-            log.debug("ProcessID: {} - Global policy '{}' validation failed for entity '{}' - lifecycleStatus '{}' is not replicable",
-                    processId, ReplicationPolicies.GP_1, mvEntity.id(), mvEntity.lifecycleStatus());
-
+        ReplicationDecision decision = decide(mvEntity);
+        if (decision.replicable()) {
+            log.debug("ProcessID: {} - Global policies validation successfully in Entity with ID {}.", processId, mvEntity.id());
+        } else {
+            log.debug("ProcessID: {} - Entity '{}' is not replicable: {}", processId, mvEntity.id(), decision.reason());
         }
-
-        boolean isValidForReplicable = isValidForReplicable(mvEntity.startDateTime(), mvEntity.endDateTime());
-        if (!isValidForReplicable) {
-            log.debug("ProcessID: {} - Global policy '{}' validation failed for entity '{}' - validFor period (start: '{}', end: '{}') is not replicable",
-                    processId, ReplicationPolicies.GP_2, mvEntity.id(), mvEntity.startDateTime(), mvEntity.endDateTime());
-
-        }
-
-        if (!isLifecycleStatusReplicable) {
-            return Mono.just(ReplicationDecision.notReplicable(
-                    "policy " + ReplicationPolicies.GP_1 + ": lifecycleStatus=" + mvEntity.lifecycleStatus()));
-        }
-        if (!isValidForReplicable) {
-            return Mono.just(ReplicationDecision.notReplicable(
-                    "policy " + ReplicationPolicies.GP_2 + ": validFor start=" + mvEntity.startDateTime()
-                            + " end=" + mvEntity.endDateTime()));
-        }
-        log.debug("ProcessID: {} - Global policies validation successfully in Entity with ID {}.",
-                processId, mvEntity.id());
-        return Mono.just(ReplicationDecision.REPLICABLE);
+        return Mono.just(decision);
     }
 
+    // Checks a whole batch without logging each entity: the outcome is logged once per entity type and reason.
     @Override
     public Flux<Id> filterReplicableMvEntitiesList(String processId, Flux<MVEntityReplicationPoliciesInfo> replicationPoliciesInfoFlux) {
         return replicationPoliciesInfoFlux
-                .concatMap(mvEntity -> evaluate(processId, mvEntity).map(decision -> Map.entry(mvEntity, decision)))
+                .map(mvEntity -> Map.entry(mvEntity, decide(mvEntity)))
                 .collectList()
                 .doOnNext(evaluatedEntities -> logReplicationSummary(processId, evaluatedEntities))
                 .flatMapIterable(evaluatedEntities -> evaluatedEntities.stream()
@@ -73,30 +55,64 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
                         .toList());
     }
 
-    // One line per entity type instead of one per non-replicable entity: how many are replicable and, for the rest,
-    // how many each policy rejected and why.
+    private ReplicationDecision decide(MVEntityReplicationPoliciesInfo mvEntity) {
+        if (!isLifecycleStatusReplicable(mvEntity.type(), mvEntity.lifecycleStatus())) {
+            return ReplicationDecision.notReplicable(
+                    "policy " + ReplicationPolicies.GP_1 + ": lifecycleStatus=" + mvEntity.lifecycleStatus());
+        }
+        if (!isValidForReplicable(mvEntity.startDateTime(), mvEntity.endDateTime())) {
+            return ReplicationDecision.notReplicable(
+                    "policy " + ReplicationPolicies.GP_2 + ": validFor start=" + mvEntity.startDateTime()
+                            + " end=" + mvEntity.endDateTime());
+        }
+        return ReplicationDecision.REPLICABLE;
+    }
+
+    // Per entity type: one INFO line with how many entities are replicable and how many each reason left out, and one
+    // WARN line per reason with the ids it left out.
     private void logReplicationSummary(String processId, List<Map.Entry<MVEntityReplicationPoliciesInfo, ReplicationDecision>> evaluatedEntities) {
         evaluatedEntities.stream()
                 .collect(Collectors.groupingBy(evaluatedEntity -> Objects.toString(evaluatedEntity.getKey().type(), "unknown"),
                         LinkedHashMap::new, Collectors.toList()))
                 .forEach((type, entitiesOfType) -> {
                     long replicable = entitiesOfType.stream().filter(evaluatedEntity -> evaluatedEntity.getValue().replicable()).count();
-                    String notReplicableByReason = entitiesOfType.stream()
+                    List<Map.Entry<String, List<String>>> notReplicableByReason = entitiesOfType.stream()
                             .filter(evaluatedEntity -> !evaluatedEntity.getValue().replicable())
-                            .collect(Collectors.groupingBy(evaluatedEntity -> evaluatedEntity.getValue().reason(), Collectors.counting()))
+                            .collect(Collectors.groupingBy(evaluatedEntity -> groupReason(evaluatedEntity.getKey(), evaluatedEntity.getValue()),
+                                    Collectors.mapping(evaluatedEntity -> describeNotReplicable(evaluatedEntity.getKey()), Collectors.toList())))
                             .entrySet().stream()
-                            .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                            .map(reasonCount -> reasonCount.getKey() + " (" + reasonCount.getValue() + ")")
-                            .collect(Collectors.joining(", "));
+                            .sorted(Comparator.comparingInt((Map.Entry<String, List<String>> reasonGroup) -> reasonGroup.getValue().size()).reversed())
+                            .toList();
+
                     if (notReplicableByReason.isEmpty()) {
                         log.info("ProcessID: {} - Replication policies - {}: {} of {} replicable", processId, type, replicable, entitiesOfType.size());
-                    } else {
-                        log.info("ProcessID: {} - Replication policies - {}: {} of {} replicable; not replicable: {}",
-                                processId, type, replicable, entitiesOfType.size(), notReplicableByReason);
+                        return;
                     }
+                    log.info("ProcessID: {} - Replication policies - {}: {} of {} replicable; not replicable: {}",
+                            processId, type, replicable, entitiesOfType.size(), notReplicableByReason.stream()
+                                    .map(reasonGroup -> reasonGroup.getKey() + " (" + reasonGroup.getValue().size() + ")")
+                                    .collect(Collectors.joining(", ")));
+                    notReplicableByReason.forEach(reasonGroup ->
+                            log.warn("ProcessID: {} - Replication policies - {}: {} ({}): {}",
+                                    processId, type, reasonGroup.getKey(), reasonGroup.getValue().size(), reasonGroup.getValue()));
                 });
     }
 
+    // GP_2 rejections share one reason: their validFor dates differ per entity, so they go next to each id instead
+    private String groupReason(MVEntityReplicationPoliciesInfo mvEntity, ReplicationDecision decision) {
+        return failsValidFor(mvEntity) ? "policy " + ReplicationPolicies.GP_2 + ": validFor" : decision.reason();
+    }
+
+    private String describeNotReplicable(MVEntityReplicationPoliciesInfo mvEntity) {
+        return failsValidFor(mvEntity)
+                ? mvEntity.id() + " (start=" + mvEntity.startDateTime() + ", end=" + mvEntity.endDateTime() + ")"
+                : mvEntity.id();
+    }
+
+    // GP_1 is checked first, so an entity counts as a GP_2 rejection only when its lifecycleStatus is replicable
+    private boolean failsValidFor(MVEntityReplicationPoliciesInfo mvEntity) {
+        return isLifecycleStatusReplicable(mvEntity.type(), mvEntity.lifecycleStatus());
+    }
 
     private boolean isLifecycleStatusReplicable(String type, String lifecycleStatus) {
         return LIFECYCLE_STATUS_FREE_TYPES.contains(type) || (lifecycleStatus != null && VALID_STATUSES.contains(lifecycleStatus));
