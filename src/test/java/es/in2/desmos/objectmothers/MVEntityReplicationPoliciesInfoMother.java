@@ -108,6 +108,26 @@ public final class MVEntityReplicationPoliciesInfoMother {
         );
     }
 
+    public static @NotNull MVEntityReplicationPoliciesInfo replicationLifecycleStatusFreeTypeWithNullLifecycleStatus(String type) {
+        return new MVEntityReplicationPoliciesInfo(
+                "entity-1",
+                type,
+                null,
+                null,
+                null
+        );
+    }
+
+    public static @NotNull MVEntityReplicationPoliciesInfo replicationLifecycleStatusFreeTypeWithNullLifecycleStatusAndPastEndDateTime(String type) {
+        return new MVEntityReplicationPoliciesInfo(
+                "entity-1",
+                type,
+                null,
+                Instant.now().minusSeconds(360000).toString(),
+                Instant.now().minusSeconds(7200).toString()
+        );
+    }
+
     public static @NotNull List<MVEntityReplicationPoliciesInfo> mvReplicableList() {
         return List.of(
                 replicationValidFields(),

@@ -5,6 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Released]: v2.0.26
+- Replicate individual, organization and usage entities: their TMF models have no lifecycleStatus, so the lifecycleStatus policy (GP_1) left all of them out
 - Fix out of memory errors on the node that receives entities in a P2P synchronization: each entity of the response is now parsed as it arrives instead of building the whole response as a single string
 - Fix P2P synchronization losing every entity of a batch when the broker rejects one of them: each entity is now written on its own, the rejected one is logged with its id, and only the written entities are audited as published
 - Write at most 8 entities to the broker at the same time during a P2P synchronization

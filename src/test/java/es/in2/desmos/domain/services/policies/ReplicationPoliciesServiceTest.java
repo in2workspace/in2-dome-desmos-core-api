@@ -11,6 +11,8 @@ import es.in2.desmos.domain.services.policies.impl.ReplicationPoliciesServiceImp
 import es.in2.desmos.objectmothers.MVEntityReplicationPoliciesInfoMother;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Flux;
@@ -21,6 +23,9 @@ import reactor.test.StepVerifier;
 import java.time.Instant;
 import java.util.List;
 
+import static es.in2.desmos.domain.utils.ApplicationConstants.INDIVIDUAL;
+import static es.in2.desmos.domain.utils.ApplicationConstants.ORGANIZATION;
+import static es.in2.desmos.domain.utils.ApplicationConstants.USAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @ExtendWith(MockitoExtension.class)
@@ -100,6 +105,34 @@ class ReplicationPoliciesServiceTest {
 
         StepVerifier.create(result)
                 .assertNext(isReplicable -> assertThat(isReplicable).isTrue())
+                .verifyComplete();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {INDIVIDUAL, ORGANIZATION, USAGE})
+    void itShouldBeReplicableWhenTypeHasNoLifecycleStatusInItsModel(String type) {
+        String processId = "process-123";
+        MVEntityReplicationPoliciesInfo mvEntity = MVEntityReplicationPoliciesInfoMother
+                .replicationLifecycleStatusFreeTypeWithNullLifecycleStatus(type);
+
+        Mono<Boolean> result = replicationPoliciesService.isMVEntityReplicable(processId, mvEntity);
+
+        StepVerifier.create(result)
+                .assertNext(isReplicable -> assertThat(isReplicable).isTrue())
+                .verifyComplete();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {INDIVIDUAL, ORGANIZATION, USAGE})
+    void itShouldBeNotReplicableWhenTypeHasNoLifecycleStatusInItsModelAndEndDateTimeIsInThePast(String type) {
+        String processId = "process-123";
+        MVEntityReplicationPoliciesInfo mvEntity = MVEntityReplicationPoliciesInfoMother
+                .replicationLifecycleStatusFreeTypeWithNullLifecycleStatusAndPastEndDateTime(type);
+
+        Mono<Boolean> result = replicationPoliciesService.isMVEntityReplicable(processId, mvEntity);
+
+        StepVerifier.create(result)
+                .assertNext(isReplicable -> assertThat(isReplicable).isFalse())
                 .verifyComplete();
     }
 
