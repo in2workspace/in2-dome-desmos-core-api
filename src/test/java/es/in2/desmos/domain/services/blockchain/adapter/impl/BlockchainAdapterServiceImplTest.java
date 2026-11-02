@@ -74,7 +74,7 @@ class BlockchainAdapterServiceImplTest {
         lenient().when(apiConfig.clientHttpConnector(any())).thenReturn(new ReactorClientHttpConnector());
 
         blockchainAdapterService = new BlockchainAdapterServiceImpl(dltAdapterProperties, apiConfig,
-                new LoggingProperties(null, null, null), new ObjectMapper());
+                new LoggingProperties(null, null), new ObjectMapper());
         blockchainAdapterService.init();
         ReflectionTestUtils.setField(blockchainAdapterService, "publicationRetryBackoff", Duration.ofMillis(1));
     }

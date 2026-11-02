@@ -11,11 +11,10 @@ class LoggingPropertiesTests {
 
     @Test
     void itShouldUseTheDefaultsWhenNotConfigured() {
-        LoggingProperties loggingProperties = new LoggingProperties(null, null, null);
+        LoggingProperties loggingProperties = new LoggingProperties(null, null);
 
         assertThat(loggingProperties.payloadMaxSize()).isEqualTo(DataSize.ofKilobytes(2));
         assertThat(loggingProperties.payloadMaxChars()).isEqualTo(2048);
         assertThat(loggingProperties.slowRequestThreshold()).isEqualTo(Duration.ofSeconds(30));
-        assertThat(loggingProperties.notificationSummaryInterval()).isEqualTo(Duration.ofSeconds(60));
     }
 }

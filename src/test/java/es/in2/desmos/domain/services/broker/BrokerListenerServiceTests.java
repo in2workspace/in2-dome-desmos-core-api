@@ -14,7 +14,6 @@ import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
 import es.in2.desmos.domain.services.broker.adapter.factory.BrokerAdapterFactory;
 import es.in2.desmos.domain.services.broker.impl.BrokerListenerServiceImpl;
-import es.in2.desmos.domain.services.broker.impl.NotificationStats;
 import es.in2.desmos.domain.services.policies.ReplicationPoliciesService;
 import es.in2.desmos.domain.utils.ApplicationUtils;
 import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
@@ -43,10 +42,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class BrokerListenerServiceTests {
     @Spy
-    private LoggingProperties loggingProperties = new LoggingProperties(null, null, null);
+    private LoggingProperties loggingProperties = new LoggingProperties(null, null);
 
-    @Spy
-    private NotificationStats notificationStats = new NotificationStats(new LoggingProperties(null, null, null));
 
 
     private static final AuditRecord auditRecord = AuditRecord.builder()

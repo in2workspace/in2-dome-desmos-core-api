@@ -44,7 +44,7 @@ class DataTransferJobTest {
     private AuditRecordService auditRecordService;
 
     @Spy
-    private LoggingProperties loggingProperties = new LoggingProperties(null, null, null);
+    private LoggingProperties loggingProperties = new LoggingProperties(null, null);
 
     @SuppressWarnings("CanBeFinal")
     @Spy

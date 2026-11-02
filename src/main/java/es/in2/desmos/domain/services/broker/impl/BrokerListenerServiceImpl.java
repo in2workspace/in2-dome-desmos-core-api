@@ -35,19 +35,17 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
     private final AuditRecordService auditRecordService;
     private final QueueService pendingPublishEventsQueue;
     private final ReplicationPoliciesService replicationPoliciesService;
-    private final NotificationStats notificationStats;
     private final LoggingProperties loggingProperties;
 
     public BrokerListenerServiceImpl(BrokerAdapterFactory brokerAdapterFactory, ObjectMapper objectMapper,
                                      AuditRecordService auditRecordService, QueueService pendingPublishEventsQueue,
                                      ReplicationPoliciesService replicationPoliciesService,
-                                     NotificationStats notificationStats, LoggingProperties loggingProperties) {
+                                     LoggingProperties loggingProperties) {
         this.brokerAdapter = brokerAdapterFactory.getBrokerAdapter();
         this.objectMapper = objectMapper;
         this.auditRecordService = auditRecordService;
         this.pendingPublishEventsQueue = pendingPublishEventsQueue;
         this.replicationPoliciesService = replicationPoliciesService;
-        this.notificationStats = notificationStats;
         this.loggingProperties = loggingProperties;
     }
 
@@ -63,7 +61,6 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
         // entities carry license texts of several KB.
         return getDataFromBrokerNotification(brokerNotification)
                 .doFirst(() -> {
-                    notificationStats.received();
                     if (log.isDebugEnabled()) {
                         log.debug("{} ProcessID: {} - Broker Notification payload: {}", NOTIF, processId,
                                 truncate(serialize(brokerNotification.data()), loggingProperties.payloadMaxChars()));
@@ -73,7 +70,6 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                 .flatMap(dataMap -> isBrokerNotificationSelfGenerated(processId, dataMap)
                         .flatMap(isSelfGenerated -> {
                             if (Boolean.TRUE.equals(isSelfGenerated)) {
-                                notificationStats.skippedSelfGenerated();
                                 logOutcome(processId, dataMap, "skipped (self-generated)");
                                 return Mono.empty();
                             } else {
@@ -83,7 +79,6 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                                         .evaluate(processId, mvEntityReplicationPoliciesInfo)
                                         .flatMap(decision -> {
                                             if (!decision.replicable()) {
-                                                notificationStats.skippedByPolicy();
                                                 log.warn("{} ProcessID: {} - {} {}{} -> not replicable: {}", NOTIF, processId,
                                                         dataMap.get("type"), dataMap.get("id"), quotedName(dataMap), decision.reason());
                                                 return Mono.empty();
@@ -92,8 +87,7 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                                             }
                                         });
                             }
-                        }))
-                .doOnError(error -> notificationStats.error());
+                        }));
     }
 
     private void logOutcome(String processId, Map<String, Object> dataMap, String outcome) {
@@ -133,10 +127,7 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                         .event(Collections.singletonList(brokerNotification))
                         .priority(eventQueuePriority)
                         .build()))
-                .doOnSuccess(unused -> {
-                    notificationStats.enqueued();
-                    logOutcome(processId, dataMap, "enqueued");
-                })
+                .doOnSuccess(unused -> logOutcome(processId, dataMap, "enqueued"))
                 .doOnError(throwable -> {
                     if (throwable instanceof BrokerNotificationSelfGeneratedException) {
                         log.info("{} ProcessID: {} - Self-Generated Broker Notification. It does not need to do nothing.", NOTIF, processId);

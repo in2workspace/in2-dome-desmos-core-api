@@ -49,7 +49,7 @@ class P2PDataSyncJobTests {
     private P2PDataSyncJobImpl p2PDataSyncJob;
 
     @Spy
-    private LoggingProperties loggingProperties = new LoggingProperties(null, null, null);
+    private LoggingProperties loggingProperties = new LoggingProperties(null, null);
 
     @Mock
     private ExternalAccessNodesConfig externalAccessNodesConfig;
