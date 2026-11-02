@@ -64,11 +64,11 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                                 MVEntityReplicationPoliciesInfo mvEntityReplicationPoliciesInfo =
                                         createMVEntityReplicationPoliciesInfo(dataMap);
                                 return replicationPoliciesService
-                                        .isMVEntityReplicable(processId, mvEntityReplicationPoliciesInfo)
-                                        .flatMap(isReplicable -> {
-                                            if (Boolean.FALSE.equals(isReplicable)) {
-                                                log.info("ProcessID: {} - Broker Notification is not replicable",
-                                                        processId);
+                                        .evaluate(processId, mvEntityReplicationPoliciesInfo)
+                                        .flatMap(decision -> {
+                                            if (!decision.replicable()) {
+                                                log.warn("ProcessID: {} - Broker Notification for {} ({}) is not replicable: {}",
+                                                        processId, mvEntityReplicationPoliciesInfo.id(), mvEntityReplicationPoliciesInfo.type(), decision.reason());
                                                 return Mono.empty();
                                             } else {
                                                 return publishEventAndCreateAuditRecord(processId, brokerNotification, dataMap);

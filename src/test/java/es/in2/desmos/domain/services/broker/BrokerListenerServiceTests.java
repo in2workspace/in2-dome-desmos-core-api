@@ -7,6 +7,7 @@ import es.in2.desmos.domain.exceptions.JsonReadingException;
 import es.in2.desmos.domain.models.AuditRecord;
 import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BrokerNotification;
+import es.in2.desmos.domain.models.ReplicationDecision;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
@@ -81,7 +82,7 @@ class BrokerListenerServiceTests {
                 .build();
         // Act
         when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.empty());
-        when(replicationPoliciesService.isMVEntityReplicable(anyString(), any())).thenReturn(Mono.just(true));
+        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE));
         when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), any(), any())).thenReturn(Mono.empty());
         when(queueService.enqueueEvent(any())).thenReturn(Mono.empty());
         // Assert
@@ -149,7 +150,7 @@ class BrokerListenerServiceTests {
                 .build();
         // Act
         when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
-        when(replicationPoliciesService.isMVEntityReplicable(anyString(), any())).thenReturn(Mono.just(true));
+        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE));
         when(objectMapper.writer()).thenReturn(objectWriter);
         when(objectWriter.writeValueAsString(any())).thenReturn("""
                 {
@@ -261,7 +262,7 @@ class BrokerListenerServiceTests {
                   "notifiedAt": "2023-03-14T16:38:15.123456Z"
                 }""");
 
-        when(replicationPoliciesService.isMVEntityReplicable(anyString(), any())).thenReturn(Mono.just(false));
+        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.notReplicable("policy GP_1: lifecycleStatus=null")));
 
 
         StepVerifier.create(brokerListenerService.processBrokerNotification(processId, brokerNotification))
