@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import es.in2.desmos.domain.models.AuditRecord;
+import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BrokerNotification;
 import es.in2.desmos.domain.repositories.AuditRecordRepository;
 import es.in2.desmos.infrastructure.controllers.NotificationController;
@@ -29,10 +30,11 @@ import static org.awaitility.Awaitility.await;
  * This uses the exact Quote payload shared by the client (quote urn:ngsi-ld:quote:9aa2f09d-...,
  * with a nested QuoteItem, attachment and a note with null id/text) to check whether the
  * PublishWorkflow processes a real-world Quote entity without silently failing before
- * blockchain publication - i.e. whether an AuditRecord with status PUBLISHED is ever created
- * for it locally. If this test fails or no PUBLISHED record appears, the bug is on the
- * "publish" side (source Access Node never notarizes the Quote), not on the P2P sync/replication
- * side.
+ * blockchain publication - i.e. whether it gets as far as building the payload and attempting the
+ * publication (a CREATED AuditRecord). If no CREATED record appears, the bug is on the "publish"
+ * side (source Access Node never tries to notarize the Quote), not on the P2P sync/replication
+ * side. The DLT adapter of this environment rejects every publication, so no PUBLISHED record is
+ * expected.
  */
 @SpringBootTest
 @Testcontainers
@@ -157,7 +159,10 @@ class QuotePublishWorkflowReproTest {
         List<AuditRecord> auditRecordList = auditRecordRepository.findAll().collectList().block();
         log.info("Result: {}", auditRecordList);
 
-        // Then: the Quote must reach a PUBLISHED AuditRecord, exactly like any other root object type.
+        // Then: the PublishWorkflow must process the Quote up to the blockchain publication, exactly like any other
+        // root object type: a CREATED AuditRecord (the payload was built and the publication attempted). The DLT
+        // adapter in this environment has no blockchain behind it and rejects the publication, so there must be no
+        // PUBLISHED record: a failed publication is not recorded as published.
         // Poll (via Awaitility, not a fixed sleep) instead of a single check: at app startup, the live
         // PublishWorkflow subscription is only wired up after ApplicationRunner's initial P2P data sync
         // finishes (see ApplicationRunner.java), which can race with this test posting the notification
@@ -166,12 +171,14 @@ class QuotePublishWorkflowReproTest {
                 .atMost(Duration.ofSeconds(30))
                 .pollInterval(Duration.ofSeconds(2))
                 .untilAsserted(() -> {
-                    AuditRecord publishedRecord = auditRecordRepository
-                            .findMostRecentPublishedAuditRecordByEntityId(QUOTE_ENTITY_ID)
-                            .block();
-                    Assertions.assertNotNull(publishedRecord,
-                            "No PUBLISHED AuditRecord was created for the Quote yet - PublishWorkflow silently failed to notarize it");
+                    List<AuditRecord> quoteRecords = auditRecordRepository.findByEntityId(QUOTE_ENTITY_ID).collectList().block();
+                    Assertions.assertNotNull(quoteRecords);
+                    Assertions.assertTrue(quoteRecords.stream().anyMatch(auditRecord -> auditRecord.getStatus() == AuditRecordStatus.CREATED),
+                            "No CREATED AuditRecord was created for the Quote yet - PublishWorkflow failed before attempting the publication");
                 });
+        await().pollDelay(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(10)).until(() -> true);
+        Assertions.assertNull(auditRecordRepository.findMostRecentPublishedAuditRecordByEntityId(QUOTE_ENTITY_ID).block(),
+                "The Quote was recorded as PUBLISHED although the DLT adapter rejected the publication");
     }
 
 }

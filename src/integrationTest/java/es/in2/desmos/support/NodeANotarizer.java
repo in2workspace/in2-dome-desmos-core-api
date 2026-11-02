@@ -41,12 +41,14 @@ public final class NodeANotarizer {
 
         // Reuses the publish flow's retry-with-a-fresh-attempt strategy, except the entity id and
         // notification stay fixed across attempts: this only needs the trail's latest row to be
-        // PUBLISHED/PRODUCER, so any stray duplicate RECEIVED rows left behind by a lost
-        // (pre-readiness) attempt are harmless.
+        // CREATED/PRODUCER, so any stray duplicate RECEIVED rows left behind by a lost
+        // (pre-readiness) attempt are harmless. The DLT adapter in this environment has no blockchain
+        // behind it and rejects the publication, so the trail stops at CREATED; that row carries the
+        // same dataLocation, hash and hashlink a PUBLISHED one would.
         List<AuditRecord> trail = await().atMost(Duration.ofSeconds(90))
                 .pollInterval(Duration.ofSeconds(3))
                 .until(() -> attemptPublish(notificationController, auditRecordRepository, entityId, notification),
-                        ReplicationAssertions::lastIsPublishedProducer);
+                        ReplicationAssertions::lastIsCreatedProducer);
 
         return trail.get(trail.size() - 1);
     }
@@ -58,6 +60,6 @@ public final class NodeANotarizer {
         return QueueReadiness.pollWithPartialFallback(
                 Duration.ofSeconds(8), Duration.ofMillis(500),
                 () -> QueueReadiness.trailFor(auditRecordRepository, entityId),
-                ReplicationAssertions::lastIsPublishedProducer);
+                ReplicationAssertions::lastIsCreatedProducer);
     }
 }

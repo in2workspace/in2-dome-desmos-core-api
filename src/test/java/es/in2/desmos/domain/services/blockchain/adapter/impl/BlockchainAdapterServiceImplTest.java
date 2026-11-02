@@ -1,5 +1,6 @@
 package es.in2.desmos.domain.services.blockchain.adapter.impl;
 
+import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.models.BlockchainTxPayload;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
 import es.in2.desmos.infrastructure.configs.properties.DLTAdapterProperties;
@@ -75,8 +76,10 @@ class BlockchainAdapterServiceImplTest {
 
         BlockchainTxPayload payload = blockchainTxPayload();
 
+        // The failure is propagated so that the caller does not record the entity as PUBLISHED
         StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payload))
-                .verifyComplete();
+                .expectError(RequestErrorException.class)
+                .verify();
 
         assertThat(mockWebServer.getRequestCount()).isEqualTo(4);
     }
@@ -89,8 +92,10 @@ class BlockchainAdapterServiceImplTest {
 
         BlockchainTxPayload payload = blockchainTxPayload();
 
+        // The failure is propagated so that the caller does not record the entity as PUBLISHED
         StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payload))
-                .verifyComplete();
+                .expectError(RequestErrorException.class)
+                .verify();
 
         assertThat(mockWebServer.getRequestCount()).isEqualTo(4);
     }

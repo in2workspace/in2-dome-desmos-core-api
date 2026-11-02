@@ -87,7 +87,7 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
                     return response.releaseBody();
                 })
                 .retry(3)
-                .onErrorResume(e -> recover(processId, blockchainTxPayload));
+                .onErrorResume(e -> recover(e, processId, blockchainTxPayload));
     }
 
     @Override
@@ -102,10 +102,14 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
                 .bodyToFlux(String.class);
     }
 
+    // The error is propagated, not swallowed: the caller must not record the entity as PUBLISHED, otherwise the
+    // audit trail claims a publication that never happened and the next version of the entity is chained to a
+    // hashlink that is not on the blockchain.
     @Recover
-    public Mono<Void> recover(String processId, BlockchainTxPayload blockchainTxPayload) {
-        log.error("ProcessID: {}, Recovering after 3 retries. Data: {}", processId, blockchainTxPayload.toString());
-        return Mono.empty();
+    public Mono<Void> recover(Throwable error, String processId, BlockchainTxPayload blockchainTxPayload) {
+        log.error("ProcessID: {}, Publication failed after retries: {}. Data: {}", processId, error.getMessage(),
+                blockchainTxPayload.toString());
+        return Mono.error(error);
     }
 
 }
