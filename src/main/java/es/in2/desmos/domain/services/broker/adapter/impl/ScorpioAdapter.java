@@ -64,7 +64,6 @@ public class ScorpioAdapter implements BrokerAdapterService {
 
     @Override
     public Mono<Void> postEntity(String processId, String requestBody) {
-        log.info("ProcessID: {} - Posting entity to Scorpio", processId);
         log.debug("ProcessID: {} - Posting entity to Scorpio: {}", processId, requestBody);
         MediaType mediaType = getContentTypeAndAcceptMediaType(requestBody);
         return webClient.post()
@@ -119,7 +118,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
                             .bodyToMono(Void.class)
                             .retryWhen(nonRejectedRequestRetry());
                 })
-                .doOnSuccess(result -> log.info(RESOURCE_UPDATED_MESSAGE, processId))
+                .doOnSuccess(result -> log.debug(RESOURCE_UPDATED_MESSAGE, processId))
                 .doOnError(e -> log.error(ERROR_UPDATING_RESOURCE_MESSAGE, processId, e.getMessage()));
     }
 

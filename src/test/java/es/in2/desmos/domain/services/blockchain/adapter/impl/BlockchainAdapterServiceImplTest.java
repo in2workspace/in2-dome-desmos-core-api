@@ -200,7 +200,7 @@ class BlockchainAdapterServiceImplTest {
                     .verifyComplete();
 
             assertThat(logCapture.messages(Level.INFO)).singleElement().asString()
-                    .startsWith("[publish] ProcessID: process1 - product-offering urn:ngsi-ld:product-offering:1 -> tx=n/a (")
+                    .startsWith("[publish] ProcessID: process1 - product-offering urn:ngsi-ld:product-offering:1 -> published (")
                     .endsWith(", attempts=2)");
         }
     }
@@ -269,4 +269,19 @@ class BlockchainAdapterServiceImplTest {
                 .build();
     }
 
+    @Test
+    void itShouldLogTheBlockTimeReturnedByTheDltAdapter() {
+        // DLT adapter 1.5.1 answers with the timestamp of the block that holds the transaction
+        mockWebServer.enqueue(new MockResponse().setResponseCode(201)
+                .setHeader("Content-Type", "application/json")
+                .setBody("1762104240"));
+
+        try (LogCapture logCapture = LogCapture.of(BlockchainAdapterServiceImpl.class)) {
+            StepVerifier.create(blockchainAdapterService.postTxPayload("process1", payloadWithDataLocation()))
+                    .verifyComplete();
+
+            assertThat(logCapture.messages(Level.INFO)).singleElement().asString()
+                    .startsWith("[publish] ProcessID: process1 - product-offering urn:ngsi-ld:product-offering:1 -> block=2025-11-02T17:24:00Z (");
+        }
+    }
 }

@@ -133,7 +133,8 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     @ResponseBody
     public Mono<GlobalErrorMessage> handleUnauthorizedDomeParticipantException(UnauthorizedDomeParticipantException unauthorizedDomeParticipantException, ServerHttpRequest request) {
-        log.error("UnauthorizedDomeParticipantException: {}", unauthorizedDomeParticipantException.getMessage());
+        // Logged as an error with the event details where it is detected (BlockchainListenerServiceImpl)
+        log.debug("UnauthorizedDomeParticipantException: {}", unauthorizedDomeParticipantException.getMessage());
         String path = String.valueOf(request.getPath());
         return Mono.just(GlobalErrorMessage.builder().title("UnauthorizedDomeParticipantException").message(unauthorizedDomeParticipantException.getMessage()).path(path).build());
     }

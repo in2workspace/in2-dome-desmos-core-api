@@ -1,5 +1,9 @@
 package es.in2.desmos.application.workflows;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import es.in2.desmos.domain.utils.ApplicationUtils;
+import es.in2.desmos.testutils.LogCapture;
+import ch.qos.logback.classic.Level;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,6 +11,7 @@ import es.in2.desmos.application.workflows.impl.SubscribeWorkflowImpl;
 import es.in2.desmos.domain.exceptions.JsonReadingException;
 import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BlockchainNotification;
+import es.in2.desmos.domain.models.BrokerWriteAction;
 import es.in2.desmos.domain.models.EventQueue;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
@@ -78,8 +83,8 @@ class SubscribeWorkflowTests {
                 .thenReturn(Mono.empty());
         when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(anyString(), eq(blockchainNotification), eq(retrievedBrokerEntity), eq(AuditRecordStatus.RETRIEVED)))
                 .thenReturn(Mono.empty());
-        when(brokerPublisherService.publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
-                .thenReturn(Mono.empty());
+        when(brokerPublisherService.upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
+                .thenReturn(Mono.just(BrokerWriteAction.CREATED));
         when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(anyString(), eq(blockchainNotification), eq(retrievedBrokerEntity), eq(AuditRecordStatus.PUBLISHED)))
                 .thenReturn(Mono.empty());
 
@@ -92,7 +97,7 @@ class SubscribeWorkflowTests {
         verify(dataSyncService, times(1))
                 .verifyRetrievedEntityData(anyString(), eq(blockchainNotification), eq(retrievedBrokerEntity));
         verify(brokerPublisherService, times(1))
-                .publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
+                .upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
         verify(auditRecordService, times(1))
                 .buildAndSaveAuditRecordFromBlockchainNotification(
                         anyString(),
@@ -125,8 +130,8 @@ class SubscribeWorkflowTests {
                 .thenReturn(Flux.just(retrievedBrokerEntity));
         when(auditRecordService.buildAndSaveAuditRecordForSubEntity(anyString(), eq(entityId), eq(entityType), eq(retrievedBrokerEntity), eq(AuditRecordStatus.RETRIEVED)))
                 .thenReturn(Mono.empty());
-        when(brokerPublisherService.publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
-                .thenReturn(Mono.empty());
+        when(brokerPublisherService.upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
+                .thenReturn(Mono.just(BrokerWriteAction.CREATED));
         when(auditRecordService.buildAndSaveAuditRecordForSubEntity(anyString(), eq(entityId), eq(entityType), eq(retrievedBrokerEntity), eq(AuditRecordStatus.PUBLISHED)))
                 .thenReturn(Mono.empty());
 
@@ -139,7 +144,7 @@ class SubscribeWorkflowTests {
         verify(dataSyncService, times(0))
                 .verifyRetrievedEntityData(any(), any(), any());
         verify(brokerPublisherService, times(1))
-                .publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
+                .upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
         verify(auditRecordService, times(1))
                 .buildAndSaveAuditRecordForSubEntity(
                         anyString(),
@@ -171,8 +176,8 @@ class SubscribeWorkflowTests {
                 .thenReturn(List.of(blockchainNotification));
         when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(retrievedBrokerEntity));
-        when(brokerPublisherService.publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
-                .thenReturn(Mono.empty());
+        when(brokerPublisherService.upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
+                .thenReturn(Mono.just(BrokerWriteAction.CREATED));
 
         StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
@@ -183,8 +188,42 @@ class SubscribeWorkflowTests {
         verify(dataSyncService, times(0))
                 .verifyRetrievedEntityData(any(), any(), any());
         verify(brokerPublisherService, times(1))
-                .publishDataToBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
+                .upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
         verifyNoInteractions(auditRecordService);
+    }
+
+    @Test
+    void itShouldLogTheNotifiedEntityAndItsSubentitiesInOneLine() throws NoSuchAlgorithmException, JsonProcessingException {
+        String rootEntity = BrokerDataMother.GET_REAL_PRODUCT_OFFERING;
+        String subObject = BrokerDataMother.NOT_ROOT_OBJECT;
+        String rootId = getEntityId(rootEntity);
+        String subObjectId = getEntityId(subObject);
+        BlockchainNotification blockchainNotification = BlockchainNotificationMother.FromBrokerDataMother(rootEntity);
+        EventQueue eventQueueMock = mock(EventQueue.class);
+        when(eventQueueMock.getEvent()).thenReturn(List.of(blockchainNotification));
+        when(pendingSubscribeEventsQueue.getEventStream()).thenReturn(Flux.just(eventQueueMock));
+        when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
+                .thenReturn(Flux.just(subObject, rootEntity));
+        when(dataSyncService.verifyRetrievedEntityData(anyString(), eq(blockchainNotification), eq(rootEntity)))
+                .thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(anyString(), eq(blockchainNotification), eq(rootEntity), any()))
+                .thenReturn(Mono.empty());
+        when(brokerPublisherService.upsertDataInBroker(anyString(), eq(subObjectId), eq(subObject)))
+                .thenReturn(Mono.just(BrokerWriteAction.CREATED));
+        when(brokerPublisherService.upsertDataInBroker(anyString(), eq(rootId), eq(rootEntity)))
+                .thenReturn(Mono.just(BrokerWriteAction.UPDATED));
+
+        try (LogCapture logCapture = LogCapture.of(SubscribeWorkflowImpl.class)) {
+            StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow()).verifyComplete();
+
+            String subObjectHash = ApplicationUtils.calculateSHA256(subObject).substring(0, 12);
+            assertThat(logCapture.messages(Level.INFO)).filteredOn(line -> line.startsWith("[subscribe] ")).singleElement()
+                    .asString()
+                    .contains(" - product-offering " + rootId + " (updated) -> stored with 1 subentities [other "
+                            + subObjectId + " (created, hash=" + subObjectHash + ")] in ")
+                    .endsWith(" ms (event=" + blockchainNotification.id() + " publisher=" + blockchainNotification.ethereumAddress()
+                            + " dataLocation=" + blockchainNotification.dataLocation() + ")");
+        }
     }
 
     @Test

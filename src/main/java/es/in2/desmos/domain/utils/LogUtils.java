@@ -14,6 +14,7 @@ public final class LogUtils {
     public static final String PUBLISH = "[publish]";
     public static final String INIT = "[init]";
     public static final String AUDIT = "[audit]";
+    public static final String SUBSCRIBE = "[subscribe]";
 
     private LogUtils() {
         throw new IllegalStateException("Utility class");

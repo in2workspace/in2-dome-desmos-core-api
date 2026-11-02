@@ -7,6 +7,7 @@ import es.in2.desmos.application.workflows.SubscribeWorkflow;
 import es.in2.desmos.domain.exceptions.JsonReadingException;
 import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BlockchainNotification;
+import es.in2.desmos.domain.models.BrokerWriteAction;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
@@ -21,9 +22,12 @@ import reactor.core.publisher.Mono;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
+import static es.in2.desmos.domain.utils.LogUtils.SUBSCRIBE;
 
 /*
  *  Workflow steps:
@@ -36,6 +40,16 @@ import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
 @Service
 @RequiredArgsConstructor
 public class SubscribeWorkflowImpl implements SubscribeWorkflow {
+
+    private static final int LOGGED_HASH_LENGTH = 12;
+
+    // An entity written to the local broker while processing a blockchain event, only used for the [subscribe] line
+    private record StoredEntity(String type, String id, BrokerWriteAction action, boolean notifiedEntity, String hash) {
+        @Override
+        public String toString() {
+            return type + " " + id + " (" + action.name().toLowerCase() + (hash != null ? ", hash=" + hash : "") + ")";
+        }
+    }
 
     private final QueueService pendingSubscribeEventsQueue;
     private final BrokerPublisherService brokerPublisherService;
@@ -75,36 +89,62 @@ public class SubscribeWorkflowImpl implements SubscribeWorkflow {
                                                                         // Build and save the audit record for RETRIEVED status
                                                                         .then(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
                                                                         // Publish the retrieved entity to the local broker
-                                                                        .then(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
+                                                                        .then(brokerPublisherService.upsertDataInBroker(processId, entityId, retrievedBrokerEntity))
                                                                         // Build and save the audit record for PUBLISHED status
-                                                                        .then(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED));
+                                                                        .flatMap(action -> auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED)
+                                                                                .thenReturn(new StoredEntity(entityType, entityId, action, true, null)));
                                                             } else {
                                                                 log.debug("ProcessID: {} - Retrieved entity with id: {} has root object type but it isn't the current root object", processId, entityId);
                                                                 return auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED)
-                                                                        .then(brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity))
-                                                                        .then(auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED));
+                                                                        .then(brokerPublisherService.upsertDataInBroker(processId, entityId, retrievedBrokerEntity))
+                                                                        .flatMap(action -> auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED)
+                                                                                .thenReturn(new StoredEntity(entityType, entityId, action, false, null)));
                                                             }
                                                         } else {
+                                                            // Not a replicated type, so no audit record: its hash goes to the [subscribe] line
                                                             String entityHash = calculateHash(retrievedBrokerEntity);
-                                                            log.info("ProcessID: {} - AuditLog: RETRIEVED from Blockchain. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash);
+                                                            log.debug("ProcessID: {} - AuditLog: RETRIEVED from Blockchain. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash);
 
-                                                            return brokerPublisherService.publishDataToBroker(processId, entityId, retrievedBrokerEntity)
-                                                                    .doOnSuccess(x -> log.info("ProcessID: {} - AuditLog: PUBLISHED to Broker. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash));
+                                                            return brokerPublisherService.upsertDataInBroker(processId, entityId, retrievedBrokerEntity)
+                                                                    .doOnSuccess(x -> log.debug("ProcessID: {} - AuditLog: PUBLISHED to Broker. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash))
+                                                                    .map(action -> new StoredEntity(entityType, entityId, action, false, shortHash(entityHash)));
                                                         }
                                                     }
                                             )
                                             .collectList()
+                                            .doOnNext(storedEntities -> logStored(processId, blockchainNotification, storedEntities,
+                                                    Duration.between(startTime, Instant.now()).toMillis()))
                                             .then()
-                                            .doOnSuccess(success -> log.info("ProcessID: {} - Subscribe Workflow completed successfully in {} ms.",
-                                                    processId, Duration.between(startTime, Instant.now()).toMillis()))
                                             .onErrorResume(error ->
                                                     Mono.just(error)
                                                             .doOnNext(errorObject ->
-                                                                    log.error("ProcessID: {} - Error occurred while processing the Subscribe Workflow after {} ms: {}",
-                                                                            processId, Duration.between(startTime, Instant.now()).toMillis(), errorObject.getMessage()))
+                                                                    log.error("{} ProcessID: {} - {} event={} publisher={} dataLocation={} -> error after {} ms: {}",
+                                                                            SUBSCRIBE, processId, blockchainNotification.eventType(), blockchainNotification.id(),
+                                                                            blockchainNotification.ethereumAddress(), blockchainNotification.dataLocation(),
+                                                                            Duration.between(startTime, Instant.now()).toMillis(), errorObject.getMessage()))
                                                             .then(Mono.empty()))
                             );
                 });
+    }
+
+    // One line per blockchain event with everything the per-step lines used to say: the notified entity and whether
+    // it was created or updated, where it came from and who published it, and the subentities written with it
+    private static void logStored(String processId, BlockchainNotification blockchainNotification,
+                                  List<StoredEntity> storedEntities, long durationMillis) {
+        String notified = storedEntities.stream()
+                .filter(StoredEntity::notifiedEntity)
+                .map(StoredEntity::toString)
+                .collect(Collectors.joining(", "));
+        List<StoredEntity> subentities = storedEntities.stream().filter(stored -> !stored.notifiedEntity()).toList();
+        log.info("{} ProcessID: {} - {} -> stored{} in {} ms (event={} publisher={} dataLocation={})",
+                SUBSCRIBE, processId, notified.isEmpty() ? blockchainNotification.eventType() + " (not returned by the origin)" : notified,
+                subentities.isEmpty() ? "" : " with " + subentities.size() + " subentities " + subentities,
+                durationMillis, blockchainNotification.id(), blockchainNotification.ethereumAddress(),
+                blockchainNotification.dataLocation());
+    }
+
+    private static String shortHash(String hash) {
+        return hash.length() > LOGGED_HASH_LENGTH ? hash.substring(0, LOGGED_HASH_LENGTH) : hash;
     }
 
     private boolean isCurrentRootObject(BlockchainNotification blockchainNotification, String entityId) {

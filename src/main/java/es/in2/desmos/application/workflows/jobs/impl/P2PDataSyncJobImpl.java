@@ -148,18 +148,10 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
                 .concatMap(entityType -> {
                             log.debug("ProcessID: {} - Starting P2P Data Synchronization with Genesis Nodes for entity type: {}", processId, entityType);
                             return createLocalMvEntitiesByType(processId, entityType)
-                                    .switchIfEmpty(Flux.defer(() -> {
-                                        log.warn("ProcessID: {} - No local MV Entities found in P2P Data Synchronization for entity type: {}", processId, entityType);
-                                        return Flux.empty();
-                                    }))
                                     .transform(flux -> filterReplicableMvEntities(processId, flux))
                                     .collectList()
-                                    .map(replicableMvEntitiesList -> {
-                                        if (replicableMvEntitiesList.isEmpty()) {
-                                            log.warn("ProcessID: {} -  No local replicable MV Entities found for entity type: {}", processId, entityType);
-                                        }
-                                        return Map.entry(entityType, replicableMvEntitiesList);
-                                    })
+                                    // An empty type shows as "BEGIN local=0"
+                                    .map(replicableMvEntitiesList -> Map.entry(entityType, replicableMvEntitiesList))
                                     .onErrorResume(error -> {
                                         failedEntityTypes.add(entityType);
                                         logFailure("{} ProcessID: {} - ({}/{}) {} FAILED reading local MV Entities, type skipped",

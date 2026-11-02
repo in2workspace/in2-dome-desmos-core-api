@@ -1,6 +1,7 @@
 package es.in2.desmos.domain.services.broker;
 
 import es.in2.desmos.domain.models.BrokerEntityWithIdAndType;
+import es.in2.desmos.domain.models.BrokerWriteAction;
 import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.models.Id;
 import reactor.core.publisher.Flux;
@@ -11,6 +12,11 @@ import java.util.List;
 public interface BrokerPublisherService {
 
     Mono<Void> publishDataToBroker(String processId, String entityId, String retrievedBrokerEntity);
+
+    /**
+     * Like publishDataToBroker, but tells whether the entity was created or updated.
+     */
+    Mono<BrokerWriteAction> upsertDataInBroker(String processId, String entityId, String retrievedBrokerEntity);
 
     <T extends BrokerEntityWithIdAndType> Flux<T> findAllIdTypeAndAttributesByType(String processId, String type, String firstAttribute, String secondAttribute, String thirdAttribute, String forthAttribute, Class<T> responseClassArray);
 

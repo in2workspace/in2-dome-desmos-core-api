@@ -26,6 +26,7 @@ import reactor.netty.http.client.HttpClientRequest;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,6 +50,7 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
     private static final int PUBLICATION_MAX_RETRIES = 3;
     private static final List<String> TX_HASH_FIELDS = List.of("transactionHash", "txHash", "hash", "tx");
     private static final Pattern TX_HASH_PATTERN = Pattern.compile("0x[0-9a-fA-F]{64}");
+    private static final Pattern BLOCK_TIMESTAMP_PATTERN = Pattern.compile("\\d{9,11}");
 
     private final DLTAdapterProperties dltAdapterProperties;
     private final ApiConfig apiConfig;
@@ -125,8 +127,8 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
                                 // The body is read (not released) to log the transaction hash when the adapter returns it
                                 return response.bodyToMono(String.class)
                                         .defaultIfEmpty("")
-                                        .doOnNext(body -> log.info("{} ProcessID: {} - {} {} -> tx={} ({}{})", PUBLISH, processId,
-                                                entityType, entityId, extractTxHash(body).orElse("n/a"),
+                                        .doOnNext(body -> log.info("{} ProcessID: {} - {} {} -> {} ({}{})", PUBLISH, processId,
+                                                entityType, entityId, describePublicationResponse(body, maxBodyChars),
                                                 LogUtils.formatDurationSince(startNanos),
                                                 attempt > 1 ? ", attempts=" + attempt : ""))
                                         .then();
@@ -173,6 +175,20 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
         int hashLinkIndex = dataLocation.indexOf(HASHLINK_PREFIX);
         String withoutHashLink = hashLinkIndex >= 0 ? dataLocation.substring(0, hashLinkIndex) : dataLocation;
         return withoutHashLink.substring(withoutHashLink.lastIndexOf('/') + 1);
+    }
+
+    // DLT adapter 1.5.1 answers with the timestamp (Unix seconds) of the block that holds the transaction, not with
+    // the transaction hash; a later adapter may return the hash, so both are recognised
+    private String describePublicationResponse(String body, int maxBodyChars) {
+        Optional<String> txHash = extractTxHash(body);
+        if (txHash.isPresent()) {
+            return "tx=" + txHash.get();
+        }
+        String trimmed = body == null ? "" : body.trim();
+        if (BLOCK_TIMESTAMP_PATTERN.matcher(trimmed).matches()) {
+            return "block=" + Instant.ofEpochSecond(Long.parseLong(trimmed));
+        }
+        return trimmed.isEmpty() ? "published" : "response=" + truncate(trimmed, maxBodyChars);
     }
 
     private Optional<String> extractTxHash(String body) {
