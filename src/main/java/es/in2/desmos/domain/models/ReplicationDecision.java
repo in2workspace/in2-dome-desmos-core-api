@@ -8,7 +8,7 @@ package es.in2.desmos.domain.models;
  */
 public record ReplicationDecision(boolean replicable, String reason) {
 
-    public static final ReplicationDecision REPLICABLE = new ReplicationDecision(true, null);
+    public static final ReplicationDecision REPLICABLE_DECISION = new ReplicationDecision(true, null);
 
     public static ReplicationDecision notReplicable(String reason) {
         return new ReplicationDecision(false, reason);

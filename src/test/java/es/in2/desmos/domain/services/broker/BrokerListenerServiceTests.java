@@ -82,7 +82,7 @@ class BrokerListenerServiceTests {
                 .build();
         // Act
         when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.empty());
-        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE));
+        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE_DECISION));
         when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), any(), any())).thenReturn(Mono.empty());
         when(queueService.enqueueEvent(any())).thenReturn(Mono.empty());
         // Assert
@@ -150,7 +150,7 @@ class BrokerListenerServiceTests {
                 .build();
         // Act
         when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
-        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE));
+        when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE_DECISION));
         when(objectMapper.writer()).thenReturn(objectWriter);
         when(objectWriter.writeValueAsString(any())).thenReturn("""
                 {

@@ -205,7 +205,7 @@ class ReplicationPoliciesServiceTest {
 
         StepVerifier.create(replicationPoliciesService.evaluate("process-123",
                         MVEntityReplicationPoliciesInfoMother.replicationValidFields()))
-                .expectNext(ReplicationDecision.REPLICABLE)
+                .expectNext(ReplicationDecision.REPLICABLE_DECISION)
                 .verifyComplete();
     }
 

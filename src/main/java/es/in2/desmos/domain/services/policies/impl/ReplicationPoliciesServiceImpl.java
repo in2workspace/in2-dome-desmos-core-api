@@ -23,6 +23,7 @@ import static es.in2.desmos.domain.utils.ApplicationConstants.*;
 public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesService {
 
     private static final Set<String> VALID_STATUSES = Set.of("Launched", "Retired", "Obsolete");
+    private static final String POLICY_PREFIX = "policy ";
 
     @Override
     public Mono<Boolean> isMVEntityReplicable(String processId, MVEntityReplicationPoliciesInfo mvEntity) {
@@ -58,14 +59,14 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
     private ReplicationDecision decide(MVEntityReplicationPoliciesInfo mvEntity) {
         if (!isLifecycleStatusReplicable(mvEntity.type(), mvEntity.lifecycleStatus())) {
             return ReplicationDecision.notReplicable(
-                    "policy " + ReplicationPolicies.GP_1 + ": lifecycleStatus=" + mvEntity.lifecycleStatus());
+                    POLICY_PREFIX + ReplicationPolicies.GP_1 + ": lifecycleStatus=" + mvEntity.lifecycleStatus());
         }
         if (!isValidForReplicable(mvEntity.startDateTime(), mvEntity.endDateTime())) {
             return ReplicationDecision.notReplicable(
-                    "policy " + ReplicationPolicies.GP_2 + ": validFor start=" + mvEntity.startDateTime()
+                    POLICY_PREFIX + ReplicationPolicies.GP_2 + ": validFor start=" + mvEntity.startDateTime()
                             + " end=" + mvEntity.endDateTime());
         }
-        return ReplicationDecision.REPLICABLE;
+        return ReplicationDecision.REPLICABLE_DECISION;
     }
 
     // Per entity type: one INFO line with how many entities are replicable and how many each reason left out, and one
@@ -100,7 +101,7 @@ public class ReplicationPoliciesServiceImpl implements ReplicationPoliciesServic
 
     // GP_2 rejections share one reason: their validFor dates differ per entity, so they go next to each id instead
     private String groupReason(MVEntityReplicationPoliciesInfo mvEntity, ReplicationDecision decision) {
-        return failsValidFor(mvEntity) ? "policy " + ReplicationPolicies.GP_2 + ": validFor" : decision.reason();
+        return failsValidFor(mvEntity) ? POLICY_PREFIX + ReplicationPolicies.GP_2 + ": validFor" : decision.reason();
     }
 
     private String describeNotReplicable(MVEntityReplicationPoliciesInfo mvEntity) {
