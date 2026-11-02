@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix P2P synchronization losing every entity of a batch when the broker rejects one of them: each entity is now written on its own, the rejected one is logged with its id, and only the written entities are audited as published
 - Write at most 8 entities to the broker at the same time during a P2P synchronization
 - Fix failed DLT publications being audited as PUBLISHED: the audit trail claimed a publication that never happened and the next version of the entity was chained to a hashlink that is not on the blockchain
+- Add connect and response timeouts to the requests to other nodes, the broker and the DLT adapter, so a request without answer no longer hangs forever (configurable with API_CONNECT_TIMEOUT, API_RESPONSE_TIMEOUT, BROKER_RESPONSE_TIMEOUT, DLT_ADAPTER_RESPONSE_TIMEOUT and DLT_ADAPTER_PUBLICATION_TIMEOUT)
+- Retry a DLT publication only when it certainly did not reach the DLT adapter, waiting between attempts, and log a publication sent without answer as of unknown outcome instead of publishing it again
 - Keep synchronizing the other genesis nodes and entity types when one of them fails in a P2P synchronization; the synchronization is then reported as incomplete, naming the failed nodes and types
 - Answer an incomplete P2P synchronization from the sync endpoint with 502 instead of 500, and log it in the sync cron job as a single warning instead of a stack trace
 - Log the entities left out by the replication policies grouped per entity type and reason (one summary line per type, one warning per reason listing the ids) instead of a warning per entity; a broker notification that is not replicable is logged in one warning with the entity id and the reason

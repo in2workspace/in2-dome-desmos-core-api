@@ -5,7 +5,10 @@ import es.in2.desmos.domain.utils.ApplicationUtils;
 import es.in2.desmos.infrastructure.configs.properties.ApiProperties;
 import es.in2.desmos.infrastructure.configs.properties.OpenApiProperties;
 import es.in2.desmos.infrastructure.configs.properties.OperatorProperties;
+import io.netty.handler.timeout.ReadTimeoutException;
 import io.swagger.v3.oas.models.OpenAPI;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,8 +20,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.env.Environment;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.test.StepVerifier;
 
+import java.io.IOException;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -97,6 +104,8 @@ class ApiConfigTests {
     void webClient_Returns_WebClient_Instance() {
         // Arrange
         when(apiProperties.maxInMemorySize()).thenReturn(DataSize.ofMegabytes(10));
+        when(apiProperties.connectTimeout()).thenReturn(Duration.ofSeconds(10));
+        when(apiProperties.responseTimeout()).thenReturn(Duration.ofSeconds(300));
         // Act
         WebClient webClient = apiConfig.webClient();
         // Assert
@@ -133,6 +142,65 @@ class ApiConfigTests {
 
         verify(apiProperties, times(1)).externalDomain();
         verifyNoMoreInteractions(apiProperties);
+    }
+
+    @Test
+    void apiProperties_Uses_Default_Timeouts_When_Not_Configured() {
+        ApiProperties properties = new ApiProperties("http://my-domain.org", "v2", null, null, null);
+
+        assertEquals(Duration.ofSeconds(10), properties.connectTimeout());
+        assertEquals(Duration.ofSeconds(300), properties.responseTimeout());
+    }
+
+    @Test
+    void apiProperties_Keeps_Configured_Timeouts() {
+        ApiProperties properties = new ApiProperties("http://my-domain.org", "v2", null,
+                Duration.ofSeconds(3), Duration.ofSeconds(45));
+
+        assertEquals(Duration.ofSeconds(3), properties.connectTimeout());
+        assertEquals(Duration.ofSeconds(45), properties.responseTimeout());
+    }
+
+    @Test
+    void clientHttpConnector_Fails_When_Server_Sends_Nothing_Within_Response_Timeout() throws IOException {
+        when(apiProperties.connectTimeout()).thenReturn(Duration.ofSeconds(5));
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(new MockResponse().setBody("late").setHeadersDelay(3, TimeUnit.SECONDS));
+            server.start();
+            WebClient webClient = WebClient.builder()
+                    .clientConnector(apiConfig.clientHttpConnector(Duration.ofMillis(300)))
+                    .build();
+
+            StepVerifier.create(webClient.get().uri(server.url("/").toString()).retrieve().bodyToMono(String.class))
+                    .expectErrorSatisfies(error -> Assertions.assertTrue(
+                            hasCause(error, ReadTimeoutException.class), () -> "Unexpected error: " + error))
+                    .verify(Duration.ofSeconds(5));
+        }
+    }
+
+    @Test
+    void clientHttpConnector_Succeeds_When_Server_Answers_Within_Response_Timeout() throws IOException {
+        when(apiProperties.connectTimeout()).thenReturn(Duration.ofSeconds(5));
+        try (MockWebServer server = new MockWebServer()) {
+            server.enqueue(new MockResponse().setBody("ok"));
+            server.start();
+            WebClient webClient = WebClient.builder()
+                    .clientConnector(apiConfig.clientHttpConnector(Duration.ofSeconds(2)))
+                    .build();
+
+            StepVerifier.create(webClient.get().uri(server.url("/").toString()).retrieve().bodyToMono(String.class))
+                    .expectNext("ok")
+                    .verifyComplete();
+        }
+    }
+
+    private static boolean hasCause(Throwable error, Class<? extends Throwable> type) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (type.isInstance(current)) {
+                return true;
+            }
+        }
+        return false;
     }
 
 }

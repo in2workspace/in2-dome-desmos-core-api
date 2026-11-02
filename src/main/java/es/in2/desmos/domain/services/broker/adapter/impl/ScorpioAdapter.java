@@ -54,6 +54,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
         // DataBufferLimitException during P2P data sync.
         this.webClient = WebClient.builder()
                 .baseUrl(brokerConfig.getInternalDomain())
+                .clientConnector(apiConfig.clientHttpConnector(brokerConfig.getResponseTimeout()))
                 .codecs(configurer -> configurer.defaultCodecs()
                         .maxInMemorySize((int) apiConfig.getMaxInMemorySize().toBytes()))
                 .build();

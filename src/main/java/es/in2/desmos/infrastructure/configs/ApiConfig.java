@@ -4,6 +4,7 @@ import es.in2.desmos.domain.exceptions.HashCreationException;
 import es.in2.desmos.infrastructure.configs.properties.ApiProperties;
 import es.in2.desmos.infrastructure.configs.properties.OpenApiProperties;
 import es.in2.desmos.infrastructure.configs.properties.OperatorProperties;
+import io.netty.channel.ChannelOption;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
@@ -14,9 +15,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.http.client.reactive.ClientHttpConnector;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
+import java.time.Duration;
 import java.util.List;
 
 import static es.in2.desmos.domain.utils.ApplicationUtils.calculateSHA256;
@@ -68,9 +73,19 @@ public class ApiConfig {
         // by the P2P sync clients, which stream large NGSI-LD entities and hit the per-JSON-object
         // limit (DataBufferLimitException) otherwise.
         return WebClient.builder()
+                .clientConnector(clientHttpConnector(apiProperties.responseTimeout()))
                 .codecs(configurer -> configurer.defaultCodecs()
                         .maxInMemorySize((int) getMaxInMemorySize().toBytes()))
                 .build();
+    }
+
+    // Without these timeouts a peer or broker that stops answering keeps the request (and the
+    // P2P sync waiting on it) open forever without logging anything.
+    public ClientHttpConnector clientHttpConnector(Duration responseTimeout) {
+        HttpClient httpClient = HttpClient.create()
+                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) apiProperties.connectTimeout().toMillis())
+                .responseTimeout(responseTimeout);
+        return new ReactorClientHttpConnector(httpClient);
     }
 
     public DataSize getMaxInMemorySize() {

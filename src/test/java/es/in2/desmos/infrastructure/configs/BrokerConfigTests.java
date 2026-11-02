@@ -9,6 +9,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -134,4 +135,17 @@ class BrokerConfigTests {
         assertEquals(500, actualPageSize);
     }
 
+    @Test
+    void getResponseTimeout() {
+        when(brokerProperties.responseTimeout()).thenReturn(Duration.ofSeconds(45));
+
+        assertEquals(Duration.ofSeconds(45), brokerConfig.getResponseTimeout());
+    }
+
+    @Test
+    void brokerPropertiesUsesDefaultResponseTimeoutWhenNotConfigured() {
+        BrokerProperties properties = new BrokerProperties("scorpio", "http://scorpio:9090", null, null, null);
+
+        assertEquals(Duration.ofSeconds(120), properties.responseTimeout());
+    }
 }

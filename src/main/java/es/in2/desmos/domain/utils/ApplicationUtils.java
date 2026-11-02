@@ -6,12 +6,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import es.in2.desmos.domain.exceptions.JsonReadingException;
+import io.netty.channel.ConnectTimeoutException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 
+import java.net.ConnectException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -24,6 +29,38 @@ public class ApplicationUtils {
 
     public static String generateProcessId() {
         return UUID.randomUUID().toString();
+    }
+
+    /**
+     * Whether a request certainly did not reach the remote service: the connection could not be established.
+     * Only then is it safe to send again a request that is not idempotent (e.g. a publication or a subscription).
+     */
+    public static boolean isRequestNotDelivered(Throwable error) {
+        return anyCause(error, current -> current instanceof ConnectException || current instanceof ConnectTimeoutException);
+    }
+
+    /**
+     * Whether a request that is not idempotent (a publication, creating a subscription) can be sent again without
+     * the risk of the remote processing it twice: it certainly did not arrive, or the remote answered 503
+     * (unavailable, nothing processed). Timeouts, other 5xx and 4xx are not safe.
+     */
+    public static boolean isSafeToResend(Throwable error) {
+        return isRequestNotDelivered(error) || anyCause(error, current -> current instanceof WebClientResponseException responseException
+                && responseException.getStatusCode().value() == HttpStatus.SERVICE_UNAVAILABLE.value());
+    }
+
+    /**
+     * Whether the error or any of its causes matches the condition. Each exception is visited once, so a cycle
+     * in the cause chain does not loop forever.
+     */
+    public static boolean anyCause(Throwable error, Predicate<Throwable> condition) {
+        Set<Throwable> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable current = error; current != null && visited.add(current); current = current.getCause()) {
+            if (condition.test(current)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static String calculateSHA256(String inputData) throws NoSuchAlgorithmException, JsonProcessingException {

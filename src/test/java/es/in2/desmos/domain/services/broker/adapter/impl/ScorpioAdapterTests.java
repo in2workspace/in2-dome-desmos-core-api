@@ -15,7 +15,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -25,6 +27,7 @@ import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -32,9 +35,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -351,5 +356,19 @@ class ScorpioAdapterTests {
             }
         }
         return null;
+    }
+
+    @Test
+    void initShouldBuildWebClientWithBrokerResponseTimeout() {
+        Duration brokerResponseTimeout = Duration.ofSeconds(60);
+        when(brokerConfig.getInternalDomain()).thenReturn("http://scorpio:9090");
+        when(brokerConfig.getResponseTimeout()).thenReturn(brokerResponseTimeout);
+        when(apiConfig.getMaxInMemorySize()).thenReturn(DataSize.ofMegabytes(10));
+        when(apiConfig.clientHttpConnector(brokerResponseTimeout)).thenReturn(new ReactorClientHttpConnector());
+
+        scorpioAdapter.init();
+
+        verify(apiConfig).clientHttpConnector(brokerResponseTimeout);
+        assertNotNull(ReflectionTestUtils.getField(scorpioAdapter, "webClient"));
     }
 }

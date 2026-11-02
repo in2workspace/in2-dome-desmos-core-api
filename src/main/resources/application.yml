@@ -92,6 +92,11 @@ api:
   # Max bytes the shared WebClient buffers in memory per response (and per streamed JSON object).
   # Default WebClient limit is 256KB, too small for large NGSI-LD entities exchanged during P2P sync.
   max-in-memory-size: ${API_MAX_IN_MEMORY_SIZE:100MB}
+  # Outgoing HTTP timeouts. The response timeout is the max time without receiving data (not the total
+  # duration), so long P2P NDJSON streams are not cut while data keeps flowing. The genesis node can take
+  # ~90s to start answering a discovery, hence the generous default.
+  connect-timeout: ${API_CONNECT_TIMEOUT:10s}
+  response-timeout: ${API_RESPONSE_TIMEOUT:300s}
 
 # Context Broker Configuration
 broker:
@@ -106,6 +111,9 @@ broker:
   # broker's own max query limit (Scorpio's scorpio.entity.max-limit, 1000 by default) — going over it
   # returns 403, not a truncated page.
   pageSize: 1000
+  # Max time without receiving data from the broker before a request to it fails. Generous because the P2P
+  # sync writes many entities concurrently and a loaded broker can take long to answer some of them.
+  response-timeout: ${BROKER_RESPONSE_TIMEOUT:120s}
 
 # NGSI Subscription Configuration
 ngsi-subscription:
@@ -120,6 +128,11 @@ dlt-adapter:
     publication: "/api/v1/publishEvent"
     subscription: "/api/v1/subscribe"
     events: "/api/v1/events"
+  # Max time without receiving data from the DLT adapter (subscriptions, events).
+  response-timeout: ${DLT_ADAPTER_RESPONSE_TIMEOUT:120s}
+  # Max time waiting for the answer to a publication; the adapter answers once the transaction is confirmed.
+  # A publication cut by it is not retried and its outcome is unknown, so it is long.
+  publication-timeout: ${DLT_ADAPTER_PUBLICATION_TIMEOUT:10m}
 
 # Event Subscription Configuration
 tx-subscription:
