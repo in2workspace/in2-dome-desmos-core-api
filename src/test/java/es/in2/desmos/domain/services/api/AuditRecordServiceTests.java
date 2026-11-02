@@ -1,5 +1,6 @@
 package es.in2.desmos.domain.services.api;
 
+import ch.qos.logback.classic.Level;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.*;
@@ -11,6 +12,7 @@ import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.objectmothers.AuditRecordMother;
 import es.in2.desmos.objectmothers.EntityMother;
 import es.in2.desmos.objectmothers.MVAuditServiceEntity4DataNegotiationMother;
+import es.in2.desmos.testutils.LogCapture;
 import org.json.JSONException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -161,6 +163,25 @@ class AuditRecordServiceTests {
                 .usingRecursiveComparison()
                 .ignoringFields("id", "createdAt", "hash", "hashLink")
                 .isEqualTo(expectedAuditRecord);
+    }
+
+    @Test
+    void itShouldLogTheSavedAuditRecordInOneLine() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation = MVAuditServiceEntity4DataNegotiationMother.sample1();
+        when(auditRecordRepository.findMostRecentAuditRecord()).thenReturn(Mono.just(new AuditRecord()));
+        when(auditRecordRepository.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+        try (LogCapture logCapture = LogCapture.of(AuditRecordServiceImpl.class)) {
+            StepVerifier.create(auditRecordService.buildAndSaveAuditRecordFromDataSync(processId, "http://example.org",
+                            mvAuditServiceEntity4DataNegotiation, AuditRecordStatus.RETRIEVED))
+                    .verifyComplete();
+
+            assertThat(logCapture.messages(Level.INFO)).containsExactly("[audit] ProcessID: 0 - "
+                    + mvAuditServiceEntity4DataNegotiation.type() + " " + mvAuditServiceEntity4DataNegotiation.id()
+                    + " -> RETRIEVED CONSUMER (source=p2p sync, entityHash="
+                    + mvAuditServiceEntity4DataNegotiation.hash().substring(0, 12) + ")");
+        }
     }
 
     @Test

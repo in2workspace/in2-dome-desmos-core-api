@@ -13,6 +13,7 @@ public final class LogUtils {
     public static final String NOTIF = "[notif]";
     public static final String PUBLISH = "[publish]";
     public static final String INIT = "[init]";
+    public static final String AUDIT = "[audit]";
 
     private LogUtils() {
         throw new IllegalStateException("Utility class");
