@@ -3,6 +3,7 @@ package es.in2.desmos.domain.services.broker.adapter.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
+import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
 import es.in2.desmos.domain.models.BrokerEntityWithIdTypeLastUpdateAndVersion;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
@@ -19,13 +20,16 @@ import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
@@ -370,5 +374,22 @@ class ScorpioAdapterTests {
 
         verify(apiConfig).clientHttpConnector(brokerResponseTimeout);
         assertNotNull(ReflectionTestUtils.getField(scorpioAdapter, "webClient"));
+    }
+
+    @Test
+    void getSubscriptionsShouldKeepTheCauseWhenTheBrokerIsNotReachable() throws IOException {
+        int closedPort;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            closedPort = socket.getLocalPort();
+        }
+        when(brokerConfig.getSubscriptionsPath()).thenReturn("/ngsi-ld/v1/subscriptions");
+        ReflectionTestUtils.setField(scorpioAdapter, "webClient", WebClient.create("http://localhost:" + closedPort));
+
+        StepVerifier.create(scorpioAdapter.getSubscriptions("0"))
+                .expectErrorSatisfies(error -> {
+                    assertInstanceOf(SubscriptionCreationException.class, error);
+                    assertInstanceOf(WebClientRequestException.class, error.getCause());
+                })
+                .verify(Duration.ofSeconds(10));
     }
 }

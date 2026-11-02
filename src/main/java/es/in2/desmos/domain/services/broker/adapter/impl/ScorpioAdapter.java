@@ -7,6 +7,8 @@ import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
 import es.in2.desmos.domain.exceptions.JsonReadingException;
 import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
+import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
+import es.in2.desmos.domain.exceptions.SubscriptionUpdateException;
 import es.in2.desmos.domain.models.BrokerEntityWithIdAndType;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
@@ -195,7 +197,9 @@ public class ScorpioAdapter implements BrokerAdapterService {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<BrokerSubscription>>() {
                 })
-                .onErrorMap(error -> new SubscriptionCreationException("Error fetching subscriptions from broker"));
+                .timeout(SubscriptionLookupException.TIMEOUT)
+                // Keeps the cause so that callers can tell a broker that is not up yet from a real rejection
+                .onErrorMap(error -> new SubscriptionLookupException("Error fetching subscriptions from broker", error));
     }
 
     @Override
@@ -307,7 +311,9 @@ public class ScorpioAdapter implements BrokerAdapterService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(brokerSubscription)
                 .retrieve()
-                .bodyToMono(Void.class);
+                .bodyToMono(Void.class)
+                // Marks the idempotent step so that the startup retries can tell it from creating the subscription
+                .onErrorMap(error -> new SubscriptionUpdateException("Error updating subscription in broker", error));
     }
 
     private Optional<BrokerSubscription> checkIfSubscriptionExists(BrokerSubscription brokerSubscription, List<BrokerSubscription> subscriptionList) {

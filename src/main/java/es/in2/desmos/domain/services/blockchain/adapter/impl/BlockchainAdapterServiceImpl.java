@@ -76,7 +76,7 @@ public class BlockchainAdapterServiceImpl implements BlockchainAdapterService {
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .bodyToMono(BlockchainSubscription[].class)
-                .retry(3)
+                // Not retried here: the startup step that looks the subscriptions up retries it as a whole
                 .flatMapMany(Flux::fromArray)
                 .doFirst(() -> log.debug("ProcessId: {} - Getting subscriptions...", processId));
     }

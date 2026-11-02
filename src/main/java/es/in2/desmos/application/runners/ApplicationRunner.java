@@ -1,10 +1,11 @@
 package es.in2.desmos.application.runners;
 
-import es.in2.desmos.DesmosApiApplication;
 import es.in2.desmos.application.workflows.DataSyncWorkflow;
 import es.in2.desmos.application.workflows.PublishWorkflow;
 import es.in2.desmos.application.workflows.SubscribeWorkflow;
 import es.in2.desmos.domain.exceptions.RequestErrorException;
+import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
+import es.in2.desmos.domain.exceptions.SubscriptionUpdateException;
 import es.in2.desmos.domain.models.BlockchainSubscription;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.services.blockchain.BlockchainListenerService;
@@ -18,24 +19,32 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.event.EventListener;
 import org.springframework.http.MediaType;
-import org.springframework.retry.annotation.Backoff;
-import org.springframework.retry.annotation.Retryable;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.SUBSCRIPTION_ID_PREFIX;
 import static es.in2.desmos.domain.utils.ApplicationConstants.SUBSCRIPTION_TYPE;
+import static es.in2.desmos.domain.utils.ApplicationUtils.anyCause;
 import static es.in2.desmos.domain.utils.ApplicationUtils.getEnvironmentMetadata;
+import static es.in2.desmos.domain.utils.ApplicationUtils.isSafeToResend;
 
 @Slf4j
 @Configuration
@@ -58,20 +67,37 @@ public class ApplicationRunner {
     private final DataSyncWorkflow dataSyncWorkflow;
     private final PublishWorkflow publishWorkflow;
     private final SubscribeWorkflow subscribeWorkflow;
+    private final ApplicationContext applicationContext;
     private final AtomicBoolean isQueueAuthorizedForEmit = new AtomicBoolean(false);
     private final String getCurrentEnvironment;
     private Disposable publishQueueDisposable;
     private Disposable subscribeQueueDisposable;
 
+    private static final int STARTUP_STEP_MAX_RETRIES = 3;
+    private static final Duration STARTUP_STEP_RETRY_DELAY = Duration.ofSeconds(2);
+    // Bounds each attempt, including any retries the step does internally (e.g. the trusted list download),
+    // so a dependency that accepts the connection and never answers cannot block startup for long. A subscription
+    // step is a lookup with its own timeout (SubscriptionLookupException.TIMEOUT, 60s) followed by the creation
+    // (10s to connect plus the 120s response timeout of the broker and the DLT adapter), so a slow creation is cut
+    // by the client and not by this timeout. Downloading the trusted list (shared WebClient, 300s, retried 3 times)
+    // can still be cut here; it is idempotent and retried, and the error names the step.
+    private static final Duration STARTUP_STEP_ATTEMPT_TIMEOUT = Duration.ofSeconds(200);
+
     @EventListener(ApplicationReadyEvent.class)
     public Mono<Void> onApplicationReady() {
         String processId = UUID.randomUUID().toString();
-        return setBrokerSubscription(processId)
+        return Mono.defer(() -> setBrokerSubscription(processId))
+                .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Broker Subscription"))
+                .retryWhen(startupStepRetry(processId, "Broker Subscription", ApplicationRunner::isSubscriptionStepRetryable))
                 .doFirst(() -> log.info("ProcessID: {} - Starting configuration initialization", processId))
                 .doOnError(error -> finishApplication("Broker Subscription", error))
-                .then(setBlockchainSubscription(processId)
+                .then(Mono.defer(() -> setBlockchainSubscription(processId))
+                        .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Blockchain Subscription"))
+                        .retryWhen(startupStepRetry(processId, "Blockchain Subscription", ApplicationRunner::isSubscriptionStepRetryable))
                         .doOnError(error -> finishApplication("Blockchain Subscription", error)))
-                .then(getTrustedAccessNodesList(processId)
+                .then(Mono.defer(() -> getTrustedAccessNodesList(processId))
+                        .timeout(STARTUP_STEP_ATTEMPT_TIMEOUT, stepTimedOut("Access Node Trusted List Getting"))
+                        .retryWhen(startupStepRetry(processId, "Access Node Trusted List Getting", ApplicationRunner::isTransientStartupError))
                         .doOnError(error -> finishApplication("Access Node Trusted List Getting", error)))
                 .thenMany(initializeDataSync(processId)
                         .onErrorResume(error -> {
@@ -81,7 +107,44 @@ public class ApplicationRunner {
                 .then();
     }
 
-    @Retryable(retryFor = RequestErrorException.class, maxAttempts = 4, backoff = @Backoff(delay = 2000))
+    // Spring's @Retryable never applied here: these methods are private and called from this class, so no
+    // proxy intercepts them, and they return a Mono that fails on subscription, not by throwing. The retry
+    // is done with Reactor instead, with a policy per step (see isSubscriptionStepRetryable and
+    // isTransientStartupError); errors are also recognised when wrapped by an adapter exception.
+    private static Mono<Void> stepTimedOut(String step) {
+        return Mono.error(() -> new TimeoutException(step + " did not finish within " + STARTUP_STEP_ATTEMPT_TIMEOUT.toSeconds() + " s"));
+    }
+
+    private Retry startupStepRetry(String processId, String step, Predicate<Throwable> retryable) {
+        return Retry.fixedDelay(STARTUP_STEP_MAX_RETRIES, STARTUP_STEP_RETRY_DELAY)
+                .filter(retryable)
+                .doBeforeRetry(retrySignal -> log.warn("ProcessID: {} - {} failed (attempt {} of {}), retrying in {} s: {}",
+                        processId, step, retrySignal.totalRetries() + 1, STARTUP_STEP_MAX_RETRIES + 1,
+                        STARTUP_STEP_RETRY_DELAY.toSeconds(), retrySignal.failure().getMessage()))
+                .onRetryExhaustedThrow((retrySpec, retrySignal) -> retrySignal.failure());
+    }
+
+    // For the broker and blockchain subscription steps. Listing the existing subscriptions is read-only and updating
+    // one (a PATCH with its full definition) is idempotent: both are retried on any transient failure. Creating one
+    // is not: a request that timed out may still be processed after
+    // the next attempt's check, creating a duplicate. It is only retried when the request certainly did not arrive
+    // or the dependency answered 503; otherwise the node exits and the check runs again on restart.
+    private static boolean isSubscriptionStepRetryable(Throwable error) {
+        if (anyCause(error, current -> current instanceof SubscriptionLookupException || current instanceof SubscriptionUpdateException)) {
+            return isTransientStartupError(error);
+        }
+        return isSafeToResend(error);
+    }
+
+    // For idempotent steps (reading the trusted list): any transient failure, timeouts included, is retried.
+    private static boolean isTransientStartupError(Throwable error) {
+        return anyCause(error, current -> current instanceof RequestErrorException
+                || current instanceof WebClientRequestException
+                || current instanceof TimeoutException
+                || (current instanceof WebClientResponseException responseException
+                && responseException.getStatusCode().is5xxServerError()));
+    }
+
     private Mono<Void> setBrokerSubscription(String processId) {
         // Build Entity Type List to subscribe to
         List<BrokerSubscription.Entity> entities = new ArrayList<>();
@@ -113,7 +176,6 @@ public class ApplicationRunner {
                 .doOnError(e -> log.error("ProcessID: {} - Error creating Broker Subscription", processId, e));
     }
 
-    @Retryable(retryFor = RequestErrorException.class, maxAttempts = 4, backoff = @Backoff(delay = 2000))
     private Mono<Void> setBlockchainSubscription(String processId) {
         // Check Subscription
         // Create the Blockchain Subscription object
@@ -129,7 +191,6 @@ public class ApplicationRunner {
                 .doOnError(e -> log.error("ProcessID: {} - Error creating Blockchain Subscription", processId, e));
     }
 
-    @Retryable(retryFor = RequestErrorException.class, maxAttempts = 4, backoff = @Backoff(delay = 2000))
     private Mono<Void> getTrustedAccessNodesList(String processId) {
         return trustFrameworkConfig.initialize()
                 .doFirst(() -> log.info("ProcessID: {} - Starting Trusted Access Nodes loading from repository list", processId))
@@ -138,15 +199,17 @@ public class ApplicationRunner {
     }
 
     private Flux<Void> initializeDataSync(String processId) {
-        // Start data synchronization process
+        // Start data synchronization process. The Pub-Sub queues are enabled whether or not it succeeds:
+        // new local changes and blockchain events do not depend on the initial sync, and leaving the
+        // queues disabled would stop the node from publishing or receiving anything until a restart.
+        // Data the sync could not fetch is picked up by the scheduled synchronization.
         return dataSyncWorkflow.startDataSyncWorkflow(processId)
                 .doFirst(() -> log.info("ProcessID: {} - Starting initial Data Synchronization", processId))
-                .doOnComplete(() -> {
-                    log.info("ProcessID: {} - Finished Initial Data Synchronization Workflow", processId);
+                .doOnComplete(() -> log.info("ProcessID: {} - Finished Initial Data Synchronization Workflow", processId))
+                .doOnError(error -> log.warn("ProcessID: {} - Initial Data Synchronization did not complete; enabling Pub-Sub queues anyway", processId))
+                .doOnTerminate(() -> {
                     log.info("ProcessID: {} - Authorizing queues for Pub-Sub Workflows", processId);
                     isQueueAuthorizedForEmit.set(true);
-                })
-                .doOnTerminate(() -> {
                     initializeQueueProcessing(processId);
                     log.info("ProcessID: {} - Queues have been authorized and enabled", processId);
                 });
@@ -203,11 +266,23 @@ public class ApplicationRunner {
     }
 
     private void finishApplication(String step, Throwable error) {
+        // A step that fails because the context is already shutting down (e.g. SIGTERM during startup)
+        // must not force an exit with an error code on top of the ongoing shutdown.
+        if (applicationContext instanceof ConfigurableApplicationContext configurableContext && !configurableContext.isActive()) {
+            log.warn("{} failed while the application is shutting down: {}", step, error.getMessage());
+            return;
+        }
         Mono.fromRunnable(() -> {
             log.error("Error in {}: {}", step, error.getMessage(), error);
-            int exitCode = SpringApplication.exit(DesmosApiApplication.getContext(), () -> 0);
+            // Uses the injected context, not DesmosApiApplication.getContext(): that static field is only set
+            // after SpringApplication.run() returns, which is after ApplicationReadyEvent has been published.
+            int exitCode = SpringApplication.exit(applicationContext, () -> 1);
             log.info("Application exiting with code {}", exitCode);
-            System.exit(exitCode);
+            exit(exitCode);
         }).subscribeOn(Schedulers.boundedElastic()).subscribe();
+    }
+
+    void exit(int exitCode) {
+        System.exit(exitCode);
     }
 }

@@ -1,5 +1,6 @@
 package es.in2.desmos.domain.services.blockchain.impl;
 
+import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
 import es.in2.desmos.domain.models.BlockchainSubscription;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
@@ -20,6 +21,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
 import static es.in2.desmos.domain.utils.EndpointsConstants.DLT_ADAPTER_NOTIFICATION;
@@ -116,6 +119,23 @@ class BlockchainListenerServiceTest {
                 .verifyComplete();
 
         verify(blockchainAdapterService, times(1)).getSubscriptions(processId);
+        verify(blockchainAdapterService, times(0)).createSubscription(processId, blockchainSubscription);
+    }
+
+    @Test
+    void itShouldFailAsALookupWhenListingTheSubscriptionsHangs() {
+        String processId = "0";
+        var blockchainSubscription = BlockchainSubscriptionMother.sample(endpointsConfig.dltNotificationEndpoint());
+
+        when(blockchainAdapterService.getSubscriptions(processId)).thenReturn(Flux.never());
+
+        StepVerifier
+                .withVirtualTime(() -> blockchainListenerService.createSubscription(processId, blockchainSubscription))
+                .thenAwait(SubscriptionLookupException.TIMEOUT)
+                .expectErrorMatches(error -> error instanceof SubscriptionLookupException
+                        && error.getCause() instanceof TimeoutException)
+                .verify(Duration.ofSeconds(30));
+
         verify(blockchainAdapterService, times(0)).createSubscription(processId, blockchainSubscription);
     }
 

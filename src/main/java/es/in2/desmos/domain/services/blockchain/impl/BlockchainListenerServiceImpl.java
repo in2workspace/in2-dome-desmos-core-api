@@ -1,5 +1,6 @@
 package es.in2.desmos.domain.services.blockchain.impl;
 
+import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
 import es.in2.desmos.domain.exceptions.UnauthorizedDomeParticipantException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
@@ -72,7 +73,10 @@ public class BlockchainListenerServiceImpl implements BlockchainListenerService 
                                 .filter(Boolean::booleanValue)
                                 .hasElement()
                 ).any(Boolean::booleanValue)
-                .defaultIfEmpty(false);
+                .defaultIfEmpty(false)
+                .timeout(SubscriptionLookupException.TIMEOUT)
+                // Marks the read-only step so that the startup retries can tell it from creating the subscription
+                .onErrorMap(error -> new SubscriptionLookupException("Error fetching subscriptions from DLT adapter", error));
     }
 
     private Mono<Boolean> checkIfTwoSubscriptionsAreEquals(
