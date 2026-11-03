@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
 import java.util.List;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.ROOT_OBJECTS_LIST;
@@ -48,6 +49,10 @@ public class BrokerConfig {
 
     public int getPageSize() {
         return brokerProperties.pageSize();
+    }
+
+    public Duration getResponseTimeout() {
+        return brokerProperties.responseTimeout();
     }
 
 }

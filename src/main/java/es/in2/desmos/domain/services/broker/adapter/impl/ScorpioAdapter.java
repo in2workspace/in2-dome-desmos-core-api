@@ -7,6 +7,8 @@ import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
 import es.in2.desmos.domain.exceptions.JsonReadingException;
 import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
+import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
+import es.in2.desmos.domain.exceptions.SubscriptionUpdateException;
 import es.in2.desmos.domain.models.BrokerEntityWithIdAndType;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
@@ -54,6 +56,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
         // DataBufferLimitException during P2P data sync.
         this.webClient = WebClient.builder()
                 .baseUrl(brokerConfig.getInternalDomain())
+                .clientConnector(apiConfig.clientHttpConnector(brokerConfig.getResponseTimeout()))
                 .codecs(configurer -> configurer.defaultCodecs()
                         .maxInMemorySize((int) apiConfig.getMaxInMemorySize().toBytes()))
                 .build();
@@ -61,7 +64,6 @@ public class ScorpioAdapter implements BrokerAdapterService {
 
     @Override
     public Mono<Void> postEntity(String processId, String requestBody) {
-        log.info("ProcessID: {} - Posting entity to Scorpio", processId);
         log.debug("ProcessID: {} - Posting entity to Scorpio: {}", processId, requestBody);
         MediaType mediaType = getContentTypeAndAcceptMediaType(requestBody);
         return webClient.post()
@@ -116,7 +118,7 @@ public class ScorpioAdapter implements BrokerAdapterService {
                             .bodyToMono(Void.class)
                             .retryWhen(nonRejectedRequestRetry());
                 })
-                .doOnSuccess(result -> log.info(RESOURCE_UPDATED_MESSAGE, processId))
+                .doOnSuccess(result -> log.debug(RESOURCE_UPDATED_MESSAGE, processId))
                 .doOnError(e -> log.error(ERROR_UPDATING_RESOURCE_MESSAGE, processId, e.getMessage()));
     }
 
@@ -194,7 +196,9 @@ public class ScorpioAdapter implements BrokerAdapterService {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<List<BrokerSubscription>>() {
                 })
-                .onErrorMap(error -> new SubscriptionCreationException("Error fetching subscriptions from broker"));
+                .timeout(SubscriptionLookupException.TIMEOUT)
+                // Keeps the cause so that callers can tell a broker that is not up yet from a real rejection
+                .onErrorMap(error -> new SubscriptionLookupException("Error fetching subscriptions from broker", error));
     }
 
     @Override
@@ -306,7 +310,9 @@ public class ScorpioAdapter implements BrokerAdapterService {
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue(brokerSubscription)
                 .retrieve()
-                .bodyToMono(Void.class);
+                .bodyToMono(Void.class)
+                // Marks the idempotent step so that the startup retries can tell it from creating the subscription
+                .onErrorMap(error -> new SubscriptionUpdateException("Error updating subscription in broker", error));
     }
 
     private Optional<BrokerSubscription> checkIfSubscriptionExists(BrokerSubscription brokerSubscription, List<BrokerSubscription> subscriptionList) {
@@ -400,13 +406,26 @@ public class ScorpioAdapter implements BrokerAdapterService {
         }
     }
 
+    // Logged at debug only: the caller knows which entity was rejected and logs the error with it.
     private Mono<Throwable> rejectedRequestError(String processId, ClientResponse clientResponse) {
         return clientResponse.bodyToMono(String.class)
                 .defaultIfEmpty("")
                 .map(body -> {
-                    log.error(BROKER_REQUEST_REJECTED_MESSAGE, processId, clientResponse.statusCode(), body);
-                    return new BrokerRequestRejectedException(body);
+                    log.debug(BROKER_REQUEST_REJECTED_MESSAGE, processId, clientResponse.statusCode(), body);
+                    return new BrokerRequestRejectedException(body, clientResponse.statusCode().value(), problemDetail(body));
                 });
+    }
+
+    private String problemDetail(String body) {
+        try {
+            JsonNode problem = objectMapper.readTree(body);
+            if (problem != null && problem.hasNonNull("detail")) {
+                return problem.get("detail").asText();
+            }
+        } catch (JsonProcessingException e) {
+            // Not a problem details body: the whole body is the detail
+        }
+        return body;
     }
 
     private Retry nonRejectedRequestRetry() {

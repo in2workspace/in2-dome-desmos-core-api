@@ -4,7 +4,6 @@ package es.in2.desmos.application.workflows.jobs.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.JsonParser;
 import es.in2.desmos.application.workflows.jobs.DataPublicationJob;
 import es.in2.desmos.application.workflows.jobs.DataTransferJob;
 import es.in2.desmos.domain.exceptions.InvalidSyncResponseException;
@@ -13,18 +12,26 @@ import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.sync.EntitySyncWebClient;
 import es.in2.desmos.domain.utils.ApplicationUtils;
 import es.in2.desmos.domain.utils.Base64Converter;
+import es.in2.desmos.domain.utils.LogUtils;
+import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static es.in2.desmos.domain.utils.LogUtils.P2P_SYNC;
 
 @Slf4j
 @Service
@@ -35,6 +42,7 @@ public class DataTransferJobImpl implements DataTransferJob {
     private final DataPublicationJob dataPublicationJob;
     private final ObjectMapper objectMapper;
     private final AuditRecordService auditRecordService;
+    private final LoggingProperties loggingProperties;
 
     @Override
     public Mono<Void> syncDataFromList(String processId, Mono<List<DataNegotiationResult>> dataNegotiationResult) {
@@ -46,6 +54,15 @@ public class DataTransferJobImpl implements DataTransferJob {
 
     @Override
     public Mono<Void> syncData(String processId, Mono<DataNegotiationResult> dataNegotiationResult) {
+        // During the P2P sync the job puts a P2PSyncTypeMetrics in the context to report per-type counters. Other
+        // callers, such as negotiation events, get a throwaway instance.
+        return Mono.deferContextual(context -> {
+            P2PSyncTypeMetrics metrics = context.getOrDefault(P2PSyncTypeMetrics.CONTEXT_KEY, new P2PSyncTypeMetrics());
+            return syncData(processId, dataNegotiationResult, metrics);
+        });
+    }
+
+    private Mono<Void> syncData(String processId, Mono<DataNegotiationResult> dataNegotiationResult, P2PSyncTypeMetrics metrics) {
         return dataNegotiationResult.flatMap(result -> {
             log.debug("ProcessID: {} - Starting Data Transfer Job", processId);
 
@@ -62,52 +79,49 @@ public class DataTransferJobImpl implements DataTransferJob {
                 );
 
 
-                return entitiesToRequest.flatMap(entities -> entitySyncWebClient.makeRequest(processId, issuer, entitiesToRequest)
-                        .collectList()
-                        .flatMap(entitySyncResponse -> {
-                            Mono<List<String>> entitySyncResponseMono = Mono.just(entitySyncResponse);
+                return entitiesToRequest.flatMap(entities -> getEntitiesById(entitySyncWebClient.makeRequest(processId, issuer, entitiesToRequest))
+                        .elapsed()
+                        .map(timedEntitiesById -> {
+                            Map<Id, Entity> entitiesById = timedEntitiesById.getT2();
+                            logEntitySyncResponse(processId, result.issuer(), entities.length, entitiesById.size(),
+                                    Duration.ofMillis(timedEntitiesById.getT1()));
+                            recordFetchedEntities(processId, result.issuer(), entities, entitiesById.keySet(), metrics);
+                            return entitiesById;
+                        })
+                        .flatMap(entitiesById -> {
+                            Mono<Map<Id, Entity>> entitiesByIdMono = Mono.just(entitiesById);
 
-                            return decodeEntitySyncResponse(entitySyncResponseMono)
-                                    .flatMap(decodedEntitySyncResponse -> {
-                                        Mono<String> decodedEntitySyncResponseMono = Mono.just(decodedEntitySyncResponse);
+                            Mono<Map<Id, HashAndHashLink>> newEntitiesHashAndHashLinkById = getEntitiesHashAndHashLinkById(Mono.just(result.newEntitiesToSync()));
+                            Mono<Map<Id, HashAndHashLink>> existingEntitiesHashAndHashLinkById = getEntitiesHashAndHashLinkById(Mono.just(result.existingEntitiesToSync()));
 
-                                        return getEntitiesById(decodedEntitySyncResponseMono)
-                                                .flatMap(entitiesById -> {
-                                                    Mono<Map<Id, Entity>> entitiesByIdMono = Mono.just(entitiesById);
+                            Mono<Map<Id, HashAndHashLink>> entitiesHashAndHashlinkById =
+                                    concatTwoEntitiesOriginalValidationDataByIdMaps(
+                                            newEntitiesHashAndHashLinkById,
+                                            existingEntitiesHashAndHashLinkById);
 
-                                                    Mono<Map<Id, HashAndHashLink>> newEntitiesHashAndHashLinkById = getEntitiesHashAndHashLinkById(Mono.just(result.newEntitiesToSync()));
-                                                    Mono<Map<Id, HashAndHashLink>> existingEntitiesHashAndHashLinkById = getEntitiesHashAndHashLinkById(Mono.just(result.existingEntitiesToSync()));
+                            Mono<List<MVEntity4DataNegotiation>> mvEntities4DataNegotiation = buildAllMVEntities4DataNegotiation(
+                                    Mono.just(result.newEntitiesToSync()),
+                                    Mono.just(result.existingEntitiesToSync())
+                            );
 
-                                                    Mono<Map<Id, HashAndHashLink>> entitiesHashAndHashlinkById =
-                                                            concatTwoEntitiesOriginalValidationDataByIdMaps(
-                                                                    newEntitiesHashAndHashLinkById,
-                                                                    existingEntitiesHashAndHashLinkById);
+                            // The remote may not return every requested entity (e.g. it was deleted or
+                            // changed after the discovery). Those are skipped: no RECEIVED audit record,
+                            // no integrity check, not stored; the next synchronization will retry them.
+                            // The received list is computed once here and is the only one passed on.
+                            Mono<List<MVEntity4DataNegotiation>> receivedMvEntities4DataNegotiation =
+                                    mvEntities4DataNegotiation.map(mvEntities -> keepReceived(mvEntities, entitiesById.keySet()))
+                                            .cache();
 
-                                                    Mono<List<MVEntity4DataNegotiation>> mvEntities4DataNegotiation = buildAllMVEntities4DataNegotiation(
-                                                            Mono.just(result.newEntitiesToSync()),
-                                                            Mono.just(result.existingEntitiesToSync())
-                                                    );
+                            return createReceivedAuditRecords(processId, issuer, receivedMvEntities4DataNegotiation)
+                                    .then(getInvalidIntegrityEntitiesIds(processId, entitiesByIdMono, entitiesHashAndHashlinkById))
+                                    .flatMap(invalidIntegrityEntitiesIds -> {
+                                        metrics.addInvalidIntegrity(invalidIntegrityEntitiesIds.size());
+                                        Mono<List<Id>> invalidIntegrityEntitiesIdsMono = Mono.just(invalidIntegrityEntitiesIds);
+                                        return filterEntitiesById(entitiesByIdMono, invalidIntegrityEntitiesIdsMono)
+                                                .flatMap(filteredEntitiesById -> {
+                                                    Mono<Map<Id, Entity>> filteredEntitiesByIdMono = Mono.just(filteredEntitiesById);
+                                                    return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, receivedMvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
 
-                                                    // The remote may not return every requested entity (e.g. it was deleted or
-                                                    // changed after the discovery). Those are skipped: no RECEIVED audit record,
-                                                    // no integrity check, not stored; the next synchronization will retry them.
-                                                    // The received list is computed once here and is the only one passed on.
-                                                    Mono<List<MVEntity4DataNegotiation>> receivedMvEntities4DataNegotiation =
-                                                            mvEntities4DataNegotiation.map(mvEntities -> keepReceived(
-                                                                    processId, result.issuer(), mvEntities, entitiesById.keySet()))
-                                                                    .cache();
-
-                                                    return createReceivedAuditRecords(processId, issuer, receivedMvEntities4DataNegotiation)
-                                                            .then(getInvalidIntegrityEntitiesIds(processId, entitiesByIdMono, entitiesHashAndHashlinkById))
-                                                            .flatMap(invalidIntegrityEntitiesIds -> {
-                                                                Mono<List<Id>> invalidIntegrityEntitiesIdsMono = Mono.just(invalidIntegrityEntitiesIds);
-                                                                return filterEntitiesById(entitiesByIdMono, invalidIntegrityEntitiesIdsMono)
-                                                                        .flatMap(filteredEntitiesById -> {
-                                                                            Mono<Map<Id, Entity>> filteredEntitiesByIdMono = Mono.just(filteredEntitiesById);
-                                                                            return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, receivedMvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
-
-                                                                        });
-                                                            });
                                                 });
                                     });
                         }));
@@ -117,17 +131,34 @@ public class DataTransferJobImpl implements DataTransferJob {
         });
     }
 
-    private static List<MVEntity4DataNegotiation> keepReceived(String processId, String issuer,
-                                                               List<MVEntity4DataNegotiation> requested,
-                                                               Set<Id> receivedIds) {
-        List<String> missingIds = requested.stream()
-                .map(MVEntity4DataNegotiation::id)
-                .filter(id -> !receivedIds.contains(new Id(id)))
-                .toList();
+    // Counted by id, not by size: the remote node answers with the requested entities plus their subentities,
+    // and it may leave out some requested ones, which a size difference would hide.
+    private static void recordFetchedEntities(String processId, String issuer, Id[] requested, Set<Id> fetchedIds,
+                                              P2PSyncTypeMetrics metrics) {
+        Set<Id> requestedIds = new HashSet<>(Arrays.asList(requested));
+        List<Id> missingIds = requestedIds.stream().filter(id -> !fetchedIds.contains(id)).toList();
+        // fetched= counts only the requested entities; the subentities the response also carries go to subentities=
+        metrics.addFetched((long) requestedIds.size() - missingIds.size());
+        metrics.addSubentities(fetchedIds.stream().filter(id -> !requestedIds.contains(id)).count());
+        metrics.addMissing(missingIds.size());
         if (!missingIds.isEmpty()) {
-            log.warn("ProcessID: {} - P2P replication skipped {} of {} requested entities not returned by {}: {}",
-                    processId, missingIds.size(), requested.size(), issuer, missingIds);
+            log.warn("{} ProcessID: {} - genesis {} did not return {} of {} requested entities, they are skipped: {}",
+                    P2P_SYNC, processId, issuer, missingIds.size(), requestedIds.size(), missingIds);
         }
+    }
+
+    private void logEntitySyncResponse(String processId, String issuer, int requested, int fetched, Duration elapsed) {
+        log.debug("{} ProcessID: {} - entities genesis={} requested={} fetched={} {}",
+                P2P_SYNC, processId, issuer, requested, fetched, LogUtils.formatDuration(elapsed));
+        Duration threshold = loggingProperties.slowRequestThreshold();
+        if (elapsed.compareTo(threshold) > 0) {
+            log.warn("{} ProcessID: {} - Slow request to genesis {}: entities ({} ids) took {} (threshold {})",
+                    P2P_SYNC, processId, issuer, requested, LogUtils.formatDuration(elapsed), LogUtils.formatDuration(threshold));
+        }
+    }
+
+    // The entities missing from the response are reported (WARN, missing= counter) by recordFetchedEntities
+    private static List<MVEntity4DataNegotiation> keepReceived(List<MVEntity4DataNegotiation> requested, Set<Id> receivedIds) {
         return requested.stream()
                 .filter(entity -> receivedIds.contains(new Id(entity.id())))
                 .toList();
@@ -155,24 +186,6 @@ public class DataTransferJobImpl implements DataTransferJob {
                 .then();
     }
 
-    private Mono<String> decodeEntitySyncResponse(Mono<List<String>> entitySyncResponseMono) {
-        return entitySyncResponseMono
-                .flatMapIterable(entitySyncResponse -> entitySyncResponse)
-                .map(Base64Converter::convertBase64ToString)
-                .collectList()
-                .flatMap(decodedList -> Mono.just(decodedList)
-                        .flatMapIterable(entities -> entities)
-                        .map(entity -> JsonParser.parseString(entity).getAsJsonObject())
-                        .collectList()
-                        .flatMap(jsonObjects -> {
-                            try {
-                                return Mono.just(objectMapper.readTree(jsonObjects.toString()).toString());
-                            } catch (JsonProcessingException e) {
-                                return Mono.error(e);
-                            }
-                        }));
-    }
-
     private Mono<Id[]> buildAllEntitiesToRequest(Mono<List<MVEntity4DataNegotiation>> newEntitiesToSyncMono, Mono<List<MVEntity4DataNegotiation>> existingEntitiesToSyncMono) {
         return newEntitiesToSyncMono.zipWith(existingEntitiesToSyncMono)
                 .flatMap(tuple ->
@@ -185,25 +198,26 @@ public class DataTransferJobImpl implements DataTransferJob {
                         Mono.just(Stream.concat(tuple.getT1().stream(), tuple.getT2().stream()).toList()));
     }
 
-    private Mono<Map<Id, Entity>> getEntitiesById(Mono<String> entitiesMono) {
-        return entitiesMono.flatMap(entities -> {
-            try {
-                JsonNode entitiesJsonNode = objectMapper.readTree(entities);
-                return Mono.just(entitiesJsonNode)
-                        .flatMapIterable(entitiesJsonNodes -> entitiesJsonNodes)
-                        .flatMap(entityNode -> {
-                            if (entityNode.has("id")) {
-                                String currentEntityId = entityNode.get("id").asText();
-                                return Mono.just(Map.entry(new Id(currentEntityId), new Entity(entityNode.toString())));
-                            } else {
-                                return Mono.error(new InvalidSyncResponseException(INVALID_ENTITY_SYNC_RESPONSE));
-                            }
-                        })
-                        .collectMap(Map.Entry::getKey, Map.Entry::getValue);
-            } catch (JsonProcessingException e) {
-                return Mono.error(e);
+    // Each entity is decoded and parsed on its own as it arrives: the whole response is never
+    // held as a single string, which ran genesis out of heap on large synchronizations.
+    private Mono<Map<Id, Entity>> getEntitiesById(Flux<String> entitySyncResponse) {
+        return entitySyncResponse
+                .concatMap(this::toEntityById)
+                .collectMap(Map.Entry::getKey, Map.Entry::getValue);
+    }
+
+    private Mono<Map.Entry<Id, Entity>> toEntityById(String base64Entity) {
+        try {
+            JsonNode entityNode = objectMapper.readTree(Base64Converter.convertBase64ToString(base64Entity));
+            if (entityNode.has("id")) {
+                String currentEntityId = entityNode.get("id").asText();
+                return Mono.just(Map.entry(new Id(currentEntityId), new Entity(entityNode.toString())));
+            } else {
+                return Mono.error(new InvalidSyncResponseException(INVALID_ENTITY_SYNC_RESPONSE));
             }
-        });
+        } catch (JsonProcessingException e) {
+            return Mono.error(e);
+        }
     }
 
     private Mono<Map<Id, HashAndHashLink>> getEntitiesHashAndHashLinkById(Mono<List<MVEntity4DataNegotiation>> allEntitiesToValidate) {

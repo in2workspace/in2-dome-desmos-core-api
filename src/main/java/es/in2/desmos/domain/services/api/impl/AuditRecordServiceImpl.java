@@ -26,6 +26,7 @@ import java.util.UUID;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.HASHLINK_PREFIX;
 import static es.in2.desmos.domain.utils.ApplicationUtils.*;
+import static es.in2.desmos.domain.utils.LogUtils.AUDIT;
 
 @Slf4j
 @Service
@@ -39,6 +40,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private long start;
     private final EndpointsConfig endpointsConfig;
 
+    private static final int LOGGED_HASH_LENGTH = 12;
+
     /**
      * Create a new AuditRecord with status CREATED or PUBLISHED and trader CONSUMER
      * from the data received in the broker notification.
@@ -51,7 +54,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
         String entityId = dataMap.get("id").toString();
         // Get the most recent audit record for the entityId and get the most recent audit record overall
         return fetchMostRecentAuditRecord()
-                .doFirst(() -> log.info("ProcessID: {} - Building and saving audit record from broker notification for entityId {}", processId, entityId))
+                .doFirst(() -> log.debug("ProcessID: {} - Building and saving audit record from broker notification for entityId {}", processId, entityId))
                 .flatMap(lastAuditRecordRegistered -> {
                     // Create the new audit record
                     AuditRecord auditRecord = AuditRecord.builder()
@@ -90,9 +93,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         log.warn("ProcessID: {} - Error building and saving audit record: {}", processId, e.getMessage());
                         return Mono.error(e);
                     }
-                    return auditRecordRepository.save(auditRecord)
-                            .doOnSuccess(unused -> log.info("ProcessID: {} - Audit record saved successfully for entityId {}. - Status: {}", processId, entityId, status))
-                            .then();
+                    return saveAndLog(processId, auditRecord, "broker notification").then();
                 })
                 .then();
     }
@@ -147,9 +148,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         // Then, we calculate the hashLink of the entity concatenating the previous hashLink
                         // with the hash of the current entity
                         auditRecord.setHashLink(setAuditRecordHashLink(lastAuditRecordRegistered, auditRecordHash));
-                        return auditRecordRepository.save(auditRecord)
-                                .doOnSuccess(unused -> log.info("ProcessID: {} - Audit record saved successfully. - Status: {}", processId, status))
-                                .then();
+                        return saveAndLog(processId, auditRecord, "blockchain notification").then();
                     } catch (JsonProcessingException | NoSuchAlgorithmException e) {
                         return Mono.error(e);
                     }
@@ -193,9 +192,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                     // Then, we calculate the hashLink of the entity concatenating the previous hashLink
                                                     // with the hash of the current entity
                                                     auditRecord.setHashLink(setAuditRecordHashLink(lastAuditRecordRegistered, auditRecordHash));
-                                                    return auditRecordRepository.save(auditRecord)
-                                                            .doOnSuccess(unused -> log.info("ProcessID: {} - Audit record for sub-entity saved successfully. - Status: {}", processId, status))
-                                                            .then();
+                                                    return saveAndLog(processId, auditRecord, "subentity").then();
                                                 } catch (JsonProcessingException |
                                                          NoSuchAlgorithmException e) {
                                                     return Mono.error(e);
@@ -240,7 +237,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
                         log.debug("ProcessID: {} - Audit Record to save: {}", processId, auditRecord);
 
-                        return auditRecordRepository.save(auditRecord).then();
+                        return saveAndLog(processId, auditRecord, "p2p sync").then();
 
                     } catch (JsonProcessingException | NoSuchAlgorithmException e) {
                         return Mono.error(e);
@@ -255,6 +252,22 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                 mvAuditServiceEntity4DataNegotiation.id() +
                 HASHLINK_PREFIX
                 + mvAuditServiceEntity4DataNegotiation.hashlink();
+    }
+
+    // One INFO line per saved audit record: what the node recorded for which entity and from which flow. The entity
+    // hash is shortened; it is enough to tell whether repeated records are about the same content.
+    private Mono<AuditRecord> saveAndLog(String processId, AuditRecord auditRecord, String source) {
+        return auditRecordRepository.save(auditRecord)
+                .doOnSuccess(unused -> log.info("{} ProcessID: {} - {} {} -> {} {} (source={}, entityHash={})",
+                        AUDIT, processId, auditRecord.getEntityType(), auditRecord.getEntityId(), auditRecord.getStatus(),
+                        auditRecord.getTrader(), source, shortHash(auditRecord.getEntityHash())));
+    }
+
+    private static String shortHash(String hash) {
+        if (hash == null || hash.isBlank()) {
+            return "-";
+        }
+        return hash.length() > LOGGED_HASH_LENGTH ? hash.substring(0, LOGGED_HASH_LENGTH) : hash;
     }
 
     /**
@@ -427,7 +440,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         auditRecord.setHash(auditRecordHash);
                         auditRecord.setHashLink(setAuditRecordHashLink(lastAuditRecordRegistered, auditRecordHash));
                         log.debug("ProcessID: {} - Audit Record from unregistered or outdated entity to save: {}", processId, auditRecord);
-                        return auditRecordRepository.save(auditRecord)
+                        return saveAndLog(processId, auditRecord, "unregistered or outdated entity")
                                 .thenReturn(new MVAuditServiceEntity4DataNegotiation(
                                         auditRecord.getEntityId(),
                                         auditRecord.getEntityType(),

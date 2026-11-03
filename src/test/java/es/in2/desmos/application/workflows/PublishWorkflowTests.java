@@ -1,6 +1,7 @@
 package es.in2.desmos.application.workflows;
 
 import es.in2.desmos.application.workflows.impl.PublishWorkflowImpl;
+import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BlockchainTxPayload;
 import es.in2.desmos.domain.models.BrokerNotification;
@@ -21,7 +22,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
@@ -103,6 +106,31 @@ class PublishWorkflowTests {
 
         verify(blockchainPublisherService, never()).publishDataToBlockchain(anyString(), any());
         verify(auditRecordService, never()).buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.PUBLISHED), any());
+    }
+
+    @Test
+    void testStartPublishWorkflow_publishedAuditRecordIsNotSavedWhenThePublicationFails() {
+        String previousHash = "5d41402abc4b2a76b9719d911017c592";
+        EventQueue eventQueueMock = mock(EventQueue.class);
+        BlockchainTxPayload blockchainTxPayload = BlockchainTxPayload.builder().build();
+        AtomicBoolean publishedAuditRecordSaved = new AtomicBoolean(false);
+
+        when(eventQueueMock.getEvent()).thenReturn(List.of(brokerNotification));
+        when(pendingPublishEventsQueue.getEventStream()).thenReturn(Flux.just(eventQueueMock));
+        when(auditRecordService.fetchLatestProducerEntityHashLinkByEntityId(anyString(), eq("123"))).thenReturn(Mono.empty());
+        when(blockchainTxPayloadFactory.calculatePreviousHashIfEmpty(anyString(), any())).thenReturn(Mono.just(previousHash));
+        when(blockchainTxPayloadFactory.buildBlockchainTxPayload(anyString(), anyMap(), anyString()))
+                .thenReturn(Mono.just(blockchainTxPayload));
+        when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.CREATED), any()))
+                .thenReturn(Mono.empty());
+        when(blockchainPublisherService.publishDataToBlockchain(anyString(), eq(blockchainTxPayload)))
+                .thenReturn(Mono.error(new RequestErrorException("HTTP 400: replacement transaction underpriced")));
+        when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), eq(AuditRecordStatus.PUBLISHED), any()))
+                .thenReturn(Mono.fromRunnable(() -> publishedAuditRecordSaved.set(true)));
+
+        publishWorkflow.startPublishWorkflow().blockLast();
+
+        assertFalse(publishedAuditRecordSaved.get());
     }
 
 }

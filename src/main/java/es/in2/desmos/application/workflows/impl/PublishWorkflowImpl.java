@@ -1,8 +1,10 @@
 package es.in2.desmos.application.workflows.impl;
 
 import es.in2.desmos.application.workflows.PublishWorkflow;
+import es.in2.desmos.domain.exceptions.DltPublicationException;
 import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BrokerNotification;
+import es.in2.desmos.domain.models.EventQueue;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.blockchain.BlockchainPublisherService;
@@ -16,7 +18,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
+
+import static es.in2.desmos.domain.utils.LogUtils.PUBLISH;
 
 @Slf4j
 @Service
@@ -66,17 +71,35 @@ public class PublishWorkflowImpl implements PublishWorkflow {
                                                             .then(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(processId, brokerNotification.data().get(0), AuditRecordStatus.PUBLISHED, blockchainTxPayload));
                                                 });
                                     })
+                                    // The "[publish] <type> <id> -> tx=..." line is written by the DLT adapter client
                                     .doOnSuccess(success ->
-                                            log.info("ProcessID: {} - Publish Workflow completed successfully in {} ms.",
+                                            log.debug("ProcessID: {} - Publish Workflow completed successfully in {} ms.",
                                                     processId, Duration.between(startTime, Instant.now()).toMillis()))
                                     .onErrorResume(error ->
                                             Mono.just(error)
-                                                    .doOnNext(errorObject ->
-                                                            log.error("ProcessID: {} - Error occurred while processing the Publish Workflow after {} ms: {}",
-                                                                    processId, Duration.between(startTime, Instant.now()).toMillis(), errorObject.getMessage()))
+                                                    .doOnNext(errorObject -> {
+                                                        Map<String, Object> entity = firstEntityOf(pendingPublishQueueEventStream);
+                                                        if (errorObject instanceof DltPublicationException) {
+                                                            // Already logged by the DLT adapter client with its details
+                                                            log.debug("{} ProcessID: {} - {} {} -> not published, PUBLISHED audit record not saved",
+                                                                    PUBLISH, processId, entity.get("type"), entity.get("id"));
+                                                        } else {
+                                                            log.error("{} ProcessID: {} - {} {} -> error after {} ms: {}",
+                                                                    PUBLISH, processId, entity.get("type"), entity.get("id"),
+                                                                    Duration.between(startTime, Instant.now()).toMillis(), errorObject.getMessage());
+                                                        }
+                                                    })
                                                     .then(Mono.empty()));
                         }
                 );
+    }
+
+    private static Map<String, Object> firstEntityOf(EventQueue eventQueue) {
+        try {
+            return ((BrokerNotification) eventQueue.getEvent().get(0)).data().get(0);
+        } catch (RuntimeException e) {
+            return Map.of();
+        }
     }
 
 }

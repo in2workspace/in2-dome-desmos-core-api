@@ -42,7 +42,7 @@ class PublishFlowBehaviorTest extends AbstractReplicationBehaviorTest {
     }
 
     @Test
-    void publishingALocallyOwnedEntityNotarizesItAsProducer() {
+    void publishingALocallyOwnedEntityIsNotRecordedAsPublishedWhenTheDltRejectsIt() {
         // ApplicationRunner only wires the publish queue's consumer up after node A's initial
         // P2P sync against node B completes, and QueueService is a unicast sink -- an event
         // posted before that consumer subscribes is dropped, permanently, no matter how long
@@ -54,9 +54,14 @@ class PublishFlowBehaviorTest extends AbstractReplicationBehaviorTest {
         List<AuditRecord> trail = await()
                 .atMost(Duration.ofSeconds(90))
                 .pollInterval(Duration.ofSeconds(3))
-                .until(this::postFreshNotificationAndCheckProgress, ReplicationAssertions::hasReachedPublished);
+                .until(this::postFreshNotificationAndCheckProgress, ReplicationAssertions::hasReachedCreated);
+        String entityId = trail.get(0).getEntityId();
 
-        ReplicationAssertions.assertProducerTrail(trail);
+        // The DLT adapter in this environment has no blockchain behind it and rejects the publication (it is not
+        // retried). Give it time to fail and check that no PUBLISHED row ever appears.
+        await().pollDelay(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(10)).until(() -> true);
+        ReplicationAssertions.assertProducerTrailWithRejectedPublication(
+                QueueReadiness.trailFor(auditRecordRepository, entityId));
     }
 
     private List<AuditRecord> postFreshNotificationAndCheckProgress() {
@@ -70,6 +75,6 @@ class PublishFlowBehaviorTest extends AbstractReplicationBehaviorTest {
         return QueueReadiness.pollWithPartialFallback(
                 Duration.ofSeconds(8), Duration.ofMillis(500),
                 () -> QueueReadiness.trailFor(auditRecordRepository, entityId),
-                ReplicationAssertions::hasReachedPublished);
+                ReplicationAssertions::hasReachedCreated);
     }
 }

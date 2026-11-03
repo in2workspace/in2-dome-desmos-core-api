@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Released]: v2.0.26
+- Replicate individual, organization and usage entities: their TMF models have no lifecycleStatus, so the lifecycleStatus policy (GP_1) left all of them out
+- Fix out of memory errors on the node that receives entities in a P2P synchronization: each entity of the response is now parsed as it arrives instead of building the whole response as a single string
+- Fix P2P synchronization losing every entity of a batch when the broker rejects one of them: each entity is now written on its own, the rejected one is logged with its id, and only the written entities are audited as published
+- Write at most 8 entities to the broker at the same time during a P2P synchronization
+- Fix failed DLT publications being audited as PUBLISHED: the audit trail claimed a publication that never happened and the next version of the entity was chained to a hashlink that is not on the blockchain
+- Add connect and response timeouts to the requests to other nodes, the broker and the DLT adapter, so a request without answer no longer hangs forever (configurable with API_CONNECT_TIMEOUT, API_RESPONSE_TIMEOUT, BROKER_RESPONSE_TIMEOUT, DLT_ADAPTER_RESPONSE_TIMEOUT and DLT_ADAPTER_PUBLICATION_TIMEOUT)
+- Retry a DLT publication only when it certainly did not reach the DLT adapter, waiting between attempts, and log a publication sent without answer as of unknown outcome instead of publishing it again
+- Start the publish and subscribe queues even when the initial synchronization fails, so a node no longer stops publishing and receiving because one genesis node or entity type failed at startup
+- Retry the startup steps for real and bound each attempt: the broker subscription is retried while Scorpio is not up yet, and a step that may already have created a subscription is not repeated
+- Keep synchronizing the other genesis nodes and entity types when one of them fails in a P2P synchronization; the synchronization is then reported as incomplete, naming the failed nodes and types
+- Answer an incomplete P2P synchronization from the sync endpoint with 502 instead of 500, and log it in the sync cron job as a single warning instead of a stack trace
+- Area-prefixed, summarised logs: `[p2p-sync]` START/END lines and BEGIN/DONE per entity type with local, remote, fetched, subentities, missing and invalid-integrity counters, one line per discovery and a warning for slow genesis requests; `[notif]` one line per broker notification with its outcome (the payload only at DEBUG and truncated); `[publish]` the transaction hash on success and a single error when a publication fails; `[init]` the node configuration (no secrets) and a READY line with startup time, sync result and pending queue events. Configurable with DESMOS_LOGGING_PAYLOAD_MAX_SIZE and DESMOS_LOGGING_SLOW_REQUEST_THRESHOLD
+- Log every saved audit record in one line (`[audit]`): entity type and id, status, trader, the flow that saved it (broker notification, blockchain notification, P2P sync, subentity) and the start of the entity hash
+- Log each blockchain event in one line (`[subscribe]`): the notified entity and whether it was created or updated, its subentities (with the hash of those without audit record), the event id, the publisher's DLT address, the data location and the duration; the per-step lines go to DEBUG
+- Log each blockchain notification from a trusted DLT address when it is enqueued (`[subscribe] … (DLT Address valid) -> enqueued`), so it shows on arrival and not only once the queue stores it
+- Log a blockchain notification from a DLT address outside the trusted access nodes list ("Dome Participant not found") with the DLT address, the entity type and id, the event id, the iss and the data location, instead of a generic error without details
+- Log the time of the block that holds a publication, which is what the DLT adapter returns, instead of `tx=n/a`; drop the per-type startup warnings for types without local entities, already shown as `BEGIN local=0`
+- Log the entities left out by the replication policies grouped per entity type and reason (one summary line per type, one warning per reason listing the ids) instead of a warning per entity; a broker notification that is not replicable is logged in one warning with the entity id and the reason
+
 ## [Released]: v2.0.25
 - Fix P2P synchronization failing when the remote node does not return every requested entity
 - Send one P2P discovery per genesis node instead of one per entity type

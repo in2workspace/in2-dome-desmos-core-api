@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.BrokerEntityWithIdAndType;
+import es.in2.desmos.domain.models.BrokerWriteAction;
 import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.models.Id;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
@@ -33,20 +34,23 @@ public class BrokerPublisherServiceImpl implements BrokerPublisherService {
 
     @Override
     public Mono<Void> publishDataToBroker(String processId, String entityId, String retrievedBrokerEntity) {
-        // Get the entity ID from the data location in the blockchain notification.
-        // This is used to check if the retrieved entity exists in the local broker or not.
+        return upsertDataInBroker(processId, entityId, retrievedBrokerEntity).then();
+    }
+
+    // Logged at DEBUG: the callers log the outcome with the entity (e.g. the [subscribe] line)
+    @Override
+    public Mono<BrokerWriteAction> upsertDataInBroker(String processId, String entityId, String retrievedBrokerEntity) {
+        // Check if the retrieved entity exists in the local broker or not.
         // If it exists, the entity will be updated, otherwise, it will be created.
         return getEntityById(processId, entityId)
                 .switchIfEmpty(Mono.just(""))
                 .flatMap(response -> {
                     if (response.isBlank()) {
-                        log.info("ProcessID: {} - Entity doesn't exist", processId);
-                        // Logic for when the entity does not exist, for example, creating it
-                        return postEntity(processId, retrievedBrokerEntity);
+                        log.debug("ProcessID: {} - Entity {} doesn't exist, creating it", processId, entityId);
+                        return postEntity(processId, retrievedBrokerEntity).thenReturn(BrokerWriteAction.CREATED);
                     } else {
-                        // Logic for when the entity exists
-                        log.info("ProcessId: {} - Entity exists", processId);
-                        return updateEntity(processId, retrievedBrokerEntity);
+                        log.debug("ProcessID: {} - Entity {} exists, updating it", processId, entityId);
+                        return updateEntity(processId, retrievedBrokerEntity).thenReturn(BrokerWriteAction.UPDATED);
                     }
                 });
     }

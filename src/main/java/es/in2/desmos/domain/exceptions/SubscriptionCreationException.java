@@ -6,4 +6,8 @@ public class SubscriptionCreationException extends RuntimeException {
         super(message);
     }
 
+    public SubscriptionCreationException(String message, Throwable cause) {
+        super(message, cause);
+    }
+
 }

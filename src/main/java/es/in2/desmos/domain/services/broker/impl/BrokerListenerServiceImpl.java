@@ -11,36 +11,43 @@ import es.in2.desmos.domain.services.broker.BrokerListenerService;
 import es.in2.desmos.domain.services.broker.adapter.BrokerAdapterService;
 import es.in2.desmos.domain.services.broker.adapter.factory.BrokerAdapterFactory;
 import es.in2.desmos.domain.services.policies.ReplicationPoliciesService;
-import jakarta.validation.constraints.NotNull;
+import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static es.in2.desmos.domain.utils.ApplicationUtils.calculateSHA256;
+import static es.in2.desmos.domain.utils.LogUtils.NOTIF;
+import static es.in2.desmos.domain.utils.LogUtils.truncate;
 
 @Slf4j
 @Service
 public class BrokerListenerServiceImpl implements BrokerListenerService {
+
+    private static final int MAX_NAME_LENGTH = 80;
+    private static final String VALUE_FIELD = "value";
 
     private final ObjectMapper objectMapper;
     private final BrokerAdapterService brokerAdapter;
     private final AuditRecordService auditRecordService;
     private final QueueService pendingPublishEventsQueue;
     private final ReplicationPoliciesService replicationPoliciesService;
+    private final LoggingProperties loggingProperties;
 
     public BrokerListenerServiceImpl(BrokerAdapterFactory brokerAdapterFactory, ObjectMapper objectMapper,
                                      AuditRecordService auditRecordService, QueueService pendingPublishEventsQueue,
-                                     ReplicationPoliciesService replicationPoliciesService) {
+                                     ReplicationPoliciesService replicationPoliciesService,
+                                     LoggingProperties loggingProperties) {
         this.brokerAdapter = brokerAdapterFactory.getBrokerAdapter();
         this.objectMapper = objectMapper;
         this.auditRecordService = auditRecordService;
         this.pendingPublishEventsQueue = pendingPublishEventsQueue;
         this.replicationPoliciesService = replicationPoliciesService;
+        this.loggingProperties = loggingProperties;
     }
 
     @Override
@@ -51,24 +58,30 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
     @Override
     public Mono<Void> processBrokerNotification(String processId, BrokerNotification brokerNotification) {
         // Validate BrokerNotification is not null and has data
+        // One INFO line per notification with its outcome; the payload only at DEBUG and truncated, since some
+        // entities carry license texts of several KB.
         return getDataFromBrokerNotification(brokerNotification)
-                .doFirst(() -> log.info("ProcessID: {} - Processing Broker Notification entity: {}", processId, brokerNotification.data()))
+                .doFirst(() -> {
+                    if (log.isDebugEnabled()) {
+                        log.debug("{} ProcessID: {} - Broker Notification payload: {}", NOTIF, processId,
+                                truncate(serialize(brokerNotification.data()), loggingProperties.payloadMaxChars()));
+                    }
+                })
                 // Validate if BrokerNotification is from an external source or self-generated
                 .flatMap(dataMap -> isBrokerNotificationSelfGenerated(processId, dataMap)
                         .flatMap(isSelfGenerated -> {
                             if (Boolean.TRUE.equals(isSelfGenerated)) {
-                                String id = getIdFromDataMap(brokerNotification.data());
-                                log.info("ProcessID: {} - Replication attempt failed for entity '{}' - self-generated entity is not eligible for replication", processId, id);
+                                logOutcome(processId, dataMap, "skipped (self-generated)");
                                 return Mono.empty();
                             } else {
                                 MVEntityReplicationPoliciesInfo mvEntityReplicationPoliciesInfo =
                                         createMVEntityReplicationPoliciesInfo(dataMap);
                                 return replicationPoliciesService
-                                        .isMVEntityReplicable(processId, mvEntityReplicationPoliciesInfo)
-                                        .flatMap(isReplicable -> {
-                                            if (Boolean.FALSE.equals(isReplicable)) {
-                                                log.info("ProcessID: {} - Broker Notification is not replicable",
-                                                        processId);
+                                        .evaluate(processId, mvEntityReplicationPoliciesInfo)
+                                        .flatMap(decision -> {
+                                            if (!decision.replicable()) {
+                                                log.warn("{} ProcessID: {} - {} {}{} -> not replicable: {}", NOTIF, processId,
+                                                        dataMap.get("type"), dataMap.get("id"), quotedName(dataMap), decision.reason());
                                                 return Mono.empty();
                                             } else {
                                                 return publishEventAndCreateAuditRecord(processId, brokerNotification, dataMap);
@@ -78,8 +91,31 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                         }));
     }
 
-    private String getIdFromDataMap(@NotNull(message = "data cannot be null") List<Map<String, Object>> data) {
-        return data.get(0).get("id").toString();
+    private void logOutcome(String processId, Map<String, Object> dataMap, String outcome) {
+        log.info("{} ProcessID: {} - {} {}{} -> {}", NOTIF, processId, dataMap.get("type"), dataMap.get("id"),
+                quotedName(dataMap), outcome);
+    }
+
+    private static String quotedName(Map<String, Object> dataMap) {
+        String name = getNameFromDataMap(dataMap);
+        return name != null ? " \"" + name + "\"" : "";
+    }
+
+    @SuppressWarnings("unchecked")
+    private static String getNameFromDataMap(Map<String, Object> dataMap) {
+        Object name = dataMap.get("name");
+        if (name instanceof Map<?, ?> nameProperty) {
+            name = ((Map<String, Object>) nameProperty).get(VALUE_FIELD);
+        }
+        return name != null ? truncate(name.toString(), MAX_NAME_LENGTH) : null;
+    }
+
+    private String serialize(Object data) {
+        try {
+            return objectMapper.writeValueAsString(data);
+        } catch (JsonProcessingException | RuntimeException e) {
+            return String.valueOf(data);
+        }
     }
 
     private Mono<Void> publishEventAndCreateAuditRecord(String processId, BrokerNotification brokerNotification, Map<String, Object> dataMap) {
@@ -92,12 +128,13 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
                         .event(Collections.singletonList(brokerNotification))
                         .priority(eventQueuePriority)
                         .build()))
-                .doOnSuccess(unused -> log.info("ProcessID: {} - Broker Notification processed successfully for entityId: {}.", processId, brokerNotification.data().get(0).get("id").toString()))
+                .doOnSuccess(unused -> logOutcome(processId, dataMap, "enqueued"))
                 .doOnError(throwable -> {
                     if (throwable instanceof BrokerNotificationSelfGeneratedException) {
-                        log.info("ProcessID: {} - Self-Generated Broker Notification. It does not need to do nothing.", processId);
+                        log.info("{} ProcessID: {} - Self-Generated Broker Notification. It does not need to do nothing.", NOTIF, processId);
                     } else {
-                        log.error("ProcessID: {} - Error processing Broker Notification: {}", processId, throwable.getMessage());
+                        log.error("{} ProcessID: {} - {} {} -> error: {}", NOTIF, processId, dataMap.get("type"),
+                                dataMap.get("id"), throwable.getMessage());
                     }
                 });
     }
@@ -107,14 +144,14 @@ public class BrokerListenerServiceImpl implements BrokerListenerService {
         String lifeCycleStatus = null;
         if (dataMap.containsKey("lifecycleStatus")) {
             Map<String, Object> lifeCycleStatusMap = (Map<String, Object>) dataMap.get("lifecycleStatus");
-            lifeCycleStatus = (String) lifeCycleStatusMap.get("value");
+            lifeCycleStatus = (String) lifeCycleStatusMap.get(VALUE_FIELD);
         }
 
         String startDateTime = null;
         String endDateTime = null;
         if (dataMap.containsKey("validFor")) {
             Map<String, Object> validForMap = (Map<String, Object>) dataMap.get("validFor");
-            Map<String, Object> validForValueMap = (Map<String, Object>) validForMap.get("value");
+            Map<String, Object> validForValueMap = (Map<String, Object>) validForMap.get(VALUE_FIELD);
             if (validForValueMap != null) {
                 startDateTime = (String) validForValueMap.get("startDateTime");
                 endDateTime = (String) validForValueMap.get("endDateTime");

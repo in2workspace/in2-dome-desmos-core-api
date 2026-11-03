@@ -3,6 +3,7 @@ package es.in2.desmos.domain.services.broker.adapter.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
+import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
 import es.in2.desmos.domain.models.BrokerEntityWithIdTypeLastUpdateAndVersion;
 import es.in2.desmos.domain.models.BrokerSubscription;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
@@ -15,16 +16,22 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -32,9 +39,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -241,6 +250,48 @@ class ScorpioAdapterTests {
     }
 
     @Test
+    void postEntityRejectionCarriesStatusAndProblemDetail() throws Exception {
+        // Arrange
+        HttpServer server = HttpServer.create(new InetSocketAddress(0), 0);
+        server.createContext("/ngsi-ld/v1/entities", exchange -> {
+            byte[] responseBody = ("{\"type\":\"https://uri.etsi.org/ngsi-ld/errors/BadRequestData\",\"title\":\"Bad Request Data.\","
+                    + "\"detail\":\"Duplicated datasetId or multiple entries with no datasetId found\",\"status\":400}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(400, responseBody.length);
+            try (OutputStream body = exchange.getResponseBody()) {
+                body.write(responseBody);
+            }
+        });
+        server.start();
+
+        try {
+            String requestBody = "{\"id\":\"urn:ngsi-ld:ProductOffering:1\",\"type\":\"ProductOffering\"}";
+            when(objectMapper.readTree(anyString())).thenAnswer(invocation -> new ObjectMapper().readTree((String) invocation.getArgument(0)));
+            when(brokerConfig.getEntitiesPath()).thenReturn("/ngsi-ld/v1/entities");
+
+            WebClient realWebClient = WebClient.builder()
+                    .baseUrl("http://localhost:" + server.getAddress().getPort())
+                    .build();
+            ReflectionTestUtils.setField(scorpioAdapter, "webClient", realWebClient);
+
+            // Act
+            Mono<Void> result = scorpioAdapter.postEntity("processId", requestBody);
+
+            // Assert
+            StepVerifier.create(result)
+                    .expectErrorSatisfies(throwable -> {
+                        BrokerRequestRejectedException rejection = assertInstanceOf(BrokerRequestRejectedException.class, throwable);
+                        assertEquals(400, rejection.getStatus());
+                        assertEquals("Duplicated datasetId or multiple entries with no datasetId found", rejection.getDetail());
+                        assertTrue(rejection.getMessage().contains("BadRequestData"));
+                    })
+                    .verify();
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void findAllIdTypeAndAttributesByTypePaginatesAndDeduplicatesAcrossPages() throws Exception {
         // Arrange: total=3, pageSize=2. Page 2 (offset=2) re-returns entity "B" from page 1 (offset=0),
         // simulating the kind of overlap that limit/offset without a stable order can produce.
@@ -309,5 +360,36 @@ class ScorpioAdapterTests {
             }
         }
         return null;
+    }
+
+    @Test
+    void initShouldBuildWebClientWithBrokerResponseTimeout() {
+        Duration brokerResponseTimeout = Duration.ofSeconds(60);
+        when(brokerConfig.getInternalDomain()).thenReturn("http://scorpio:9090");
+        when(brokerConfig.getResponseTimeout()).thenReturn(brokerResponseTimeout);
+        when(apiConfig.getMaxInMemorySize()).thenReturn(DataSize.ofMegabytes(10));
+        when(apiConfig.clientHttpConnector(brokerResponseTimeout)).thenReturn(new ReactorClientHttpConnector());
+
+        scorpioAdapter.init();
+
+        verify(apiConfig).clientHttpConnector(brokerResponseTimeout);
+        assertNotNull(ReflectionTestUtils.getField(scorpioAdapter, "webClient"));
+    }
+
+    @Test
+    void getSubscriptionsShouldKeepTheCauseWhenTheBrokerIsNotReachable() throws IOException {
+        int closedPort;
+        try (ServerSocket socket = new ServerSocket(0)) {
+            closedPort = socket.getLocalPort();
+        }
+        when(brokerConfig.getSubscriptionsPath()).thenReturn("/ngsi-ld/v1/subscriptions");
+        ReflectionTestUtils.setField(scorpioAdapter, "webClient", WebClient.create("http://localhost:" + closedPort));
+
+        StepVerifier.create(scorpioAdapter.getSubscriptions("0"))
+                .expectErrorSatisfies(error -> {
+                    assertInstanceOf(SubscriptionCreationException.class, error);
+                    assertInstanceOf(WebClientRequestException.class, error.getCause());
+                })
+                .verify(Duration.ofSeconds(10));
     }
 }

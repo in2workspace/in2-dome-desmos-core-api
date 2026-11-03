@@ -9,21 +9,28 @@ public final class ApplicationConstants {
     public static final String HASHLINK_PREFIX = "?hl=";
     public static final String SUBSCRIPTION_ID_PREFIX = "urn:ngsi-ld:Subscription:";
     public static final String SUBSCRIPTION_TYPE = "Subscription";
+    public static final String INDIVIDUAL = "individual";
+    public static final String ORGANIZATION = "organization";
+    public static final String USAGE = "usage";
     public static final String PRODUCT_ORDER = "product-order";
     public static final String QUOTE = "quote";
     public static final String USAGE_SPECIFICATION = "usageSpecification";
     private static final String CUSTOMER_BILL = "customer-bill";
     private static final String APPLIED_CUSTOMER_BILLING_RATE = "applied-customer-billing-rate";
     private static final String PRODUCT = "product";
+    // Root types whose TMF model has no lifecycleStatus: the lifecycleStatus policy (GP_1) does not apply to them
     public static final Set<String> LIFECYCLE_STATUS_FREE_TYPES = Set.of
-            (PRODUCT_ORDER,
+            (INDIVIDUAL,
+                    ORGANIZATION,
+                    USAGE,
+                    PRODUCT_ORDER,
                     QUOTE,
                     USAGE_SPECIFICATION,
                     CUSTOMER_BILL,
                     APPLIED_CUSTOMER_BILLING_RATE,
                     PRODUCT);
-    public static final List<String> ROOT_OBJECTS_LIST = List.of("individual",
-            "organization",
+    public static final List<String> ROOT_OBJECTS_LIST = List.of(INDIVIDUAL,
+            ORGANIZATION,
             "catalog",
             "product-offering",
             "product-offering-price",
@@ -33,7 +40,7 @@ public final class ApplicationConstants {
             "category",
             PRODUCT_ORDER,
             PRODUCT,
-            "usage",
+            USAGE,
             USAGE_SPECIFICATION,
             APPLIED_CUSTOMER_BILLING_RATE,
             CUSTOMER_BILL,

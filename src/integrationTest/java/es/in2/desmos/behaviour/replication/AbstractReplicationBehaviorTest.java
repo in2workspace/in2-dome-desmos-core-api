@@ -58,7 +58,8 @@ abstract class AbstractReplicationBehaviorTest {
     // logs showed a concurrent DataSyncController P2P discovery call from node A, not the DLT
     // path, responsible). Warm up once, process-wide, before any test body runs: node A's publish
     // queue is only authorized in the doOnComplete/doOnTerminate of that exact same startup
-    // chain, so successfully publishing a disposable entity here proves the initial P2P sync has
+    // chain, so a disposable entity reaching CREATED (the publish workflow consumed it; the DLT
+    // adapter of this environment then rejects the publication) proves the initial P2P sync has
     // already run to completion.
     private static final AtomicBoolean NODE_A_STARTUP_SETTLED = new AtomicBoolean(false);
 
@@ -82,8 +83,8 @@ abstract class AbstractReplicationBehaviorTest {
                     return QueueReadiness.pollWithPartialFallback(
                             Duration.ofSeconds(8), Duration.ofMillis(500),
                             () -> QueueReadiness.trailFor(warmupAuditRecordRepository, entityId),
-                            ReplicationAssertions::hasReachedPublished);
-                }, ReplicationAssertions::hasReachedPublished);
+                            ReplicationAssertions::hasReachedCreated);
+                }, ReplicationAssertions::hasReachedCreated);
         warmupAuditRecordRepository.deleteAll().block();
     }
 }

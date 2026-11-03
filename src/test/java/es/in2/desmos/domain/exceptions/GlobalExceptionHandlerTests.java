@@ -49,7 +49,8 @@ class GlobalExceptionHandlerTests {
                 UnauthorizedBrokerSubscriptionException.class,
                 EntitySyncException.class,
                 DiscoverySyncException.class,
-                DltAddressDeserializationException.class
+                DltAddressDeserializationException.class,
+                P2PDataSyncException.class
         ));
         List<String> messages = new ArrayList<>(List.of(
                 "SubscriptionCreationException",
@@ -65,7 +66,8 @@ class GlobalExceptionHandlerTests {
                 "UnauthorizedBrokerSubscriptionException",
                 "EntitySyncException",
                 "DiscoverySyncException",
-                "DltAddressDeserializationException"
+                "DltAddressDeserializationException",
+                "P2PDataSyncException"
         ));
 
         List<BiFunction<RuntimeException, ServerHttpRequest, Mono<GlobalErrorMessage>>> methods = new ArrayList<>(Arrays.asList(
@@ -82,7 +84,8 @@ class GlobalExceptionHandlerTests {
                 (ex, req) -> globalExceptionHandler.handleUnauthorizedBrokerSubscriptionException((UnauthorizedBrokerSubscriptionException) ex, req),
                 (ex, req) -> globalExceptionHandler.handleEntitySyncException((EntitySyncException) ex, req),
                 (ex, req) -> globalExceptionHandler.handleDiscoverySyncException((DiscoverySyncException) ex, req),
-                (ex, req) -> globalExceptionHandler.handleDltAddressDeserializationException((DltAddressDeserializationException) ex, req)
+                (ex, req) -> globalExceptionHandler.handleDltAddressDeserializationException((DltAddressDeserializationException) ex, req),
+                (ex, req) -> globalExceptionHandler.handleP2PDataSyncException((P2PDataSyncException) ex, req)
         ));
         classes.addAll(new ArrayList<>(classes));
         messages.addAll(new ArrayList<>(messages));

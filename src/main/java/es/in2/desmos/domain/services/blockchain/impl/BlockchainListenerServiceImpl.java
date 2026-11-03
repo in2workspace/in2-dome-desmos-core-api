@@ -1,5 +1,6 @@
 package es.in2.desmos.domain.services.blockchain.impl;
 
+import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
 import es.in2.desmos.domain.exceptions.UnauthorizedDomeParticipantException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
@@ -14,6 +15,9 @@ import reactor.core.publisher.Mono;
 
 import java.util.Collections;
 import java.util.HashSet;
+
+import static es.in2.desmos.domain.utils.ApplicationUtils.extractEntityIdFromDataLocation;
+import static es.in2.desmos.domain.utils.LogUtils.SUBSCRIBE;
 
 @Slf4j
 @Service
@@ -48,7 +52,7 @@ public class BlockchainListenerServiceImpl implements BlockchainListenerService 
     @Override
     public Mono<Void> processBlockchainNotification(String processId, BlockchainNotification blockchainNotification) {
         // Create and AuditRecord with status RECEIVED
-        return checkIfParticipantExistsInTrustedList(processId, blockchainNotification.ethereumAddress())
+        return checkIfParticipantExistsInTrustedList(processId, blockchainNotification)
                 .then(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId, blockchainNotification,
                                 null, AuditRecordStatus.RECEIVED)
                         // Set priority for the pendingSubscribeEventsQueue event
@@ -61,6 +65,11 @@ public class BlockchainListenerServiceImpl implements BlockchainListenerService 
                                     .priority(eventQueuePriority)
                                     .build());
                         })
+                        // Logged on arrival: the [subscribe] "stored" line only comes once the queue processes the event
+                        .doOnSuccess(unused -> log.info("{} ProcessID: {} - {} {} event={} from {} (DLT Address valid) -> enqueued",
+                                SUBSCRIBE, processId, blockchainNotification.eventType(),
+                                entityIdOf(blockchainNotification.dataLocation()), blockchainNotification.id(),
+                                blockchainNotification.ethereumAddress()))
                 );
     }
 
@@ -72,7 +81,10 @@ public class BlockchainListenerServiceImpl implements BlockchainListenerService 
                                 .filter(Boolean::booleanValue)
                                 .hasElement()
                 ).any(Boolean::booleanValue)
-                .defaultIfEmpty(false);
+                .defaultIfEmpty(false)
+                .timeout(SubscriptionLookupException.TIMEOUT)
+                // Marks the read-only step so that the startup retries can tell it from creating the subscription
+                .onErrorMap(error -> new SubscriptionLookupException("Error fetching subscriptions from DLT adapter", error));
     }
 
     private Mono<Boolean> checkIfTwoSubscriptionsAreEquals(
@@ -92,9 +104,18 @@ public class BlockchainListenerServiceImpl implements BlockchainListenerService 
                 });
     }
 
-    private Mono<Void> checkIfParticipantExistsInTrustedList(String processId, String currentDltAddress) {
+    private static String entityIdOf(String dataLocation) {
+        try {
+            return extractEntityIdFromDataLocation(dataLocation);
+        } catch (IllegalArgumentException e) {
+            return "(entity id not found in the data location)";
+        }
+    }
+
+    private Mono<Void> checkIfParticipantExistsInTrustedList(String processId, BlockchainNotification blockchainNotification) {
         return Mono.fromRunnable(() -> {
-            log.info("ProcessID: {} - Validating Dome Participant DLT Address from Blockchain notification: {}", processId, currentDltAddress);
+            String currentDltAddress = blockchainNotification.ethereumAddress();
+            log.debug("ProcessID: {} - Validating Dome Participant DLT Address from Blockchain notification: {}", processId, currentDltAddress);
             var dltAddresses = trustFrameworkConfig.getDltAddresses();
 
             boolean exists = dltAddresses
@@ -102,9 +123,16 @@ public class BlockchainListenerServiceImpl implements BlockchainListenerService 
                     .anyMatch(validAddress -> validAddress.equals(currentDltAddress.toLowerCase()));
 
             if (!exists) {
+                // Only the trusted access nodes are expected to publish on the network, so an event from anyone else is
+                // logged as an error with everything needed to find out who published it
+                log.error("{} ProcessID: {} - Dome Participant not found: DLT Address {} from Blockchain notification is not in "
+                                + "the trusted access nodes list, notification ignored - {} {} (event id {}, iss {}, dataLocation {})",
+                        SUBSCRIBE, processId, currentDltAddress, blockchainNotification.eventType(),
+                        entityIdOf(blockchainNotification.dataLocation()), blockchainNotification.id(),
+                        blockchainNotification.publisherAddress(), blockchainNotification.dataLocation());
                 throw new UnauthorizedDomeParticipantException("Dome Participant not found");
             } else {
-                log.info("ProcessID: {} - Dome Participant DLT Address is valid: {}", processId, currentDltAddress);
+                log.debug("ProcessID: {} - Dome Participant DLT Address is valid: {}", processId, currentDltAddress);
             }
         });
     }

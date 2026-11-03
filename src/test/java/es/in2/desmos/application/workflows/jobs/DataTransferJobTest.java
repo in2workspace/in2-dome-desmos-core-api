@@ -1,10 +1,15 @@
 package es.in2.desmos.application.workflows.jobs;
 
+import es.in2.desmos.testutils.LogCapture;
+import es.in2.desmos.infrastructure.configs.properties.LoggingProperties;
+import ch.qos.logback.classic.Level;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.application.workflows.jobs.impl.DataTransferJobImpl;
+import es.in2.desmos.domain.exceptions.InvalidSyncResponseException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.sync.EntitySyncWebClient;
+import es.in2.desmos.domain.utils.ApplicationUtils;
 import es.in2.desmos.objectmothers.*;
 import org.json.JSONException;
 import org.junit.jupiter.api.Test;
@@ -37,6 +42,9 @@ class DataTransferJobTest {
 
     @Mock
     private AuditRecordService auditRecordService;
+
+    @Spy
+    private LoggingProperties loggingProperties = new LoggingProperties(null, null);
 
     @SuppressWarnings("CanBeFinal")
     @Spy
@@ -433,5 +441,104 @@ class DataTransferJobTest {
                         .isNotEmpty()
                         .doesNotContain(missingId))
                 .verifyComplete();
+    }
+
+    @Test
+    void itShouldStoreEachReceivedEntityAsCompactJson() throws Exception {
+        String processId = "0";
+        String id = "urn:ngsi-ld:product-offering:1";
+        String receivedEntity = """
+                {
+                  "id" : "%s",
+                  "type" : "product-offering",
+                  "name" : {"type": "Property", "value": "Café ñ"},
+                  "price" : 1.50
+                }""".formatted(id);
+        String expectedEntity = "{\"id\":\"%s\",\"type\":\"product-offering\",\"name\":{\"type\":\"Property\",\"value\":\"Café ñ\"},\"price\":1.5}".formatted(id);
+        String hash = ApplicationUtils.calculateSHA256(expectedEntity);
+        MVEntity4DataNegotiation mvEntity = new MVEntity4DataNegotiation(id, "product-offering", null,
+                "2026-01-01T00:00:00Z", "Launched", null, null, hash, hash);
+        DataNegotiationResult dataNegotiationResult = new DataNegotiationResult("https://issuer.org", List.of(mvEntity), List.of());
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any()))
+                .thenReturn(Flux.just(Base64.getEncoder().encodeToString(receivedEntity.getBytes())));
+        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)))
+                .verifyComplete();
+
+        verify(dataPublicationJob).verifyData(eq(processId), any(), idByEntityMonoCaptor.capture(), any(), any());
+        StepVerifier
+                .create(idByEntityMonoCaptor.getValue())
+                .assertNext(entitiesById -> assertThat(entitiesById)
+                        .containsExactly(Map.entry(new Id(id), new Entity(expectedEntity))))
+                .verifyComplete();
+    }
+
+    @Test
+    void itShouldFailWhenAReceivedEntityHasNoId() throws Exception {
+        String processId = "0";
+        List<String> response = new ArrayList<>(EntitySyncResponseMother.getSampleBase64());
+        response.add(Base64.getEncoder().encodeToString("{\"type\":\"product-offering\"}".getBytes()));
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(Flux.fromIterable(response));
+        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)))
+                .expectError(InvalidSyncResponseException.class)
+                .verify();
+
+        verifyNoInteractions(dataPublicationJob, auditRecordService);
+    }
+
+    @Test
+    void itShouldReportFetchedEntitiesAndSubentitiesToTheSyncMetricsInContext() throws JSONException, NoSuchAlgorithmException, IOException {
+        String processId = "0";
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any()))
+                .thenReturn(Flux.fromIterable(EntitySyncResponseMother.getSampleWithCategoryBase64()));
+        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
+        int requested = dataNegotiationResult.newEntitiesToSync().size() + dataNegotiationResult.existingEntitiesToSync().size();
+        P2PSyncTypeMetrics metrics = new P2PSyncTypeMetrics();
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult))
+                        .contextWrite(context -> context.put(P2PSyncTypeMetrics.CONTEXT_KEY, metrics)))
+                .verifyComplete();
+
+        assertThat(metrics.fetched()).isEqualTo((long) requested);
+        assertThat(metrics.subentities()).isEqualTo(1L);
+        assertThat(metrics.missing()).isZero();
+        assertThat(metrics.invalidIntegrity()).isZero();
+    }
+
+    @Test
+    void itShouldCountRequestedEntitiesTheRemoteLeftOutAsMissing() throws JSONException, NoSuchAlgorithmException, IOException {
+        String processId = "0";
+        // The remote answers with all requested entities but the first one, plus a subentity (a category)
+        List<String> response = new ArrayList<>(EntitySyncResponseMother.getSampleWithCategoryBase64());
+        response.remove(0);
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(Flux.fromIterable(response));
+        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
+        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
+        int requested = dataNegotiationResult.newEntitiesToSync().size() + dataNegotiationResult.existingEntitiesToSync().size();
+        P2PSyncTypeMetrics metrics = new P2PSyncTypeMetrics();
+
+        try (LogCapture logCapture = LogCapture.of(DataTransferJobImpl.class)) {
+            StepVerifier
+                    .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult))
+                            .contextWrite(context -> context.put(P2PSyncTypeMetrics.CONTEXT_KEY, metrics)))
+                    .verifyComplete();
+
+            assertThat(logCapture.messages(Level.WARN)).anySatisfy(line -> assertThat(line)
+                    .startsWith("[p2p-sync] ProcessID: 0 - genesis ")
+                    .contains(" did not return 1 of " + requested + " requested entities, they are skipped: "));
+        }
+        assertThat(metrics.fetched()).isEqualTo(requested - 1L);
+        assertThat(metrics.subentities()).isEqualTo(1L);
+        assertThat(metrics.missing()).isEqualTo(1L);
     }
 }

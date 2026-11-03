@@ -4,6 +4,7 @@ import es.in2.desmos.application.workflows.jobs.DataNegotiationJob;
 import es.in2.desmos.application.workflows.jobs.DataTransferJob;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.policies.ReplicationPoliciesService;
+import es.in2.desmos.domain.utils.ExpectedFailures;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -88,7 +89,16 @@ public class DataNegotiationJobImpl implements DataNegotiationJob {
                 dataNegotiationEvent.externalEntitiesInfo().flatMapMany(Flux::fromIterable))
                 .doFirst(() -> log.debug("ProcessID: {} - Starting Data Negotiation Job", processId))
                 .flatMap(dataNegotiationResult ->
-                        dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)));
+                        dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)))
+                // Spring subscribes to this listener and logs any error with its full stack trace
+                .onErrorResume(error -> {
+                    if (ExpectedFailures.isExpected(error)) {
+                        log.error("ProcessID: {} - P2P synchronization after a discovery failed: {}", processId, ExpectedFailures.describe(error));
+                    } else {
+                        log.error("ProcessID: {} - P2P synchronization after a discovery failed", processId, error);
+                    }
+                    return Mono.empty();
+                });
     }
 
     private Mono<DataNegotiationResult> getDataNegotiationResultMono(
