@@ -6,7 +6,6 @@ import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
-import es.in2.desmos.objectmothers.DataNegotiationResultMother;
 import es.in2.desmos.objectmothers.EntityMother;
 import es.in2.desmos.objectmothers.MVAuditServiceEntity4DataNegotiationMother;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
@@ -15,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -43,16 +43,14 @@ class DataPublicationJobTest {
     private BrokerPublisherService brokerPublisherService;
 
     @Captor
-    private ArgumentCaptor<MVAuditServiceEntity4DataNegotiation> mvAuditServiceEntity4DataNegotiationArgumentCaptor;
+    private ArgumentCaptor<List<MVAuditServiceEntity4DataNegotiation>> auditedEntitiesCaptor;
 
 
     @Test
     void itShouldBuildAnSaveAuditRecord() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
-        DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.newToSync4AndExistingToSync2();
-
         String processId = "0";
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(brokerPublisherService.publishDataToBroker(any(), any(), any())).thenReturn(Mono.empty());
 
@@ -75,8 +73,12 @@ class DataPublicationJobTest {
                 create(result)
                 .verifyComplete();
 
-        verify(auditRecordService, times(2)).buildAndSaveAuditRecordFromDataSync(eq(processId), eq(dataNegotiationResult.issuer()), any(), eq(AuditRecordStatus.RETRIEVED));
-        verify(auditRecordService, times(2)).buildAndSaveAuditRecordFromDataSync(eq(processId), eq(dataNegotiationResult.issuer()), any(), eq(AuditRecordStatus.PUBLISHED));
+        // One batch call per status, RETRIEVED before PUBLISHED
+        InOrder inOrder = inOrder(auditRecordService);
+        inOrder.verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.RETRIEVED));
+        inOrder.verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.PUBLISHED));
+        verifyNoMoreInteractions(auditRecordService);
+        assertThat(auditedEntitiesCaptor.getAllValues()).allSatisfy(audited -> assertThat(audited).hasSize(2));
     }
 
     @Test
@@ -84,7 +86,7 @@ class DataPublicationJobTest {
 
         String processId = "0";
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(brokerPublisherService.publishDataToBroker(any(), any(), any())).thenReturn(Mono.empty());
 
@@ -106,19 +108,18 @@ class DataPublicationJobTest {
                 create(result)
                 .verifyComplete();
 
-        verify(auditRecordService, times(1)).buildAndSaveAuditRecordFromDataSync(eq(processId), eq("http://example.org"), mvAuditServiceEntity4DataNegotiationArgumentCaptor.capture(), eq(AuditRecordStatus.RETRIEVED));
-        verify(auditRecordService, times(1)).buildAndSaveAuditRecordFromDataSync(eq(processId), eq("http://example.org"), any(), eq(AuditRecordStatus.PUBLISHED));
+        verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.RETRIEVED));
+        verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.PUBLISHED));
 
-        var mvEntity4DataNegotiationSentToAuditRecord = mvAuditServiceEntity4DataNegotiationArgumentCaptor.getAllValues();
-
-        assertThat(mvEntity4DataNegotiationSentToAuditRecord.get(0)).isEqualTo(MVAuditServiceEntity4DataNegotiationMother.sample4());
+        assertThat(auditedEntitiesCaptor.getAllValues()).allSatisfy(audited ->
+                assertThat(audited).containsExactly(MVAuditServiceEntity4DataNegotiationMother.sample4()));
     }
 
     @Test
     void itShouldUpsertEntities() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
         String processId = "0";
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(brokerPublisherService.publishDataToBroker(any(), any(), any())).thenReturn(Mono.empty());
 
@@ -153,7 +154,7 @@ class DataPublicationJobTest {
     void itShouldKeepWritingAndOnlyAuditAsPublishedTheWrittenEntitiesWhenTheBrokerRejectsOne() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
         String processId = "0";
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         String productOffering2 = EntityMother.PRODUCT_OFFERING_2;
         String productOffering4 = EntityMother.PRODUCT_OFFERING_4;
@@ -180,15 +181,18 @@ class DataPublicationJobTest {
 
         verify(brokerPublisherService).publishDataToBroker(processId, MVEntity4DataNegotiationMother.sample2().id(), productOffering2);
         verify(brokerPublisherService).publishDataToBroker(processId, MVEntity4DataNegotiationMother.sample4().id(), productOffering4);
-        verify(auditRecordService, times(2)).buildAndSaveAuditRecordFromDataSync(eq(processId), eq("http://example.org"), any(), eq(AuditRecordStatus.RETRIEVED));
-        verify(auditRecordService).buildAndSaveAuditRecordFromDataSync(eq(processId), eq("http://example.org"), mvAuditServiceEntity4DataNegotiationArgumentCaptor.capture(), eq(AuditRecordStatus.PUBLISHED));
+        verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.RETRIEVED));
+        assertThat(auditedEntitiesCaptor.getValue()).hasSize(2);
+        verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.PUBLISHED));
 
-        assertThat(mvAuditServiceEntity4DataNegotiationArgumentCaptor.getValue()).isEqualTo(MVAuditServiceEntity4DataNegotiationMother.sample4());
+        assertThat(auditedEntitiesCaptor.getValue()).containsExactly(MVAuditServiceEntity4DataNegotiationMother.sample4());
     }
 
     @Test
     void itShouldNotWriteMoreThanEightEntitiesAtTheSameTime() {
         String processId = "0";
+
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         AtomicInteger writesInFlight = new AtomicInteger();
         AtomicInteger maxWritesInFlight = new AtomicInteger();
@@ -212,5 +216,26 @@ class DataPublicationJobTest {
 
         verify(brokerPublisherService, times(20)).publishDataToBroker(any(), any(), any());
         assertThat(maxWritesInFlight.get()).isEqualTo(8);
+    }
+
+    @Test
+    void itShouldNotWriteToTheBrokerWhenTheRetrievedAuditRecordsFail() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
+        String processId = "0";
+        RuntimeException auditError = new RuntimeException("audit failed");
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(eq(processId), any(), eq(AuditRecordStatus.RETRIEVED)))
+                .thenReturn(Mono.error(auditError));
+
+        Map<Id, Entity> entitiesById = new HashMap<>();
+        entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample4().id()), new Entity(EntityMother.PRODUCT_OFFERING_4));
+
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just("http://example.org"), Mono.just(entitiesById),
+                Mono.just(List.of(MVEntity4DataNegotiationMother.sample4())), Mono.just(new HashMap<>()));
+
+        StepVerifier.create(result)
+                .expectErrorMatches(auditError::equals)
+                .verify();
+
+        verifyNoInteractions(brokerPublisherService);
+        verify(auditRecordService, never()).buildAndSaveAuditRecordsFromDataSync(any(), any(), eq(AuditRecordStatus.PUBLISHED));
     }
 }

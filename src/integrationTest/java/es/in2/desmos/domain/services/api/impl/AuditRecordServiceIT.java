@@ -24,6 +24,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,13 +48,12 @@ class AuditRecordServiceIT {
     }
 
     @Test
-    void itShouldBuildAndSaveAuditRecordFromDataSync() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+    void itShouldBuildAndSaveAuditRecordsFromDataSync() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         String processId = "0";
-        String issuer = "http://example.org";
         MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiationMother = MVAuditServiceEntity4DataNegotiationMother.sample1();
         AuditRecordStatus status = AuditRecordStatus.RETRIEVED;
 
-        Mono<Void> result = auditRecordService.buildAndSaveAuditRecordFromDataSync(processId, issuer, mvAuditServiceEntity4DataNegotiationMother, status);
+        Mono<Void> result = auditRecordService.buildAndSaveAuditRecordsFromDataSync(processId, List.of(mvAuditServiceEntity4DataNegotiationMother), status);
 
         StepVerifier
                 .create(result)

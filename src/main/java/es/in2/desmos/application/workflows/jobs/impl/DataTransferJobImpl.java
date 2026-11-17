@@ -112,7 +112,7 @@ public class DataTransferJobImpl implements DataTransferJob {
                                     mvEntities4DataNegotiation.map(mvEntities -> keepReceived(mvEntities, entitiesById.keySet()))
                                             .cache();
 
-                            return createReceivedAuditRecords(processId, issuer, receivedMvEntities4DataNegotiation)
+                            return createReceivedAuditRecords(processId, receivedMvEntities4DataNegotiation)
                                     .then(getInvalidIntegrityEntitiesIds(processId, entitiesByIdMono, entitiesHashAndHashlinkById))
                                     .flatMap(invalidIntegrityEntitiesIds -> {
                                         metrics.addInvalidIntegrity(invalidIntegrityEntitiesIds.size());
@@ -164,26 +164,13 @@ public class DataTransferJobImpl implements DataTransferJob {
                 .toList();
     }
 
-    private Mono<Void> createReceivedAuditRecords(String processId, Mono<String> issuerMono, Mono<List<MVEntity4DataNegotiation>> mvEntities4DataNegotiation) {
+    private Mono<Void> createReceivedAuditRecords(String processId, Mono<List<MVEntity4DataNegotiation>> mvEntities4DataNegotiation) {
         return mvEntities4DataNegotiation
-                .flatMapIterable(x -> x)
-                .concatMap(x -> {
-                    var mvAuditService = new MVAuditServiceEntity4DataNegotiation(
-                            x.id(),
-                            x.type(),
-                            "",
-                            "");
-
-                    return issuerMono.flatMap(issuer ->
-                            auditRecordService
-                                    .buildAndSaveAuditRecordFromDataSync(
-                                            processId,
-                                            issuer,
-                                            mvAuditService,
-                                            AuditRecordStatus.RECEIVED));
-                })
-                .collectList()
-                .then();
+                .map(entities -> entities.stream()
+                        .map(entity -> new MVAuditServiceEntity4DataNegotiation(entity.id(), entity.type(), "", ""))
+                        .toList())
+                .flatMap(entities -> auditRecordService.buildAndSaveAuditRecordsFromDataSync(
+                        processId, entities, AuditRecordStatus.RECEIVED));
     }
 
     private Mono<Id[]> buildAllEntitiesToRequest(Mono<List<MVEntity4DataNegotiation>> newEntitiesToSyncMono, Mono<List<MVEntity4DataNegotiation>> existingEntitiesToSyncMono) {

@@ -4,6 +4,7 @@ import es.in2.desmos.domain.models.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
 import java.util.Map;
 
 public interface AuditRecordService {
@@ -16,7 +17,7 @@ public interface AuditRecordService {
                                                    String retrievedBrokerEntity,
                                                    AuditRecordStatus status);
 
-    Mono<Void> buildAndSaveAuditRecordFromDataSync(String processId, String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation, AuditRecordStatus status);
+    Mono<Void> buildAndSaveAuditRecordsFromDataSync(String processId, List<MVAuditServiceEntity4DataNegotiation> entities, AuditRecordStatus status);
 
     Mono<AuditRecord> fetchMostRecentAuditRecord();
 

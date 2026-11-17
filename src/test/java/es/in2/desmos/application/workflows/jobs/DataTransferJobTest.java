@@ -54,7 +54,7 @@ class DataTransferJobTest {
     private ArgumentCaptor<Mono<String>> monoIssuerCaptor;
 
     @Captor
-    private ArgumentCaptor<MVAuditServiceEntity4DataNegotiation> mvAuditServiceCaptor;
+    private ArgumentCaptor<List<MVAuditServiceEntity4DataNegotiation>> mvAuditServiceCaptor;
 
     @Captor
     private ArgumentCaptor<Mono<Map<Id, Entity>>> idByEntityMonoCaptor;
@@ -95,7 +95,7 @@ class DataTransferJobTest {
                     }
                 });
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         Mono<Void> result = dataTransferJob.syncDataFromList(processId, Mono.just(dataNegotiationResults));
@@ -153,7 +153,7 @@ class DataTransferJobTest {
         String processId = "0";
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(entitySyncResponseMono);
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
@@ -191,7 +191,7 @@ class DataTransferJobTest {
         String processId = "0";
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(entitySyncResponseMono);
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
@@ -232,7 +232,7 @@ class DataTransferJobTest {
         String processId = "0";
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(entitySyncResponseMono);
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
@@ -278,7 +278,7 @@ class DataTransferJobTest {
 
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(entitySyncResponseMono);
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
@@ -293,16 +293,14 @@ class DataTransferJobTest {
 
         dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)).block();
 
-        verify(auditRecordService, times(4))
-                .buildAndSaveAuditRecordFromDataSync(
+        // One batch call with every received entity
+        verify(auditRecordService, times(1))
+                .buildAndSaveAuditRecordsFromDataSync(
                         eq(processId),
-                        eq(dataNegotiationResult.issuer()),
                         mvAuditServiceCaptor.capture(),
                         eq(AuditRecordStatus.RECEIVED));
 
-        var mvAuditServiceCaptorResult = mvAuditServiceCaptor.getAllValues();
-
-        assertThat(mvAuditServiceCaptorResult).isEqualTo(expectedMvAuditRecord);
+        assertThat(mvAuditServiceCaptor.getValue()).isEqualTo(expectedMvAuditRecord);
     }
 
     @Test
@@ -313,7 +311,7 @@ class DataTransferJobTest {
 
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(entitySyncResponseMono);
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
@@ -362,7 +360,7 @@ class DataTransferJobTest {
 
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(entitySyncResponseMono);
 
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
 
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
@@ -411,7 +409,7 @@ class DataTransferJobTest {
         List<String> response = new ArrayList<>(EntitySyncResponseMother.getSampleWithCategoryBase64());
         String missingId = new ObjectMapper().readTree(Base64.getDecoder().decode(response.remove(0))).get("id").asText();
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(Flux.fromIterable(response));
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
         DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
 
@@ -419,9 +417,9 @@ class DataTransferJobTest {
                 .create(dataTransferJob.syncData(processId, Mono.just(dataNegotiationResult)))
                 .verifyComplete();
 
-        verify(auditRecordService, atLeastOnce()).buildAndSaveAuditRecordFromDataSync(
-                eq(processId), any(), mvAuditServiceCaptor.capture(), eq(AuditRecordStatus.RECEIVED));
-        assertThat(mvAuditServiceCaptor.getAllValues())
+        verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(
+                eq(processId), mvAuditServiceCaptor.capture(), eq(AuditRecordStatus.RECEIVED));
+        assertThat(mvAuditServiceCaptor.getValue())
                 .extracting(MVAuditServiceEntity4DataNegotiation::id)
                 .isNotEmpty()
                 .doesNotContain(missingId);
@@ -461,7 +459,7 @@ class DataTransferJobTest {
         DataNegotiationResult dataNegotiationResult = new DataNegotiationResult("https://issuer.org", List.of(mvEntity), List.of());
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any()))
                 .thenReturn(Flux.just(Base64.getEncoder().encodeToString(receivedEntity.getBytes())));
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
 
         StepVerifier
@@ -497,7 +495,7 @@ class DataTransferJobTest {
         String processId = "0";
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any()))
                 .thenReturn(Flux.fromIterable(EntitySyncResponseMother.getSampleWithCategoryBase64()));
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
         DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
         int requested = dataNegotiationResult.newEntitiesToSync().size() + dataNegotiationResult.existingEntitiesToSync().size();
@@ -521,7 +519,7 @@ class DataTransferJobTest {
         List<String> response = new ArrayList<>(EntitySyncResponseMother.getSampleWithCategoryBase64());
         response.remove(0);
         when(entitySyncWebClient.makeRequest(eq(processId), any(), any())).thenReturn(Flux.fromIterable(response));
-        when(auditRecordService.buildAndSaveAuditRecordFromDataSync(any(), any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
         when(dataPublicationJob.verifyData(eq(processId), any(), any(), any(), any())).thenReturn(Mono.empty());
         DataNegotiationResult dataNegotiationResult = DataNegotiationResultMother.sample();
         int requested = dataNegotiationResult.newEntitiesToSync().size() + dataNegotiationResult.existingEntitiesToSync().size();
@@ -540,5 +538,22 @@ class DataTransferJobTest {
         assertThat(metrics.fetched()).isEqualTo(requested - 1L);
         assertThat(metrics.subentities()).isEqualTo(1L);
         assertThat(metrics.missing()).isEqualTo(1L);
+    }
+
+    @Test
+    void itShouldNotVerifyDataWhenTheReceivedAuditRecordsFail() throws Exception {
+        String processId = "0";
+        RuntimeException auditError = new RuntimeException("audit failed");
+        when(entitySyncWebClient.makeRequest(eq(processId), any(), any()))
+                .thenReturn(Flux.fromIterable(EntitySyncResponseMother.getSampleWithCategoryBase64()));
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(eq(processId), any(), eq(AuditRecordStatus.RECEIVED)))
+                .thenReturn(Mono.error(auditError));
+
+        StepVerifier
+                .create(dataTransferJob.syncData(processId, Mono.just(DataNegotiationResultMother.sample())))
+                .expectErrorMatches(auditError::equals)
+                .verify();
+
+        verifyNoInteractions(dataPublicationJob);
     }
 }
