@@ -24,7 +24,7 @@ public class DataPublicationJobImpl implements DataPublicationJob {
     private final AuditRecordService auditRecordService;
     private final BrokerPublisherService brokerPublisherService;
 
-    public Mono<Void> verifyData(String processId, Mono<String> issuer, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<List<MVEntity4DataNegotiation>> allMVEntity4DataNegotiation, Mono<Map<Id, HashAndHashLink>> existingEntitiesOriginalValidationDataById) {
+    public Mono<Void> verifyData(String processId, Mono<Map<Id, Entity>> entitiesByIdMono, Mono<List<MVEntity4DataNegotiation>> allMVEntity4DataNegotiation, Mono<Map<Id, HashAndHashLink>> existingEntitiesOriginalValidationDataById) {
         log.debug("ProcessID: {} - Starting Data Verification Job", processId);
 
         // RETRIEVED is committed before the first broker write: the broker notification of that write is recognised

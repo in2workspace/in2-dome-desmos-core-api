@@ -120,7 +120,7 @@ public class DataTransferJobImpl implements DataTransferJob {
                                         return filterEntitiesById(entitiesByIdMono, invalidIntegrityEntitiesIdsMono)
                                                 .flatMap(filteredEntitiesById -> {
                                                     Mono<Map<Id, Entity>> filteredEntitiesByIdMono = Mono.just(filteredEntitiesById);
-                                                    return dataPublicationJob.verifyData(processId, issuer, filteredEntitiesByIdMono, receivedMvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
+                                                    return dataPublicationJob.verifyData(processId, filteredEntitiesByIdMono, receivedMvEntities4DataNegotiation, existingEntitiesHashAndHashLinkById);
 
                                                 });
                                     });

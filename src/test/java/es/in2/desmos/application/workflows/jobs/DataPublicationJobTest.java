@@ -54,7 +54,6 @@ class DataPublicationJobTest {
 
         when(brokerPublisherService.publishDataToBroker(any(), any(), any())).thenReturn(Mono.empty());
 
-        Mono<String> issuer = Mono.just("http://example.org");
 
         Map<Id, Entity> entitiesById = new HashMap<>();
         entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new Entity(EntityMother.PRODUCT_OFFERING_2));
@@ -67,7 +66,7 @@ class DataPublicationJobTest {
         Map<Id, HashAndHashLink> existingEntitiesOriginalValidationDataById = new HashMap<>();
         existingEntitiesOriginalValidationDataById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new HashAndHashLink(MVEntity4DataNegotiationMother.sample2().hash(), MVEntity4DataNegotiationMother.sample2().hashlink()));
 
-        Mono<Void> result = dataVerificationJob.verifyData(processId, issuer, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(existingEntitiesOriginalValidationDataById));
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(existingEntitiesOriginalValidationDataById));
 
         StepVerifier.
                 create(result)
@@ -90,7 +89,6 @@ class DataPublicationJobTest {
 
         when(brokerPublisherService.publishDataToBroker(any(), any(), any())).thenReturn(Mono.empty());
 
-        Mono<String> issuer = Mono.just("http://example.org");
 
         Map<Id, Entity> entitiesById = new HashMap<>();
         entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new Entity(EntityMother.PRODUCT_OFFERING_2));
@@ -102,7 +100,7 @@ class DataPublicationJobTest {
         Map<Id, HashAndHashLink> existingEntitiesOriginalValidationDataById = new HashMap<>();
         existingEntitiesOriginalValidationDataById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new HashAndHashLink(MVEntity4DataNegotiationMother.sample2().hash(), MVEntity4DataNegotiationMother.sample2().hashlink()));
 
-        Mono<Void> result = dataVerificationJob.verifyData(processId, issuer, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(existingEntitiesOriginalValidationDataById));
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(existingEntitiesOriginalValidationDataById));
 
         StepVerifier.
                 create(result)
@@ -123,7 +121,6 @@ class DataPublicationJobTest {
 
         when(brokerPublisherService.publishDataToBroker(any(), any(), any())).thenReturn(Mono.empty());
 
-        Mono<String> issuer = Mono.just("http://example.org");
 
         Map<Id, Entity> entitiesById = new HashMap<>();
         String productOffering2 = EntityMother.PRODUCT_OFFERING_2;
@@ -138,7 +135,7 @@ class DataPublicationJobTest {
         Map<Id, HashAndHashLink> existingEntitiesOriginalValidationDataById = new HashMap<>();
         existingEntitiesOriginalValidationDataById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new HashAndHashLink(MVEntity4DataNegotiationMother.sample2().hash(), MVEntity4DataNegotiationMother.sample2().hashlink()));
 
-        Mono<Void> result = dataVerificationJob.verifyData(processId, issuer, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(existingEntitiesOriginalValidationDataById));
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(existingEntitiesOriginalValidationDataById));
 
 
         StepVerifier.
@@ -163,7 +160,6 @@ class DataPublicationJobTest {
         when(brokerPublisherService.publishDataToBroker(processId, MVEntity4DataNegotiationMother.sample4().id(), productOffering4))
                 .thenReturn(Mono.empty());
 
-        Mono<String> issuer = Mono.just("http://example.org");
 
         Map<Id, Entity> entitiesById = new HashMap<>();
         entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new Entity(productOffering2));
@@ -173,7 +169,7 @@ class DataPublicationJobTest {
         allMVEntity4DataNegotiation.add(MVEntity4DataNegotiationMother.sample2());
         allMVEntity4DataNegotiation.add(MVEntity4DataNegotiationMother.sample4());
 
-        Mono<Void> result = dataVerificationJob.verifyData(processId, issuer, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(new HashMap<>()));
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just(entitiesById), Mono.just(allMVEntity4DataNegotiation), Mono.just(new HashMap<>()));
 
         StepVerifier.
                 create(result)
@@ -208,7 +204,7 @@ class DataPublicationJobTest {
             entitiesById.put(new Id("urn:ngsi-ld:product-offering:" + i), new Entity("{\"id\":\"urn:ngsi-ld:product-offering:" + i + "\"}"));
         }
 
-        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just("http://example.org"), Mono.just(entitiesById), Mono.just(List.of()), Mono.just(new HashMap<>()));
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just(entitiesById), Mono.just(List.of()), Mono.just(new HashMap<>()));
 
         StepVerifier.
                 create(result)
@@ -228,7 +224,7 @@ class DataPublicationJobTest {
         Map<Id, Entity> entitiesById = new HashMap<>();
         entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample4().id()), new Entity(EntityMother.PRODUCT_OFFERING_4));
 
-        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just("http://example.org"), Mono.just(entitiesById),
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just(entitiesById),
                 Mono.just(List.of(MVEntity4DataNegotiationMother.sample4())), Mono.just(new HashMap<>()));
 
         StepVerifier.create(result)
