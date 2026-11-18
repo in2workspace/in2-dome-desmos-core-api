@@ -1,6 +1,5 @@
 package es.in2.desmos.domain.services.api;
 
-import ch.qos.logback.classic.Level;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.*;
@@ -14,7 +13,6 @@ import es.in2.desmos.infrastructure.configs.EndpointsConfig;
 import es.in2.desmos.objectmothers.AuditRecordMother;
 import es.in2.desmos.objectmothers.EntityMother;
 import es.in2.desmos.objectmothers.MVAuditServiceEntity4DataNegotiationMother;
-import es.in2.desmos.testutils.LogCapture;
 import org.json.JSONException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -351,7 +349,7 @@ class AuditRecordServiceTests {
                         assertThat(result).isEqualTo(expectedAuditEntities))
                 .verifyComplete();
 
-        verify(auditChainWriter).append(eq(processId), eq(List.of()), eq("unregistered or outdated entity"));
+        verify(auditChainWriter).append(processId, List.of(), "unregistered or outdated entity");
     }
 
     @Test
@@ -384,7 +382,7 @@ class AuditRecordServiceTests {
                 .verifyComplete();
 
         verify(auditRecordRepository, never()).save(any());
-        verify(auditChainWriter).append(eq(processId), eq(List.of()), eq("unregistered or outdated entity"));
+        verify(auditChainWriter).append(processId, List.of(), "unregistered or outdated entity");
         verifyNoMoreInteractions(auditRecordRepository);
     }
 

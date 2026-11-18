@@ -39,7 +39,7 @@ class ReactiveMutexTest {
 
         assertThat(order).containsExactly(0, 1, 2, 3, 4);
         assertThat(mutex.isHeld()).isFalse();
-        assertThat(waiters).allMatch(Disposable::isDisposed);
+        assertThat(waiters).isNotEmpty().allMatch(Disposable::isDisposed);
     }
 
     @Test

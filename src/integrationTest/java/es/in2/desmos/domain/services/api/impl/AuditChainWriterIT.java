@@ -349,7 +349,7 @@ class AuditChainWriterIT {
                         .flatMap(run -> service.findCreateOrUpdateAuditRecordsByEntityIds(PROCESS_ID, "product-offering",
                                 Flux.range(0, entitiesPerRun).map(i -> "urn:" + run + ":" + i)).collectList())
                         .collectList())
-                .assertNext(results -> assertThat(results).allSatisfy(result -> assertThat(result).hasSize(entitiesPerRun)))
+                .assertNext(results -> assertThat(results).hasSize(2).allSatisfy(result -> assertThat(result).hasSize(entitiesPerRun)))
                 .expectComplete()
                 .verify(Duration.ofSeconds(60));
 
