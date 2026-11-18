@@ -40,7 +40,7 @@ import static es.in2.desmos.domain.utils.LogUtils.logAuditSaved;
  */
 @Slf4j
 @Component
-public class AuditChainBatchWriter {
+public class AuditChainWriter {
 
     private final LatestAuditRecordReader latestAuditRecordReader;
     private final AuditRecordStatements statements;
@@ -51,7 +51,7 @@ public class AuditChainBatchWriter {
     private final int batchSize;
 
     @Autowired
-    AuditChainBatchWriter(LatestAuditRecordReader latestAuditRecordReader, AuditRecordStatements statements,
+    AuditChainWriter(LatestAuditRecordReader latestAuditRecordReader, AuditRecordStatements statements,
                           ObjectMapper objectMapper, ReactiveTransactionManager transactionManager,
                           AuditProperties auditProperties) {
         this(latestAuditRecordReader, statements, objectMapper, transactionManager, auditProperties,
@@ -60,7 +60,7 @@ public class AuditChainBatchWriter {
 
     // The clock must be in the JVM default zone: created_at is a TIMESTAMP without time zone stored as the JVM local
     // time (the driver sets the session zone to the JVM one), and rows are ordered by that local value
-    AuditChainBatchWriter(LatestAuditRecordReader latestAuditRecordReader, AuditRecordStatements statements,
+    AuditChainWriter(LatestAuditRecordReader latestAuditRecordReader, AuditRecordStatements statements,
                           ObjectMapper objectMapper, ReactiveTransactionManager transactionManager,
                           AuditProperties auditProperties, ReactiveMutex localMutex, Clock clock) {
         this.latestAuditRecordReader = latestAuditRecordReader;
@@ -77,7 +77,7 @@ public class AuditChainBatchWriter {
     private static TransactionDefinition transactionDefinition() {
         DefaultTransactionDefinition definition = new DefaultTransactionDefinition();
         definition.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
-        definition.setName("audit-chain-batch");
+        definition.setName("audit-chain");
         return definition;
     }
 
@@ -109,7 +109,7 @@ public class AuditChainBatchWriter {
             return appendInTx(processId, drafts, source);
         }
         return appendInTx(processId, drafts, source)
-                .onErrorResume(AuditChainBatchWriter::isRowDataError, batchError -> {
+                .onErrorResume(AuditChainWriter::isRowDataError, batchError -> {
                     R2dbcException cause = (R2dbcException) batchError.getCause();
                     log.warn("{} ProcessID: {} - Batch of {} audit records failed (SQLSTATE {}: {}), writing it row by row",
                             AUDIT, processId, drafts.size(), cause.getSqlState(), cause.getMessage());

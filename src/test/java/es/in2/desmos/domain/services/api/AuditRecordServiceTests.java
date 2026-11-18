@@ -5,7 +5,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.*;
 import es.in2.desmos.domain.repositories.AuditRecordRepository;
-import es.in2.desmos.domain.services.api.impl.AuditChainBatchWriter;
+import es.in2.desmos.domain.services.api.impl.AuditChainWriter;
 import es.in2.desmos.domain.services.api.impl.AuditRecordServiceImpl;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
 import es.in2.desmos.domain.utils.ApplicationUtils;
@@ -56,7 +56,7 @@ class AuditRecordServiceTests {
     private static ObjectMapper objectMapper = new ObjectMapper();
 
     @Mock
-    private AuditChainBatchWriter auditChainBatchWriter;
+    private AuditChainWriter auditChainWriter;
 
     private AuditRecordServiceImpl auditRecordService;
 
@@ -66,7 +66,7 @@ class AuditRecordServiceTests {
     @BeforeEach
     void setUp() {
         auditRecordService = new AuditRecordServiceImpl(objectMapper, auditRecordRepository, brokerPublisherService,
-                apiConfig, endpointsConfig, auditChainBatchWriter);
+                apiConfig, endpointsConfig, auditChainWriter);
     }
 
     @Test
@@ -79,13 +79,13 @@ class AuditRecordServiceTests {
         dataMap.put("id", "entityId");
         dataMap.put("type", "entityType");
         when(blockchainTxPayload.dataLocation()).thenReturn(sampleDataLocation);
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("broker notification"))).thenReturn(Mono.empty());
+        when(auditChainWriter.append(eq(processId), any(), eq("broker notification"))).thenReturn(Mono.empty());
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(processId, dataMap,
                         AuditRecordStatus.CREATED, blockchainTxPayload))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("broker notification"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("broker notification"));
         verifyNoInteractions(auditRecordRepository);
         AuditRecord draft = singleUnchainedDraft();
         assertThat(draft.getEntityId()).isEqualTo("entityId");
@@ -103,13 +103,13 @@ class AuditRecordServiceTests {
         Map<String, Object> dataMap = new HashMap<>();
         dataMap.put("id", "entityId");
         dataMap.put("type", "entityType");
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("broker notification"))).thenReturn(Mono.empty());
+        when(auditChainWriter.append(eq(processId), any(), eq("broker notification"))).thenReturn(Mono.empty());
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(processId, dataMap,
                         AuditRecordStatus.RECEIVED, null))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("broker notification"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("broker notification"));
         AuditRecord draft = singleUnchainedDraft();
         assertThat(draft.getStatus()).isEqualTo(AuditRecordStatus.RECEIVED);
         assertThat(draft.getTrader()).isEqualTo(AuditRecordTrader.PRODUCER);
@@ -130,7 +130,7 @@ class AuditRecordServiceTests {
                 .expectError(JsonProcessingException.class)
                 .verify();
 
-        verifyNoInteractions(auditChainBatchWriter);
+        verifyNoInteractions(auditChainWriter);
     }
 
     @Test
@@ -145,7 +145,7 @@ class AuditRecordServiceTests {
         auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification("processId", blockchainNotification, null, AuditRecordStatus.RECEIVED);
         auditRecordService.buildAndSaveAuditRecordForSubEntity("processId", "urn:e:1", "entityType", "{}", AuditRecordStatus.RETRIEVED);
 
-        verifyNoInteractions(auditChainBatchWriter, auditRecordRepository);
+        verifyNoInteractions(auditChainWriter, auditRecordRepository);
     }
 
     @Test
@@ -154,7 +154,7 @@ class AuditRecordServiceTests {
         dataMap.put("id", "entityId");
         dataMap.put("type", "entityType");
         RuntimeException error = new RuntimeException("lock timeout");
-        when(auditChainBatchWriter.append(any(), any(), any())).thenReturn(Mono.error(error));
+        when(auditChainWriter.append(any(), any(), any())).thenReturn(Mono.error(error));
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification("processId", dataMap,
                         AuditRecordStatus.RECEIVED, null))
@@ -181,12 +181,12 @@ class AuditRecordServiceTests {
         String processId = "0";
         AuditRecordStatus status = AuditRecordStatus.RETRIEVED;
         List<MVAuditServiceEntity4DataNegotiation> entities = MVAuditServiceEntity4DataNegotiationMother.sample3and4();
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("p2p sync"))).thenReturn(Mono.empty());
+        when(auditChainWriter.append(eq(processId), any(), eq("p2p sync"))).thenReturn(Mono.empty());
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordsFromDataSync(processId, entities, status))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("p2p sync"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("p2p sync"));
         verifyNoInteractions(auditRecordRepository);
         List<AuditRecord> drafts = draftsCaptor.getValue();
         assertThat(drafts).hasSize(entities.size());
@@ -206,7 +206,7 @@ class AuditRecordServiceTests {
     @Test
     void itShouldPropagateTheWriterErrorFromDataSync() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
         RuntimeException error = new RuntimeException("db down");
-        when(auditChainBatchWriter.append(any(), any(), any())).thenReturn(Mono.error(error));
+        when(auditChainWriter.append(any(), any(), any())).thenReturn(Mono.error(error));
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordsFromDataSync("0",
                         MVAuditServiceEntity4DataNegotiationMother.sample3and4(), AuditRecordStatus.RECEIVED))
@@ -225,13 +225,13 @@ class AuditRecordServiceTests {
                 .eventType("entityType")
                 .build();
         String retrievedBrokerEntity = "sampleData";
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("blockchain notification"))).thenReturn(Mono.empty());
+        when(auditChainWriter.append(eq(processId), any(), eq("blockchain notification"))).thenReturn(Mono.empty());
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId,
                         blockchainNotification, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("blockchain notification"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("blockchain notification"));
         verifyNoInteractions(auditRecordRepository);
         AuditRecord draft = singleUnchainedDraft();
         assertThat(draft.getEntityId()).isEqualTo(entityId);
@@ -251,13 +251,13 @@ class AuditRecordServiceTests {
                 + "?hl=dbff5341acad5e2a58db4efd5e72e2d9a0a843a28e02b1183c68162d0a3a3de6";
         BlockchainNotification blockchainNotification = BlockchainNotification.builder()
                 .dataLocation(dataLocation).build();
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("blockchain notification"))).thenReturn(Mono.empty());
+        when(auditChainWriter.append(eq(processId), any(), eq("blockchain notification"))).thenReturn(Mono.empty());
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(processId,
                         blockchainNotification, null, AuditRecordStatus.RECEIVED))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("blockchain notification"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("blockchain notification"));
         AuditRecord draft = singleUnchainedDraft();
         assertThat(draft.getEntityId()).isEqualTo(entityId);
         assertThat(draft.getStatus()).isEqualTo(AuditRecordStatus.RECEIVED);
@@ -336,7 +336,7 @@ class AuditRecordServiceTests {
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(Flux.just(AuditRecordMother.list3And4().get(0), AuditRecordMother.list3And4().get(1)));
 
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
+        when(auditChainWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
                 .thenReturn(Mono.empty());
 
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3and4();
@@ -351,7 +351,7 @@ class AuditRecordServiceTests {
                         assertThat(result).isEqualTo(expectedAuditEntities))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), eq(List.of()), eq("unregistered or outdated entity"));
+        verify(auditChainWriter).append(eq(processId), eq(List.of()), eq("unregistered or outdated entity"));
     }
 
     @Test
@@ -369,7 +369,7 @@ class AuditRecordServiceTests {
                                 AuditRecordMother.list3And4().get(0),
                                 AuditRecordMother.list3And4().get(1)));
 
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
+        when(auditChainWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
                 .thenReturn(Mono.empty());
 
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3and4();
@@ -384,7 +384,7 @@ class AuditRecordServiceTests {
                 .verifyComplete();
 
         verify(auditRecordRepository, never()).save(any());
-        verify(auditChainBatchWriter).append(eq(processId), eq(List.of()), eq("unregistered or outdated entity"));
+        verify(auditChainWriter).append(eq(processId), eq(List.of()), eq("unregistered or outdated entity"));
         verifyNoMoreInteractions(auditRecordRepository);
     }
 
@@ -403,7 +403,7 @@ class AuditRecordServiceTests {
                                 AuditRecordMother.list3OtherHashTraderProducerAnd4().get(0),
                                 AuditRecordMother.list3OtherHashTraderProducerAnd4().get(1)));
 
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
+        when(auditChainWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
                 .thenReturn(Mono.empty());
 
         var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3and4NewHashlink();
@@ -418,7 +418,7 @@ class AuditRecordServiceTests {
                         assertThat(result).containsExactlyInAnyOrderElementsOf(expectedAuditEntities))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
         assertThat(draftsCaptor.getValue()).singleElement()
                 .satisfies(draft -> {
                     assertThat(draft.getEntityId()).isEqualTo(expectedAuditEntities.get(0).id());
@@ -447,7 +447,7 @@ class AuditRecordServiceTests {
                                 AuditRecordMother.list3OtherHashWithTraderConsumerAnd4().get(0),
                                 AuditRecordMother.list3OtherHashWithTraderConsumerAnd4().get(1)));
 
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
+        when(auditChainWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
                 .thenReturn(Mono.empty());
 
         Flux<MVAuditServiceEntity4DataNegotiation> resultMono =
@@ -458,7 +458,7 @@ class AuditRecordServiceTests {
                 .expectNextCount(1)
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
         verifyNoMoreInteractions(auditRecordRepository);
 
         assertThat(draftsCaptor.getValue()).hasSize(1);
@@ -495,7 +495,7 @@ class AuditRecordServiceTests {
         when(apiConfig.getExternalDomain())
                 .thenReturn("http://my-external-domain.org");
 
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
+        when(auditChainWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
                 .thenReturn(Mono.empty());
 
         Flux<MVAuditServiceEntity4DataNegotiation> resultMono =
@@ -507,7 +507,7 @@ class AuditRecordServiceTests {
                         assertThat(result).containsExactlyInAnyOrderElementsOf(expectedAuditEntities))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
         verifyNoMoreInteractions(auditRecordRepository);
 
         assertThat(draftsCaptor.getValue()).hasSize(1);
@@ -545,13 +545,13 @@ class AuditRecordServiceTests {
                 .trader(AuditRecordTrader.CONSUMER)
                 .build();
         when(auditRecordRepository.findLastPublishedConsumerAuditRecordByEntityId(entityId)).thenReturn(Mono.just(previous));
-        when(auditChainBatchWriter.append(eq(processId), any(), eq("subentity"))).thenReturn(Mono.empty());
+        when(auditChainWriter.append(eq(processId), any(), eq("subentity"))).thenReturn(Mono.empty());
 
         StepVerifier.create(auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType,
                         retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
                 .verifyComplete();
 
-        verify(auditChainBatchWriter).append(eq(processId), draftsCaptor.capture(), eq("subentity"));
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("subentity"));
         verify(auditRecordRepository, never()).findMostRecentAuditRecord();
         AuditRecord draft = singleUnchainedDraft();
         String entityHash = ApplicationUtils.calculateSHA256(retrievedBrokerEntity);
@@ -572,6 +572,6 @@ class AuditRecordServiceTests {
                         "testEntityType", "{}", AuditRecordStatus.RETRIEVED))
                 .verifyComplete();
 
-        verifyNoInteractions(auditChainBatchWriter);
+        verifyNoInteractions(auditChainWriter);
     }
 }

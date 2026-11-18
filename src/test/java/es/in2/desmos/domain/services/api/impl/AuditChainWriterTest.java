@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-class AuditChainBatchWriterTest {
+class AuditChainWriterTest {
 
     private static final String PROCESS_ID = "process-1";
     private static final String SOURCE = "p2p sync";
@@ -78,12 +78,12 @@ class AuditChainBatchWriterTest {
                 stored.isEmpty() ? initialLast : stored.get(stored.size() - 1)));
     }
 
-    private AuditChainBatchWriter writer(int batchSize) {
+    private AuditChainWriter writer(int batchSize) {
         return writer(batchSize, objectMapper);
     }
 
-    private AuditChainBatchWriter writer(int batchSize, ObjectMapper mapper) {
-        return new AuditChainBatchWriter(reader, statements, mapper, transactionManager, new AuditProperties(batchSize),
+    private AuditChainWriter writer(int batchSize, ObjectMapper mapper) {
+        return new AuditChainWriter(reader, statements, mapper, transactionManager, new AuditProperties(batchSize),
                 new ReactiveMutex(Schedulers.immediate()), clock);
     }
 
@@ -163,7 +163,7 @@ class AuditChainBatchWriterTest {
         ZoneId madrid = ZoneId.of("Europe/Madrid");
         MutableClock dstClock = new MutableClock(Instant.parse("2026-10-25T00:59:59.999998Z"), madrid);
         dstClock.ticks(Duration.ofNanos(1_000));
-        AuditChainBatchWriter dstWriter = new AuditChainBatchWriter(reader, statements, objectMapper, transactionManager,
+        AuditChainWriter dstWriter = new AuditChainWriter(reader, statements, objectMapper, transactionManager,
                 new AuditProperties(500), new ReactiveMutex(Schedulers.immediate()), dstClock);
 
         StepVerifier.create(dstWriter.append(PROCESS_ID, drafts(4), SOURCE)).verifyComplete();
@@ -249,7 +249,7 @@ class AuditChainBatchWriterTest {
         doCallRealMethod().doCallRealMethod().doThrow(new JsonProcessingException("boom") {
         }).when(failingMapper).writeValueAsString(any());
 
-        try (LogCapture logs = LogCapture.of(AuditChainBatchWriter.class)) {
+        try (LogCapture logs = LogCapture.of(AuditChainWriter.class)) {
             StepVerifier.create(writer(500, failingMapper).append(PROCESS_ID, drafts(5), SOURCE))
                     .expectError(JsonProcessingException.class)
                     .verify();
@@ -265,7 +265,7 @@ class AuditChainBatchWriterTest {
     void itShouldLogOneAuditLinePerRecordAfterTheCommit() {
         List<AuditRecord> drafts = drafts(2);
 
-        try (LogCapture logs = LogCapture.of(AuditChainBatchWriter.class)) {
+        try (LogCapture logs = LogCapture.of(AuditChainWriter.class)) {
             StepVerifier.create(writer(500).append(PROCESS_ID, drafts, SOURCE)).verifyComplete();
 
             assertThat(logs.messages(Level.INFO)).containsExactly(
@@ -278,7 +278,7 @@ class AuditChainBatchWriterTest {
     void aChunkThatRollsBackLeavesNoAuditLines() {
         insertBehaviour = rows -> Mono.error(connectionError());
 
-        try (LogCapture logs = LogCapture.of(AuditChainBatchWriter.class)) {
+        try (LogCapture logs = LogCapture.of(AuditChainWriter.class)) {
             StepVerifier.create(writer(500).append(PROCESS_ID, drafts(3), SOURCE))
                     .expectError(DataAccessResourceFailureException.class)
                     .verify();
@@ -298,7 +298,7 @@ class AuditChainBatchWriterTest {
                 ? Mono.error(rows.size() > 1 ? batchError : rowError)
                 : Mono.empty();
 
-        try (LogCapture logs = LogCapture.of(AuditChainBatchWriter.class)) {
+        try (LogCapture logs = LogCapture.of(AuditChainWriter.class)) {
             StepVerifier.create(writer(500).append(PROCESS_ID, drafts, SOURCE))
                     .expectErrorMatches(rowError::equals)
                     .verify();
@@ -337,7 +337,7 @@ class AuditChainBatchWriterTest {
         BadSqlGrammarException batchError = dataError("22P02");
         insertBehaviour = rows -> rows.size() > 1 ? Mono.error(batchError) : Mono.empty();
 
-        try (LogCapture logs = LogCapture.of(AuditChainBatchWriter.class)) {
+        try (LogCapture logs = LogCapture.of(AuditChainWriter.class)) {
             StepVerifier.create(writer(500).append(PROCESS_ID, drafts(4), SOURCE))
                     .expectErrorMatches(batchError::equals)
                     .verify();
@@ -355,7 +355,7 @@ class AuditChainBatchWriterTest {
         BadSqlGrammarException rowError = dataError("22001");
         insertBehaviour = rows -> Mono.error(rowError);
 
-        try (LogCapture logs = LogCapture.of(AuditChainBatchWriter.class)) {
+        try (LogCapture logs = LogCapture.of(AuditChainWriter.class)) {
             StepVerifier.create(writer(500).append(PROCESS_ID, drafts(1), SOURCE))
                     .expectErrorMatches(rowError::equals)
                     .verify();
@@ -412,23 +412,23 @@ class AuditChainBatchWriterTest {
 
     @Test
     void isRowDataErrorOnlyMatchesSqlStateClasses22And23() {
-        assertThat(AuditChainBatchWriter.isRowDataError(dataError("22001"))).isTrue();
-        assertThat(AuditChainBatchWriter.isRowDataError(
+        assertThat(AuditChainWriter.isRowDataError(dataError("22001"))).isTrue();
+        assertThat(AuditChainWriter.isRowDataError(
                 new DataIntegrityViolationException("x", new R2dbcDataIntegrityViolationException("x", "23505")))).isTrue();
-        assertThat(AuditChainBatchWriter.isRowDataError(
+        assertThat(AuditChainWriter.isRowDataError(
                 new BadSqlGrammarException("x", "sql", new R2dbcBadGrammarException("x", "42601")))).isFalse();
-        assertThat(AuditChainBatchWriter.isRowDataError(
+        assertThat(AuditChainWriter.isRowDataError(
                 new DataIntegrityViolationException("x", new R2dbcDataIntegrityViolationException("x", "27000")))).isFalse();
-        assertThat(AuditChainBatchWriter.isRowDataError(new DataIntegrityViolationException("x"))).isFalse();
-        assertThat(AuditChainBatchWriter.isRowDataError(
+        assertThat(AuditChainWriter.isRowDataError(new DataIntegrityViolationException("x"))).isFalse();
+        assertThat(AuditChainWriter.isRowDataError(
                 new DataIntegrityViolationException("x", new R2dbcDataIntegrityViolationException("x")))).isFalse();
-        assertThat(AuditChainBatchWriter.isRowDataError(connectionError())).isFalse();
-        assertThat(AuditChainBatchWriter.isRowDataError(new IllegalStateException("x"))).isFalse();
+        assertThat(AuditChainWriter.isRowDataError(connectionError())).isFalse();
+        assertThat(AuditChainWriter.isRowDataError(new IllegalStateException("x"))).isFalse();
     }
 
     @Test
     void concurrentAppendsNeverHaveTwoTransactionsOpen() {
-        AuditChainBatchWriter writer = new AuditChainBatchWriter(reader, statements, objectMapper, transactionManager,
+        AuditChainWriter writer = new AuditChainWriter(reader, statements, objectMapper, transactionManager,
                 new AuditProperties(10), new ReactiveMutex(), clock);
         insertBehaviour = rows -> Mono.delay(Duration.ofMillis(2)).then();
 
@@ -445,7 +445,7 @@ class AuditChainBatchWriterTest {
 
     @Test
     void thePermitIsReleasedAfterAnErrorAndACancellation() {
-        AuditChainBatchWriter writer = writer(500);
+        AuditChainWriter writer = writer(500);
         insertBehaviour = rows -> Mono.error(connectionError());
         StepVerifier.create(writer.append(PROCESS_ID, drafts(2), SOURCE))
                 .expectError(DataAccessResourceFailureException.class)

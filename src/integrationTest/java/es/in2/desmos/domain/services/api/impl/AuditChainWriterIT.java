@@ -56,10 +56,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * The batch writer of the audit chain against a real PostgreSQL, with the application's migrations. No Spring context:
+ * The writer of the audit chain against a real PostgreSQL, with the application's migrations. No Spring context:
  * the writer, the repository and the transaction manager are wired by hand on one connection pool.
  */
-class AuditChainBatchWriterIT {
+class AuditChainWriterIT {
 
     private static final String PROCESS_ID = "it";
     private static final String SOURCE = "p2p sync";
@@ -111,12 +111,12 @@ class AuditChainBatchWriterIT {
                 + "?maxSize=" + maxSize + "&initialSize=1");
     }
 
-    private static AuditChainBatchWriter writer() {
+    private static AuditChainWriter writer() {
         return writer(new AuditRecordStatements(databaseClient, new AuditProperties(500)), new LatestAuditRecordReader(repository));
     }
 
-    private static AuditChainBatchWriter writer(AuditRecordStatements statements, LatestAuditRecordReader reader) {
-        return new AuditChainBatchWriter(reader, statements, OBJECT_MAPPER, new R2dbcTransactionManager(connectionFactory),
+    private static AuditChainWriter writer(AuditRecordStatements statements, LatestAuditRecordReader reader) {
+        return new AuditChainWriter(reader, statements, OBJECT_MAPPER, new R2dbcTransactionManager(connectionFactory),
                 new AuditProperties(500), new ReactiveMutex(), Clock.systemDefaultZone());
     }
 
@@ -148,7 +148,7 @@ class AuditChainBatchWriterIT {
 
     @Test
     void twoConcurrentBatchesOfTheSameReplicaLeaveALinearChain() {
-        AuditChainBatchWriter writer = writer();
+        AuditChainWriter writer = writer();
 
         StepVerifier.create(Flux.just(drafts("a", 500), drafts("b", 500))
                         .flatMap(drafts -> writer.append(PROCESS_ID, drafts, SOURCE).subscribeOn(Schedulers.parallel()))
@@ -196,8 +196,8 @@ class AuditChainBatchWriterIT {
                 return super.fetch().delayElement(Duration.ofMillis(100));
             }
         };
-        AuditChainBatchWriter replica1 = writer(statements, slowReader);
-        AuditChainBatchWriter replica2 = writer(statements, slowReader);
+        AuditChainWriter replica1 = writer(statements, slowReader);
+        AuditChainWriter replica2 = writer(statements, slowReader);
 
         StepVerifier.create(Flux.just(replica1, replica2)
                         .zipWith(Flux.just(drafts("a", 2000), drafts("b", 2000)))
@@ -226,7 +226,7 @@ class AuditChainBatchWriterIT {
     // record when the writer reads a row saved by an older version
     @Test
     void batchesInterleavedWithRepositorySavesKeepTheWriteOrder() {
-        AuditChainBatchWriter writer = writer();
+        AuditChainWriter writer = writer();
         LatestAuditRecordReader reader = new LatestAuditRecordReader(repository);
         List<UUID> writeOrder = new ArrayList<>();
 
@@ -302,7 +302,7 @@ class AuditChainBatchWriterIT {
         DatabaseClient client = DatabaseClient.create(singleConnection);
         R2dbcEntityTemplate singleTemplate = new R2dbcEntityTemplate(singleConnection);
         AuditRecordRepository singleRepository = new R2dbcRepositoryFactory(singleTemplate).getRepository(AuditRecordRepository.class);
-        AuditChainBatchWriter writer = new AuditChainBatchWriter(new LatestAuditRecordReader(singleRepository),
+        AuditChainWriter writer = new AuditChainWriter(new LatestAuditRecordReader(singleRepository),
                 new AuditRecordStatements(client, new AuditProperties(500)), OBJECT_MAPPER,
                 new R2dbcTransactionManager(singleConnection), new AuditProperties(500), new ReactiveMutex(), Clock.systemDefaultZone());
 
@@ -424,7 +424,7 @@ class AuditChainBatchWriterIT {
     // the chunks
     @Test
     void aSyncBatchAndNotificationsAtTheSameTimeLeaveALinearChain() {
-        AuditChainBatchWriter writer = writer();
+        AuditChainWriter writer = writer();
         AuditRecordServiceImpl service = service(writer);
         int subEntities = 20;
         seedConsumerPublishedSubEntities(service, subEntities);
@@ -447,7 +447,7 @@ class AuditChainBatchWriterIT {
     @Test
     void aWriteGivesUpAfterTheLockTimeout() {
         AuditProperties properties = new AuditProperties(500, Duration.ofMillis(500));
-        AuditChainBatchWriter writer = new AuditChainBatchWriter(new LatestAuditRecordReader(repository),
+        AuditChainWriter writer = new AuditChainWriter(new LatestAuditRecordReader(repository),
                 new AuditRecordStatements(databaseClient, properties), OBJECT_MAPPER,
                 new R2dbcTransactionManager(connectionFactory), properties, new ReactiveMutex(), Clock.systemDefaultZone());
         ConnectionFactory holderFactory = connectionFactory(1);
@@ -480,7 +480,7 @@ class AuditChainBatchWriterIT {
 
     // --- helpers ---
 
-    private static AuditRecordServiceImpl service(AuditChainBatchWriter writer) {
+    private static AuditRecordServiceImpl service(AuditChainWriter writer) {
         return new AuditRecordServiceImpl(OBJECT_MAPPER, repository, mock(BrokerPublisherService.class),
                 mock(ApiConfig.class), mock(EndpointsConfig.class), writer);
     }

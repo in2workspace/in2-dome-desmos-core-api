@@ -14,7 +14,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 /**
- * The SQL of {@link AuditChainBatchWriter}: the chain lock (with its timeout) and the multi-row INSERT. Both must run
+ * The SQL of {@link AuditChainWriter}: the chain lock (with its timeout) and the multi-row INSERT. Both must run
  * inside the writer's transaction.
  */
 @Component

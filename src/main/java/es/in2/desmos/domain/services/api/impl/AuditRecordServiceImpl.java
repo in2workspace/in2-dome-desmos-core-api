@@ -36,7 +36,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private final BrokerPublisherService brokerPublisherService;
     private final ApiConfig apiConfig;
     private final EndpointsConfig endpointsConfig;
-    private final AuditChainBatchWriter auditChainBatchWriter;
+    private final AuditChainWriter auditChainWriter;
 
 
     /**
@@ -80,7 +80,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     .trader(AuditRecordTrader.PRODUCER)
                     .newTransaction(true)
                     .build();
-            return auditChainBatchWriter.append(processId, List.of(draft), "broker notification");
+            return auditChainWriter.append(processId, List.of(draft), "broker notification");
         });
     }
 
@@ -122,7 +122,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     .trader(AuditRecordTrader.CONSUMER)
                     .newTransaction(true)
                     .build();
-            return auditChainBatchWriter.append(processId, List.of(draft), "blockchain notification");
+            return auditChainWriter.append(processId, List.of(draft), "blockchain notification");
         });
     }
 
@@ -151,7 +151,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                         .trader(AuditRecordTrader.CONSUMER)
                                         .newTransaction(true)
                                         .build();
-                                return auditChainBatchWriter.append(processId, List.of(draft), "subentity");
+                                return auditChainWriter.append(processId, List.of(draft), "subentity");
                             });
                 });
     }
@@ -178,7 +178,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                         .newTransaction(true)
                         .build())
                 .toList();
-        return auditChainBatchWriter.append(processId, drafts, "p2p sync");
+        return auditChainWriter.append(processId, drafts, "p2p sync");
     }
 
     private String getDataLocationForProducedEntity(String issuer, MVAuditServiceEntity4DataNegotiation mvAuditServiceEntity4DataNegotiation) {
@@ -271,7 +271,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                     .map(SyncAuditResult::draft)
                                                     .filter(Objects::nonNull)
                                                     .toList();
-                                            return auditChainBatchWriter.append(processId, drafts, "unregistered or outdated entity")
+                                            return auditChainWriter.append(processId, drafts, "unregistered or outdated entity")
                                                     .thenMany(Flux.fromIterable(results).map(SyncAuditResult::entity));
                                         });
                             });
