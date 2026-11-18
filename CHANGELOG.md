@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Serialize the audit chain writes of the P2P synchronization (in memory and with a PostgreSQL advisory lock), so parallel genesis nodes, the local entities step and a discovery requested by another node no longer fork the audit chain; notifications do not take the lock yet
 - Add an index on `audit_records.created_at`, used by every read of the last audit record (migration V3)
 - Align the Flyway PostgreSQL module with the Flyway core version managed by Spring Boot
+- Remove a field shared by concurrent audit record writes that only fed a debug log line
 
 ## [Released]: v2.0.26
 - Replicate individual, organization and usage entities: their TMF models have no lifecycleStatus, so the lifecycleStatus policy (GP_1) left all of them out

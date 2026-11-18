@@ -38,7 +38,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private final AuditRecordRepository auditRecordRepository;
     private final BrokerPublisherService brokerPublisherService;
     private final ApiConfig apiConfig;
-    private long start;
     private final EndpointsConfig endpointsConfig;
     private final LatestAuditRecordReader latestAuditRecordReader;
     private final AuditChainBatchWriter auditChainBatchWriter;
@@ -161,7 +160,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     public Mono<Void> buildAndSaveAuditRecordForSubEntity(String processId, String entityId, String entityType,
                                                           String retrievedBrokerEntity,
                                                           AuditRecordStatus status) {
-        start = System.currentTimeMillis();
         // Get the most recent audit record for the entityId and get the most recent audit record overall
         return fetchMostRecentAuditRecord()
                 .flatMap(lastAuditRecordRegistered ->
@@ -414,17 +412,9 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     private Mono<String> calculateHashLink(Mono<String> previousHashlink, Mono<String> currentHash) {
-        start = System.currentTimeMillis();
         return previousHashlink
                 .zipWith(currentHash)
-                .flatMap(tuple -> {
-                    try {
-                        return Mono.just(ApplicationUtils.calculateHashLink(tuple.getT1(), tuple.getT2()));
-                    } catch (NoSuchAlgorithmException | JsonProcessingException e) {
-                        return Mono.error(e);
-                    }
-                }).doOnSuccess(result ->
-                        log.debug("calculateHashLink completed in {} ms", System.currentTimeMillis() - start));
+                .flatMap(tuple -> Mono.fromCallable(() -> ApplicationUtils.calculateHashLink(tuple.getT1(), tuple.getT2())));
     }
 
     private String calculateHash(String retrievedBrokerEntity) {
