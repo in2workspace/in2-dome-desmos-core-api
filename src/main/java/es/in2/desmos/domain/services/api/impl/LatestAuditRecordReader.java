@@ -11,9 +11,9 @@ import java.util.NoSuchElementException;
 /**
  * Reads the last audit record of the global chain (the one the next record links to).
  * <p>
- * Shared by {@link AuditRecordServiceImpl} (notifications) and {@link AuditChainBatchWriter} (P2P sync), so both read
- * {@code created_at} through the same Spring Data converters. It lives in its own component because the writer cannot
- * depend on the service, which depends on the writer.
+ * Used by {@link AuditChainBatchWriter}, inside the chain lock. It reads {@code created_at} through the Spring Data
+ * converters, the same that read the rows saved with {@code repository.save} before every write went through the
+ * writer.
  */
 @Component
 @RequiredArgsConstructor

@@ -349,6 +349,41 @@ class AuditChainBatchWriterTest {
         assertThat(stored).hasSize(4);
     }
 
+    // A notification writes one row: there is no row-by-row fallback to try, the error goes up after one attempt
+    @Test
+    void aChunkOfOneRowIsNotRetriedRowByRow() {
+        BadSqlGrammarException rowError = dataError("22001");
+        insertBehaviour = rows -> Mono.error(rowError);
+
+        try (LogCapture logs = LogCapture.of(AuditChainBatchWriter.class)) {
+            StepVerifier.create(writer(500).append(PROCESS_ID, drafts(1), SOURCE))
+                    .expectErrorMatches(rowError::equals)
+                    .verify();
+
+            assertThat(logs.messages(Level.WARN)).isEmpty();
+            assertThat(logs.messages(Level.ERROR)).isEmpty();
+        }
+        verify(statements, times(1)).insert(any());
+        assertThat(stored).isEmpty();
+    }
+
+    // The last row of a chunk is a chunk of one row when it is written row by row: it fails once, as before
+    @Test
+    void aChunkOfTwoRowsStillFallsBackRowByRow() {
+        List<AuditRecord> drafts = drafts(2);
+        String badId = drafts.get(1).getEntityId();
+        insertBehaviour = rows -> rows.stream().anyMatch(row -> row.getEntityId().equals(badId))
+                ? Mono.error(dataError("22001"))
+                : Mono.empty();
+
+        StepVerifier.create(writer(500).append(PROCESS_ID, drafts, SOURCE))
+                .expectError(BadSqlGrammarException.class)
+                .verify();
+
+        verify(statements, times(3)).insert(any());
+        assertThat(stored).extracting(AuditRecord::getEntityId).containsExactly(drafts.get(0).getEntityId());
+    }
+
     @Test
     void theChunksAfterAFailingOneAreNotWritten() {
         List<AuditRecord> drafts = drafts(12);

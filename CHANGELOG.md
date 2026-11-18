@@ -6,7 +6,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 - Write the audit records of a P2P synchronization in batches (one transaction per chunk of `audit.batch-size` records, 500 by default, configurable with AUDIT_BATCH_SIZE between 1 and 2000) instead of one read and one insert per record
-- Serialize the audit chain writes of the P2P synchronization (in memory and with a PostgreSQL advisory lock), so parallel genesis nodes, the local entities step and a discovery requested by another node no longer fork the audit chain; notifications do not take the lock yet
+- Serialize every write of the audit chain, those of the P2P synchronization and those of the broker and blockchain notifications (in memory and with a PostgreSQL advisory lock), so parallel genesis nodes, the local entities step, a discovery requested by another node and concurrent notifications no longer fork the audit chain; `created_at` is now strictly increasing for every audit record
+- Bound the wait for the audit chain lock with `audit.lock-timeout` (AUDIT_LOCK_TIMEOUT, 30s by default, between 1ms and 1h)
 - Add an index on `audit_records.created_at`, used by every read of the last audit record (migration V3)
 - Align the Flyway PostgreSQL module with the Flyway core version managed by Spring Boot
 - Remove a field shared by concurrent audit record writes that only fed a debug log line

@@ -165,3 +165,5 @@ desmos:
 audit:
   # Audit records per transaction (one chain lock, one read of the last record, one multi-row INSERT). 1 to 2000.
   batch-size: ${AUDIT_BATCH_SIZE:500}
+  # Maximum wait for the audit chain lock held by another transaction (sync chunks and notifications alike).
+  lock-timeout: ${AUDIT_LOCK_TIMEOUT:30s}

@@ -14,8 +14,8 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 
 /**
- * The SQL of {@link AuditChainBatchWriter}: the chain lock and the multi-row INSERT. Both must run inside the writer's
- * transaction.
+ * The SQL of {@link AuditChainBatchWriter}: the chain lock (with its timeout) and the multi-row INSERT. Both must run
+ * inside the writer's transaction.
  */
 @Component
 class AuditRecordStatements {
@@ -28,6 +28,10 @@ class AuditRecordStatements {
 
     static final String LOCK_SQL = "SELECT 1 FROM pg_advisory_xact_lock($1)";
 
+    // set_config(..., true) is SET LOCAL: it lasts until the end of the transaction. It also bounds the wait for the
+    // advisory lock; past it the lock statement fails with SQLSTATE 55P03 (lock_not_available).
+    static final String LOCK_TIMEOUT_SQL = "SELECT set_config('lock_timeout', $1, true)";
+
     private static final List<String> COLUMNS = List.of("id", "process_id", "created_at", "entity_id", "entity_type",
             "entity_hash", "entity_hashlink", "data_location", "status", "trader", "hash", "hashlink");
 
@@ -36,19 +40,27 @@ class AuditRecordStatements {
 
     private final DatabaseClient databaseClient;
     private final int batchSize;
+    private final String lockTimeout;
 
     AuditRecordStatements(DatabaseClient databaseClient, AuditProperties auditProperties) {
         this.databaseClient = databaseClient;
         this.batchSize = auditProperties.batchSize();
+        this.lockTimeout = auditProperties.lockTimeout().toMillis() + "ms";
     }
 
-    /** Waits for the chain lock. It is released on commit or rollback. */
+    /**
+     * Waits for the chain lock, at most {@code audit.lock-timeout}. It is released on commit or rollback.
+     */
     Mono<Void> lockChain() {
-        return databaseClient.sql(LOCK_SQL)
+        return databaseClient.sql(LOCK_TIMEOUT_SQL)
+                .bind(0, lockTimeout)
+                .map(row -> 1)
+                .all()
+                .then(databaseClient.sql(LOCK_SQL)
                 .bind(0, CHAIN_LOCK_KEY)
                 .map(row -> 1)
                 .all()
-                .then();
+                .then());
     }
 
     /**
@@ -109,7 +121,7 @@ class AuditRecordStatements {
             spec = bind(spec, index++, row.getId(), UUID.class);
             spec = bind(spec, index++, row.getProcessId(), String.class);
             // Bound as Timestamp, like repository.save does: the driver's DateCodec converts it to the session's time
-            // zone exactly as for the rows saved by the notifications
+            // zone exactly as for the rows saved with repository.save before every write went through this class
             spec = bind(spec, index++, row.getCreatedAt(), Timestamp.class);
             spec = bind(spec, index++, row.getEntityId(), String.class);
             spec = bind(spec, index++, row.getEntityType(), String.class);

@@ -29,14 +29,14 @@ import static es.in2.desmos.domain.utils.LogUtils.AUDIT;
 import static es.in2.desmos.domain.utils.LogUtils.logAuditSaved;
 
 /**
- * Appends the audit records of the P2P synchronization to the global audit chain in batches.
+ * Appends audit records to the global audit chain: every audit record is written through it, those of the P2P
+ * synchronization in batches and those of the notifications one by one.
  * <p>
  * The drafts are split into chunks of {@code audit.batch-size}, written in order. Each chunk is one transaction that
- * takes the chain lock, reads the last record once, sets {@code createdAt}, {@code hash} and {@code hashLink} of every
- * row in memory and inserts them all. Chunks of this replica take turns in memory before opening their transaction, so
- * waiting for the lock holds no pooled connection; the advisory lock serializes them across replicas.
- * <p>
- * Notifications do not take the lock, so a notification may still fork the chain against a sync chunk.
+ * takes the chain lock (waiting at most {@code audit.lock-timeout}), reads the last record once, sets
+ * {@code createdAt}, {@code hash} and {@code hashLink} of every row in memory and inserts them all. Chunks of this
+ * replica take turns in memory before opening their transaction, so waiting for the lock holds no pooled connection;
+ * the advisory lock serializes them across replicas.
  */
 @Slf4j
 @Component
@@ -102,8 +102,12 @@ public class AuditChainBatchWriter {
                 .then();
     }
 
-    // The row-by-row fallback stays outside the permit: each row asks for its own (the mutex is not reentrant)
+    // The row-by-row fallback stays outside the permit: each row asks for its own (the mutex is not reentrant). A chunk
+    // of one row has nothing to fall back to: its error goes up as it is.
     private Mono<Void> appendChunk(String processId, List<AuditRecord> drafts, String source) {
+        if (drafts.size() == 1) {
+            return appendInTx(processId, drafts, source);
+        }
         return appendInTx(processId, drafts, source)
                 .onErrorResume(AuditChainBatchWriter::isRowDataError, batchError -> {
                     R2dbcException cause = (R2dbcException) batchError.getCause();

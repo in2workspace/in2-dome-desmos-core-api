@@ -28,7 +28,9 @@ import org.springframework.data.relational.core.query.Query;
 import org.springframework.r2dbc.BadSqlGrammarException;
 import org.springframework.r2dbc.connection.R2dbcTransactionManager;
 import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.transaction.reactive.TransactionalOperator;
 import org.testcontainers.containers.PostgreSQLContainer;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -219,8 +221,9 @@ class AuditChainBatchWriterIT {
         assertThat(last.getCreatedAt().getNanos()).isEqualTo(123_456_000);
     }
 
-    // The notifications save through repository.save, the sync through the multi-row INSERT: created_at must be stored
-    // the same way by both, or ORDER BY created_at would chain on the wrong record
+    // Rows saved with repository.save (every audit record before all of them went through the writer) and rows of the
+    // multi-row INSERT: created_at must be stored the same way by both, or ORDER BY created_at would chain on the wrong
+    // record when the writer reads a row saved by an older version
     @Test
     void batchesInterleavedWithRepositorySavesKeepTheWriteOrder() {
         AuditChainBatchWriter writer = writer();
@@ -339,9 +342,8 @@ class AuditChainBatchWriterIT {
         when(apiConfig.getExternalDomain()).thenReturn("http://node-a");
         EndpointsConfig endpointsConfig = mock(EndpointsConfig.class);
         when(endpointsConfig.getEntitiesEndpoint()).thenReturn("/api/v1/entities");
-        LatestAuditRecordReader reader = new LatestAuditRecordReader(repository);
         AuditRecordServiceImpl service = new AuditRecordServiceImpl(OBJECT_MAPPER, repository, broker, apiConfig,
-                endpointsConfig, reader, writer());
+                endpointsConfig, writer());
 
         StepVerifier.create(Flux.just("a", "b")
                         .flatMap(run -> service.findCreateOrUpdateAuditRecordsByEntityIds(PROCESS_ID, "product-offering",
@@ -362,9 +364,7 @@ class AuditChainBatchWriterIT {
 
     @Test
     void theSyncBatchMethodWritesOneConsumerRecordPerEntity() {
-        AuditRecordServiceImpl service = new AuditRecordServiceImpl(OBJECT_MAPPER, repository,
-                mock(BrokerPublisherService.class), mock(ApiConfig.class), mock(EndpointsConfig.class),
-                new LatestAuditRecordReader(repository), writer());
+        AuditRecordServiceImpl service = service(writer());
         List<MVAuditServiceEntity4DataNegotiation> entities = IntStream.range(0, 3)
                 .mapToObj(i -> new MVAuditServiceEntity4DataNegotiation("urn:e:" + i, "product-offering", "h" + i, "hl" + i))
                 .toList();
@@ -381,7 +381,143 @@ class AuditChainBatchWriterIT {
         assertLinearChain(rows);
     }
 
+    // Every notification writes through the writer: concurrent notifications of the three kinds leave a linear chain
+    @Test
+    void concurrentNotificationsLeaveALinearChain() {
+        AuditRecordServiceImpl service = service(writer());
+        int subEntities = 20;
+        seedConsumerPublishedSubEntities(service, subEntities);
+
+        StepVerifier.create(Flux.range(0, 200)
+                        .flatMap(i -> notification(service, i, subEntities).subscribeOn(Schedulers.parallel()))
+                        .then())
+                .expectComplete()
+                .verify(Duration.ofSeconds(120));
+
+        List<AuditRecord> rows = allRowsByCreatedAt();
+        assertThat(rows).hasSize(subEntities + 200);
+        assertLinearChain(rows);
+    }
+
+    // Control for the previous test: notifications that read the last record and save it on their own, as they did
+    // before going through the writer, fork the chain
+    @Test
+    void notificationsOutsideTheWriterForkTheChain() {
+        LatestAuditRecordReader slowReader = new LatestAuditRecordReader(repository) {
+            @Override
+            public Mono<AuditRecord> fetch() {
+                return super.fetch().delayElement(Duration.ofMillis(50));
+            }
+        };
+
+        StepVerifier.create(Flux.range(0, 20)
+                        .flatMap(i -> Mono.fromCallable(() -> saveLikeANotification(slowReader, "urn:notification:" + i))
+                                .subscribeOn(Schedulers.boundedElastic()))
+                        .then())
+                .expectComplete()
+                .verify(Duration.ofSeconds(60));
+
+        assertThat(countChainBreaks(allRowsByCreatedAt())).isPositive();
+    }
+
+    // A sync batch and notifications at the same time, on the same writer: the notifications take their turn between
+    // the chunks
+    @Test
+    void aSyncBatchAndNotificationsAtTheSameTimeLeaveALinearChain() {
+        AuditChainBatchWriter writer = writer();
+        AuditRecordServiceImpl service = service(writer);
+        int subEntities = 20;
+        seedConsumerPublishedSubEntities(service, subEntities);
+
+        StepVerifier.create(Flux.merge(
+                                writer.append(PROCESS_ID, drafts("sync", 2000), SOURCE).subscribeOn(Schedulers.parallel()),
+                                Flux.range(0, 200)
+                                        .flatMap(i -> notification(service, i, subEntities).subscribeOn(Schedulers.parallel())))
+                        .then())
+                .expectComplete()
+                .verify(Duration.ofSeconds(120));
+
+        List<AuditRecord> rows = allRowsByCreatedAt();
+        assertThat(rows).hasSize(subEntities + 2000 + 200);
+        assertLinearChain(rows);
+    }
+
+    // Another session holds the chain lock and does not release it: a write gives up after audit.lock-timeout with
+    // lock_not_available, writes nothing and does not go row by row; once the lock is released, writes go through
+    @Test
+    void aWriteGivesUpAfterTheLockTimeout() {
+        AuditProperties properties = new AuditProperties(500, Duration.ofMillis(500));
+        AuditChainBatchWriter writer = new AuditChainBatchWriter(new LatestAuditRecordReader(repository),
+                new AuditRecordStatements(databaseClient, properties), OBJECT_MAPPER,
+                new R2dbcTransactionManager(connectionFactory), properties, new ReactiveMutex(), Clock.systemDefaultZone());
+        ConnectionFactory holderFactory = connectionFactory(1);
+        DatabaseClient holder = DatabaseClient.create(holderFactory);
+        TransactionalOperator holderTx = TransactionalOperator.create(new R2dbcTransactionManager(holderFactory));
+        Sinks.Empty<Void> release = Sinks.empty();
+        Sinks.Empty<Void> locked = Sinks.empty();
+        Disposable holding = holder.sql(AuditRecordStatements.LOCK_SQL).bind(0, AuditRecordStatements.CHAIN_LOCK_KEY)
+                .map(row -> 1).all()
+                .then(Mono.fromRunnable(locked::tryEmitEmpty))
+                .then(release.asMono())
+                .as(holderTx::transactional)
+                .subscribe();
+        locked.asMono().block(Duration.ofSeconds(10));
+
+        long startedAt = System.nanoTime();
+        StepVerifier.create(writer.append(PROCESS_ID, drafts("a", 3), SOURCE))
+                .expectErrorSatisfies(error -> assertThat(sqlStateOf(error)).isEqualTo("55P03"))
+                .verify(Duration.ofSeconds(10));
+        assertThat(Duration.ofNanos(System.nanoTime() - startedAt)).isGreaterThanOrEqualTo(Duration.ofMillis(500));
+        assertThat(allRowsByCreatedAt()).isEmpty();
+
+        release.tryEmitEmpty();
+        StepVerifier.create(writer.append(PROCESS_ID, drafts("b", 3), SOURCE))
+                .expectComplete()
+                .verify(Duration.ofSeconds(10));
+        assertThat(allRowsByCreatedAt()).hasSize(3);
+        holding.dispose();
+    }
+
     // --- helpers ---
+
+    private static AuditRecordServiceImpl service(AuditChainBatchWriter writer) {
+        return new AuditRecordServiceImpl(OBJECT_MAPPER, repository, mock(BrokerPublisherService.class),
+                mock(ApiConfig.class), mock(EndpointsConfig.class), writer);
+    }
+
+    // A PUBLISHED CONSUMER record per subentity, which the subentity audits chain on
+    private static void seedConsumerPublishedSubEntities(AuditRecordServiceImpl service, int subEntities) {
+        List<MVAuditServiceEntity4DataNegotiation> published = IntStream.range(0, subEntities)
+                .mapToObj(i -> new MVAuditServiceEntity4DataNegotiation("urn:sub:" + i, "product-offering-price", "h" + i, "hl" + i))
+                .toList();
+        service.buildAndSaveAuditRecordsFromDataSync(PROCESS_ID, published, AuditRecordStatus.PUBLISHED).block(Duration.ofSeconds(30));
+    }
+
+    // The i-th notification: a broker notification, a blockchain notification or a subentity of one, in turn
+    private static Mono<Void> notification(AuditRecordServiceImpl service, int i, int subEntities) {
+        String dataLocation = "http://node-b/api/v1/entities/urn:dlt:" + i + "?hl=abc" + i;
+        return switch (i % 3) {
+            case 0 -> service.buildAndSaveAuditRecordFromBrokerNotification(PROCESS_ID,
+                    java.util.Map.of("id", "urn:broker:" + i, "type", "product-offering"), AuditRecordStatus.RECEIVED, null);
+            case 1 -> service.buildAndSaveAuditRecordFromBlockchainNotification(PROCESS_ID,
+                    es.in2.desmos.domain.models.BlockchainNotification.builder().dataLocation(dataLocation)
+                            .eventType("product-offering").build(),
+                    i % 2 == 0 ? null : "{\"id\":\"urn:dlt:" + i + "\"}",
+                    i % 2 == 0 ? AuditRecordStatus.RECEIVED : AuditRecordStatus.RETRIEVED);
+            default -> service.buildAndSaveAuditRecordForSubEntity(PROCESS_ID, "urn:sub:" + (i % subEntities),
+                    "product-offering-price", "{\"id\":\"urn:sub:" + i + "\"}", AuditRecordStatus.RETRIEVED);
+        };
+    }
+
+    private static String sqlStateOf(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof R2dbcException r2dbc) {
+                return r2dbc.getSqlState();
+            }
+        }
+        return null;
+    }
+
 
     private static List<AuditRecord> drafts(String prefix, int n) {
         return IntStream.range(0, n)
@@ -400,7 +536,8 @@ class AuditChainBatchWriterIT {
                 .toList();
     }
 
-    // What AuditRecordServiceImpl does for a notification: read the last record, chain on it, repository.save
+    // What AuditRecordServiceImpl did for a notification before going through the writer: read the last record, chain on
+    // it, repository.save
     private static AuditRecord saveLikeANotification(LatestAuditRecordReader reader, String entityId) {
         AuditRecord last = reader.fetch().block();
         AuditRecord auditRecord = AuditRecord.builder()

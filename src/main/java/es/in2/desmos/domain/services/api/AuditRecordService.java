@@ -19,8 +19,6 @@ public interface AuditRecordService {
 
     Mono<Void> buildAndSaveAuditRecordsFromDataSync(String processId, List<MVAuditServiceEntity4DataNegotiation> entities, AuditRecordStatus status);
 
-    Mono<AuditRecord> fetchMostRecentAuditRecord();
-
     Mono<AuditRecord> findMostRecentRetrievedOrDeletedByEntityId(String processId, String entityId);
 
     Mono<AuditRecord> getLastPublishedAuditRecordForProducerByEntityId(String processId, String entityId);

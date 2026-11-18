@@ -17,8 +17,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.NoSuchAlgorithmException;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -27,7 +25,6 @@ import java.util.UUID;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.HASHLINK_PREFIX;
 import static es.in2.desmos.domain.utils.ApplicationUtils.*;
-import static es.in2.desmos.domain.utils.LogUtils.logAuditSaved;
 
 @Slf4j
 @Service
@@ -39,166 +36,124 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private final BrokerPublisherService brokerPublisherService;
     private final ApiConfig apiConfig;
     private final EndpointsConfig endpointsConfig;
-    private final LatestAuditRecordReader latestAuditRecordReader;
     private final AuditChainBatchWriter auditChainBatchWriter;
 
 
     /**
-     * Create a new AuditRecord with status CREATED or PUBLISHED and trader CONSUMER
-     * from the data received in the broker notification.
-     * If the BlockchainTxPayload is null, the status will be RECEIVED.
+     * Appends an AuditRecord with trader PRODUCER from the data received in the broker notification: RECEIVED if the
+     * BlockchainTxPayload is null, otherwise CREATED or PUBLISHED.
      */
     @Override
     public Mono<Void> buildAndSaveAuditRecordFromBrokerNotification(String processId, Map<String, Object> dataMap,
                                                                     AuditRecordStatus status, BlockchainTxPayload blockchainTxPayload) {
-        // Extract the entity ID from the data location
-        String entityId = dataMap.get("id").toString();
-        // Get the most recent audit record for the entityId and get the most recent audit record overall
-        return fetchMostRecentAuditRecord()
-                .doFirst(() -> log.debug("ProcessID: {} - Building and saving audit record from broker notification for entityId {}", processId, entityId))
-                .flatMap(lastAuditRecordRegistered -> {
-                    // Create the new audit record
-                    AuditRecord auditRecord = AuditRecord.builder()
-                            .id(UUID.randomUUID())
-                            .processId(processId)
-                            .createdAt(Timestamp.from(Instant.now()))
-                            .entityId(entityId)
-                            .entityType(dataMap.get("type").toString())
-                            .status(status)
-                            .trader(AuditRecordTrader.PRODUCER)
-                            .hash("")
-                            .hashLink("")
-                            .newTransaction(true)
-                            .build();
-                    try {
-                        String dataLocation;
-                        if (blockchainTxPayload == null) {
-                            // status cases: RECEIVED
-                            auditRecord.setEntityHash("");
-                            auditRecord.setEntityHashLink("");
-                            auditRecord.setDataLocation("");
-                        } else {
-                            // status cases: CREATED, PUBLISHED
-                            auditRecord.setEntityHash(calculateSHA256(objectMapper.writeValueAsString(dataMap)));
-                            dataLocation = blockchainTxPayload.dataLocation();
-                            auditRecord.setEntityHashLink(extractHashLinkFromDataLocation(dataLocation));
-                            auditRecord.setDataLocation(dataLocation);
-                        }
-                        // Firstly, we calculate the hash of the entity without the hash and hashLink fields
-                        String auditRecordHash = calculateSHA256(objectMapper.writeValueAsString(auditRecord));
-                        auditRecord.setHash(auditRecordHash);
-                        // Then, we calculate the hashLink of the entity concatenating the previous hashLink
-                        // with the hash of the current entity
-                        auditRecord.setHashLink(setAuditRecordHashLink(lastAuditRecordRegistered, auditRecordHash));
-                    } catch (JsonProcessingException | NoSuchAlgorithmException e) {
-                        log.warn("ProcessID: {} - Error building and saving audit record: {}", processId, e.getMessage());
-                        return Mono.error(e);
-                    }
-                    return saveAndLog(processId, auditRecord, "broker notification").then();
-                })
-                .then();
+        return Mono.defer(() -> {
+            String entityId = dataMap.get("id").toString();
+            log.debug("ProcessID: {} - Building and saving audit record from broker notification for entityId {}", processId, entityId);
+            String entityHash;
+            String entityHashLink;
+            String dataLocation;
+            if (blockchainTxPayload == null) {
+                // status cases: RECEIVED
+                entityHash = "";
+                entityHashLink = "";
+                dataLocation = "";
+            } else {
+                // status cases: CREATED, PUBLISHED
+                try {
+                    entityHash = calculateSHA256(objectMapper.writeValueAsString(dataMap));
+                } catch (JsonProcessingException | NoSuchAlgorithmException e) {
+                    log.warn("ProcessID: {} - Error building and saving audit record: {}", processId, e.getMessage());
+                    return Mono.error(e);
+                }
+                dataLocation = blockchainTxPayload.dataLocation();
+                entityHashLink = extractHashLinkFromDataLocation(dataLocation);
+            }
+            AuditRecord draft = AuditRecord.builder()
+                    .id(UUID.randomUUID())
+                    .processId(processId)
+                    .entityId(entityId)
+                    .entityType(dataMap.get("type").toString())
+                    .entityHash(entityHash)
+                    .entityHashLink(entityHashLink)
+                    .dataLocation(dataLocation)
+                    .status(status)
+                    .trader(AuditRecordTrader.PRODUCER)
+                    .newTransaction(true)
+                    .build();
+            return auditChainBatchWriter.append(processId, List.of(draft), "broker notification");
+        });
     }
 
     /**
-     * Create a new AuditRecord with status RETRIEVED or PUBLISHED and trader CONSUMER
-     * from the retrieved external broker entity in string format.
-     * If the retrievedBrokerEntity is null or blank, the status will be RECEIVED.
+     * Appends an AuditRecord with trader CONSUMER from the blockchain notification and the entity retrieved from the
+     * external broker: RECEIVED if the retrieved entity is null or blank, otherwise RETRIEVED or PUBLISHED.
      */
     @Override
     public Mono<Void> buildAndSaveAuditRecordFromBlockchainNotification(String processId, BlockchainNotification blockchainNotification,
                                                                         String retrievedBrokerEntity, AuditRecordStatus status) {
-        // Extract the entity ID from the data location
-        String entityId = extractEntityIdFromDataLocation(blockchainNotification.dataLocation());
-        // Get the most recent audit record for the entityId and get the most recent audit record overall
-        return fetchMostRecentAuditRecord()
-                .flatMap(lastAuditRecordRegistered -> {
-                    try {
-                        String entityHash;
-                        String entityHashLink;
-                        if (retrievedBrokerEntity == null || retrievedBrokerEntity.isBlank()) {
-                            // status cases: RECEIVED
-                            entityHash = "";
-                            entityHashLink = "";
-                        } else {
-                            // status cases: RETRIEVED, PUBLISHED
-                            // We do not need to sort the fields of the retrievedBrokerEntity
-                            // because these have already been sorted in the
-                            // SubscribeWorkflowImpl.sortAttributesAlphabetically()
-                            entityHash = calculateSHA256(retrievedBrokerEntity);
-                            entityHashLink = extractHashLinkFromDataLocation(blockchainNotification.dataLocation());
-                        }
-                        // Create the new audit record
-                        AuditRecord auditRecord = AuditRecord.builder()
-                                .id(UUID.randomUUID())
-                                .processId(processId)
-                                .createdAt(Timestamp.from(Instant.now()))
-                                .entityId(entityId)
-                                .entityType(blockchainNotification.eventType())
-                                .entityHash(entityHash)
-                                .entityHashLink(entityHashLink)
-                                .dataLocation(blockchainNotification.dataLocation())
-                                .status(status)
-                                .trader(AuditRecordTrader.CONSUMER)
-                                .hash("")
-                                .hashLink("")
-                                .newTransaction(true)
-                                .build();
-                        // Firstly, we calculate the hash of the entity without the hash and hashLink fields
-                        String auditRecordHash = calculateSHA256(objectMapper.writeValueAsString(auditRecord));
-                        auditRecord.setHash(auditRecordHash);
-                        // Then, we calculate the hashLink of the entity concatenating the previous hashLink
-                        // with the hash of the current entity
-                        auditRecord.setHashLink(setAuditRecordHashLink(lastAuditRecordRegistered, auditRecordHash));
-                        return saveAndLog(processId, auditRecord, "blockchain notification").then();
-                    } catch (JsonProcessingException | NoSuchAlgorithmException e) {
-                        return Mono.error(e);
-                    }
-                });
+        return Mono.defer(() -> {
+            String entityHash;
+            String entityHashLink;
+            if (retrievedBrokerEntity == null || retrievedBrokerEntity.isBlank()) {
+                // status cases: RECEIVED
+                entityHash = "";
+                entityHashLink = "";
+            } else {
+                // status cases: RETRIEVED, PUBLISHED
+                // We do not need to sort the fields of the retrievedBrokerEntity
+                // because these have already been sorted in the
+                // SubscribeWorkflowImpl.sortAttributesAlphabetically()
+                try {
+                    entityHash = calculateSHA256(retrievedBrokerEntity);
+                } catch (JsonProcessingException | NoSuchAlgorithmException e) {
+                    return Mono.error(e);
+                }
+                entityHashLink = extractHashLinkFromDataLocation(blockchainNotification.dataLocation());
+            }
+            AuditRecord draft = AuditRecord.builder()
+                    .id(UUID.randomUUID())
+                    .processId(processId)
+                    .entityId(extractEntityIdFromDataLocation(blockchainNotification.dataLocation()))
+                    .entityType(blockchainNotification.eventType())
+                    .entityHash(entityHash)
+                    .entityHashLink(entityHashLink)
+                    .dataLocation(blockchainNotification.dataLocation())
+                    .status(status)
+                    .trader(AuditRecordTrader.CONSUMER)
+                    .newTransaction(true)
+                    .build();
+            return auditChainBatchWriter.append(processId, List.of(draft), "blockchain notification");
+        });
     }
 
+    /**
+     * Appends an AuditRecord with trader CONSUMER for a subentity of a blockchain notification, chained on the last
+     * PUBLISHED CONSUMER record of the subentity. If there is none, nothing is written.
+     */
     @Override
     public Mono<Void> buildAndSaveAuditRecordForSubEntity(String processId, String entityId, String entityType,
                                                           String retrievedBrokerEntity,
                                                           AuditRecordStatus status) {
-        // Get the most recent audit record for the entityId and get the most recent audit record overall
-        return fetchMostRecentAuditRecord()
-                .flatMap(lastAuditRecordRegistered ->
-                        findLatestConsumerPublishedAuditRecordByEntityId(processId, entityId)
-                                .flatMap(previousAuditRecord -> {
-                                    String previousHashLink = previousAuditRecord.getEntityHashLink();
-                                    String entityHash = calculateHash(retrievedBrokerEntity);
-                                    return calculateHashLink(Mono.just(previousHashLink), Mono.just(entityHash))
-                                            .flatMap(entityHashLink -> {
-                                                try {
-                                                    // Create the new audit record
-                                                    AuditRecord auditRecord = AuditRecord.builder()
-                                                            .id(UUID.randomUUID())
-                                                            .processId(processId)
-                                                            .createdAt(Timestamp.from(Instant.now()))
-                                                            .entityId(entityId)
-                                                            .entityType(entityType)
-                                                            .entityHash(entityHash)
-                                                            .entityHashLink(entityHashLink)
-                                                            .dataLocation("")
-                                                            .status(status)
-                                                            .trader(AuditRecordTrader.CONSUMER)
-                                                            .hash("")
-                                                            .hashLink("")
-                                                            .newTransaction(true)
-                                                            .build();
-                                                    // Firstly, we calculate the hash of the entity without the hash and hashLink fields
-                                                    String auditRecordHash = calculateSHA256(objectMapper.writeValueAsString(auditRecord));
-                                                    auditRecord.setHash(auditRecordHash);
-                                                    // Then, we calculate the hashLink of the entity concatenating the previous hashLink
-                                                    // with the hash of the current entity
-                                                    auditRecord.setHashLink(setAuditRecordHashLink(lastAuditRecordRegistered, auditRecordHash));
-                                                    return saveAndLog(processId, auditRecord, "subentity").then();
-                                                } catch (JsonProcessingException |
-                                                         NoSuchAlgorithmException e) {
-                                                    return Mono.error(e);
-                                                }
-                                            });
-                                }));
+        return Mono.defer(() -> findLatestConsumerPublishedAuditRecordByEntityId(processId, entityId))
+                .flatMap(previousAuditRecord -> {
+                    String entityHash = calculateHash(retrievedBrokerEntity);
+                    return Mono.fromCallable(() -> ApplicationUtils.calculateHashLink(previousAuditRecord.getEntityHashLink(), entityHash))
+                            .flatMap(entityHashLink -> {
+                                AuditRecord draft = AuditRecord.builder()
+                                        .id(UUID.randomUUID())
+                                        .processId(processId)
+                                        .entityId(entityId)
+                                        .entityType(entityType)
+                                        .entityHash(entityHash)
+                                        .entityHashLink(entityHashLink)
+                                        .dataLocation("")
+                                        .status(status)
+                                        .trader(AuditRecordTrader.CONSUMER)
+                                        .newTransaction(true)
+                                        .build();
+                                return auditChainBatchWriter.append(processId, List.of(draft), "subentity");
+                            });
+                });
     }
 
     /**
@@ -233,24 +188,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                 mvAuditServiceEntity4DataNegotiation.id() +
                 HASHLINK_PREFIX
                 + mvAuditServiceEntity4DataNegotiation.hashlink();
-    }
-
-    private Mono<AuditRecord> saveAndLog(String processId, AuditRecord auditRecord, String source) {
-        return auditRecordRepository.save(auditRecord)
-                .doOnSuccess(unused -> logAuditSaved(log, processId, auditRecord, source));
-    }
-
-    /**
-     * Fetches the most recently registered audit record. If no Audit Record exists, then
-     * checks if the AuditRecord table is empty. If it is, then return a Mono.empty() because
-     * understand that there are no Audit Records to fetch. If the table is not empty, then
-     * return a Mono.error() with a NoSuchElementException.
-     *
-     * @return A Mono containing the most recent AuditRecord, or Mono.empty() if none exists.
-     */
-    @Override
-    public Mono<AuditRecord> fetchMostRecentAuditRecord() {
-        return latestAuditRecordReader.fetch();
     }
 
     /**
@@ -391,12 +328,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
         return new SyncAuditResult(mvAuditServiceEntity4DataNegotiation, draft);
     }
 
-    private String setAuditRecordHashLink(AuditRecord lastAuditRecordRegistered, String auditRecordHash)
-            throws NoSuchAlgorithmException, JsonProcessingException {
-        return lastAuditRecordRegistered.getHashLink() == null ? auditRecordHash
-                : ApplicationUtils.calculateHashLink(lastAuditRecordRegistered.getHashLink(), auditRecordHash);
-    }
-
     private Mono<String> getEntityHash(String processId, String entityId) {
         long startedAt = System.currentTimeMillis();
         return brokerPublisherService.getEntityById(processId, entityId)
@@ -409,12 +340,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                 })
                 .doOnSuccess(result ->
                         log.debug("ProcessID: {} - getEntityHash completed in {} ms", processId, System.currentTimeMillis() - startedAt));
-    }
-
-    private Mono<String> calculateHashLink(Mono<String> previousHashlink, Mono<String> currentHash) {
-        return previousHashlink
-                .zipWith(currentHash)
-                .flatMap(tuple -> Mono.fromCallable(() -> ApplicationUtils.calculateHashLink(tuple.getT1(), tuple.getT2())));
     }
 
     private String calculateHash(String retrievedBrokerEntity) {

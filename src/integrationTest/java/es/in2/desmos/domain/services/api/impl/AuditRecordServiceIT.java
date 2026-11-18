@@ -37,6 +37,9 @@ class AuditRecordServiceIT {
     @Autowired
     AuditRecordService auditRecordService;
 
+    @Autowired
+    LatestAuditRecordReader latestAuditRecordReader;
+
     @DynamicPropertySource
     private static void setDynamicProperties(DynamicPropertyRegistry registry) {
         ContainerManager.postgresqlProperties(registry);
@@ -44,7 +47,7 @@ class AuditRecordServiceIT {
 
     @BeforeEach
     void setUp() {
-        InitializeAuditRecord(auditRecordService);
+        InitializeAuditRecord(latestAuditRecordReader);
     }
 
     @Test
@@ -86,7 +89,7 @@ class AuditRecordServiceIT {
         });
     }
 
-    private void InitializeAuditRecord(AuditRecordService auditRecordService) {
-        auditRecordService.fetchMostRecentAuditRecord().block();
+    private void InitializeAuditRecord(LatestAuditRecordReader latestAuditRecordReader) {
+        latestAuditRecordReader.fetch().block();
     }
 }
