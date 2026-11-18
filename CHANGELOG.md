@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Released]: v2.0.27
 - Write the audit records of a P2P synchronization in batches (one transaction per chunk of `audit.batch-size` records, 500 by default, configurable with AUDIT_BATCH_SIZE between 1 and 2000) instead of one read and one insert per record
 - Serialize every write of the audit chain, those of the P2P synchronization and those of the broker and blockchain notifications (in memory and with a PostgreSQL advisory lock), so parallel genesis nodes, the local entities step, a discovery requested by another node and concurrent notifications no longer fork the audit chain; `created_at` is now strictly increasing for every audit record
 - Bound the wait for the audit chain lock with `audit.lock-timeout` (AUDIT_LOCK_TIMEOUT, 30s by default, between 1ms and 1h)
