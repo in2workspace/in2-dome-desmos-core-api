@@ -20,12 +20,13 @@ import reactor.core.publisher.Mono;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.Clock;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
 import static es.in2.desmos.domain.utils.LogUtils.AUDIT;
+import static es.in2.desmos.domain.utils.LogUtils.logAuditSaved;
 
 /**
  * Appends the audit records of the P2P synchronization to the global audit chain in batches.
@@ -41,8 +42,6 @@ import static es.in2.desmos.domain.utils.LogUtils.AUDIT;
 @Component
 public class AuditChainBatchWriter {
 
-    private static final int LOGGED_HASH_LENGTH = 12;
-
     private final LatestAuditRecordReader latestAuditRecordReader;
     private final AuditRecordStatements statements;
     private final ObjectMapper objectMapper;
@@ -56,9 +55,11 @@ public class AuditChainBatchWriter {
                           ObjectMapper objectMapper, ReactiveTransactionManager transactionManager,
                           AuditProperties auditProperties) {
         this(latestAuditRecordReader, statements, objectMapper, transactionManager, auditProperties,
-                new ReactiveMutex(), Clock.systemUTC());
+                new ReactiveMutex(), Clock.systemDefaultZone());
     }
 
+    // The clock must be in the JVM default zone: created_at is a TIMESTAMP without time zone stored as the JVM local
+    // time (the driver sets the session zone to the JVM one), and rows are ordered by that local value
     AuditChainBatchWriter(LatestAuditRecordReader latestAuditRecordReader, AuditRecordStatements statements,
                           ObjectMapper objectMapper, ReactiveTransactionManager transactionManager,
                           AuditProperties auditProperties, ReactiveMutex localMutex, Clock clock) {
@@ -136,19 +137,19 @@ public class AuditChainBatchWriter {
                                 })
                                 .as(transactionalOperator::transactional))
                 // After the commit: a chunk that rolls back leaves no AUDIT lines
-                .doOnNext(saved -> saved.forEach(auditRecord -> logSaved(processId, auditRecord, source)))
+                .doOnNext(saved -> saved.forEach(auditRecord -> logAuditSaved(log, processId, auditRecord, source)))
                 .then();
     }
 
     private List<AuditRecord> chain(AuditRecord last, List<AuditRecord> drafts)
             throws JsonProcessingException, NoSuchAlgorithmException {
         List<AuditRecord> chained = new ArrayList<>(drafts.size());
-        Instant previousCreatedAt = last.getCreatedAt() == null ? null : last.getCreatedAt().toInstant();
+        LocalDateTime previousCreatedAt = last.getCreatedAt() == null ? null : last.getCreatedAt().toLocalDateTime();
         String previousHashLink = last.getHashLink();
         for (AuditRecord draft : drafts) {
-            Instant createdAt = nextCreatedAt(previousCreatedAt);
+            LocalDateTime createdAt = nextCreatedAt(previousCreatedAt);
             AuditRecord auditRecord = draft.toBuilder()
-                    .createdAt(Timestamp.from(createdAt))
+                    .createdAt(Timestamp.valueOf(createdAt))
                     .hash("")
                     .hashLink("")
                     .build();
@@ -168,12 +169,14 @@ public class AuditChainBatchWriter {
     // 1 µs after the previous row if the clock has not moved on (or went back). Truncated to microseconds, the precision
     // of TIMESTAMP, so the value compared with the next row is the stored one. Read for every row, so rows do not run
     // ahead of the clock.
-    private Instant nextCreatedAt(Instant previousCreatedAt) {
-        Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
+    // Compared as local date-times in the JVM zone, which is what the TIMESTAMP column stores and sorts by: comparing
+    // instants would let the stored values go back when the clock falls back for daylight saving time.
+    private LocalDateTime nextCreatedAt(LocalDateTime previousCreatedAt) {
+        LocalDateTime now = LocalDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
         if (previousCreatedAt == null) {
             return now;
         }
-        Instant minimum = previousCreatedAt.truncatedTo(ChronoUnit.MICROS).plus(1, ChronoUnit.MICROS);
+        LocalDateTime minimum = previousCreatedAt.truncatedTo(ChronoUnit.MICROS).plus(1, ChronoUnit.MICROS);
         return now.isBefore(minimum) ? minimum : now;
     }
 
@@ -185,19 +188,5 @@ public class AuditChainBatchWriter {
                 && e.getCause() instanceof R2dbcException r2dbc
                 && r2dbc.getSqlState() != null
                 && (r2dbc.getSqlState().startsWith("22") || r2dbc.getSqlState().startsWith("23"));
-    }
-
-    // Same format as AuditRecordServiceImpl.saveAndLog
-    private static void logSaved(String processId, AuditRecord auditRecord, String source) {
-        log.info("{} ProcessID: {} - {} {} -> {} {} (source={}, entityHash={})",
-                AUDIT, processId, auditRecord.getEntityType(), auditRecord.getEntityId(), auditRecord.getStatus(),
-                auditRecord.getTrader(), source, shortHash(auditRecord.getEntityHash()));
-    }
-
-    private static String shortHash(String hash) {
-        if (hash == null || hash.isBlank()) {
-            return "-";
-        }
-        return hash.length() > LOGGED_HASH_LENGTH ? hash.substring(0, LOGGED_HASH_LENGTH) : hash;
     }
 }

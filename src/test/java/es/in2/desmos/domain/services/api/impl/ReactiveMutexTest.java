@@ -170,4 +170,35 @@ class ReactiveMutexTest {
             Thread.currentThread().interrupt();
         }
     }
+
+    @Test
+    void itShouldReleaseThePermitBeforeTheResultGoesDownstream() {
+        AtomicBoolean heldWhenValueArrived = new AtomicBoolean(true);
+        AtomicBoolean heldWhenEmptyArrived = new AtomicBoolean(true);
+
+        StepVerifier.create(mutex.withPermit(Mono.just(1)).doOnNext(v -> heldWhenValueArrived.set(mutex.isHeld())))
+                .expectNext(1)
+                .verifyComplete();
+        StepVerifier.create(mutex.withPermit(Mono.empty()).doOnSuccess(v -> heldWhenEmptyArrived.set(mutex.isHeld())))
+                .verifyComplete();
+
+        assertThat(heldWhenValueArrived).isFalse();
+        assertThat(heldWhenEmptyArrived).isFalse();
+    }
+
+    @Test
+    void itShouldNotLoseThePermitWhenTheHandOffSchedulerIsDisposed() {
+        var handOff = Schedulers.newSingle("mutex-hand-off");
+        ReactiveMutex disposedHandOffMutex = new ReactiveMutex(handOff);
+        Sinks.Empty<Void> release = Sinks.empty();
+        disposedHandOffMutex.withPermit(release.asMono()).subscribe();
+        AtomicBoolean waiterDone = new AtomicBoolean();
+        disposedHandOffMutex.withPermit(Mono.fromRunnable(() -> waiterDone.set(true))).subscribe();
+
+        handOff.dispose();
+        release.tryEmitEmpty();
+
+        assertThat(waiterDone).isTrue();
+        assertThat(disposedHandOffMutex.isHeld()).isFalse();
+    }
 }

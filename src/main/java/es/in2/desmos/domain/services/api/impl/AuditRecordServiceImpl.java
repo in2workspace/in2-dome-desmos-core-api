@@ -27,7 +27,7 @@ import java.util.UUID;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.HASHLINK_PREFIX;
 import static es.in2.desmos.domain.utils.ApplicationUtils.*;
-import static es.in2.desmos.domain.utils.LogUtils.AUDIT;
+import static es.in2.desmos.domain.utils.LogUtils.logAuditSaved;
 
 @Slf4j
 @Service
@@ -43,7 +43,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     private final LatestAuditRecordReader latestAuditRecordReader;
     private final AuditChainBatchWriter auditChainBatchWriter;
 
-    private static final int LOGGED_HASH_LENGTH = 12;
 
     /**
      * Create a new AuditRecord with status CREATED or PUBLISHED and trader CONSUMER
@@ -238,20 +237,9 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                 + mvAuditServiceEntity4DataNegotiation.hashlink();
     }
 
-    // One INFO line per saved audit record: what the node recorded for which entity and from which flow. The entity
-    // hash is shortened; it is enough to tell whether repeated records are about the same content.
     private Mono<AuditRecord> saveAndLog(String processId, AuditRecord auditRecord, String source) {
         return auditRecordRepository.save(auditRecord)
-                .doOnSuccess(unused -> log.info("{} ProcessID: {} - {} {} -> {} {} (source={}, entityHash={})",
-                        AUDIT, processId, auditRecord.getEntityType(), auditRecord.getEntityId(), auditRecord.getStatus(),
-                        auditRecord.getTrader(), source, shortHash(auditRecord.getEntityHash())));
-    }
-
-    private static String shortHash(String hash) {
-        if (hash == null || hash.isBlank()) {
-            return "-";
-        }
-        return hash.length() > LOGGED_HASH_LENGTH ? hash.substring(0, LOGGED_HASH_LENGTH) : hash;
+                .doOnSuccess(unused -> logAuditSaved(log, processId, auditRecord, source));
     }
 
     /**

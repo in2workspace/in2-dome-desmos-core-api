@@ -32,8 +32,8 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -154,6 +154,26 @@ class AuditChainBatchWriterTest {
         assertThat(stored).extracting(row -> row.getCreatedAt().toInstant())
                 .containsExactly(T0.truncatedTo(ChronoUnit.MICROS), T0.plusMillis(5).truncatedTo(ChronoUnit.MICROS),
                         T0.plusMillis(10).truncatedTo(ChronoUnit.MICROS));
+    }
+
+    // created_at is stored as local time: when the clock falls back (03:00 CEST -> 02:00 CET in Madrid), the stored
+    // values must keep growing, or ORDER BY created_at would return a row before the real last one
+    @Test
+    void createdAtKeepsGrowingInLocalTimeWhenTheClockFallsBack() {
+        ZoneId madrid = ZoneId.of("Europe/Madrid");
+        MutableClock dstClock = new MutableClock(Instant.parse("2026-10-25T00:59:59.999998Z"), madrid);
+        dstClock.ticks(Duration.ofNanos(1_000));
+        AuditChainBatchWriter dstWriter = new AuditChainBatchWriter(reader, statements, objectMapper, transactionManager,
+                new AuditProperties(500), new ReactiveMutex(Schedulers.immediate()), dstClock);
+
+        StepVerifier.create(dstWriter.append(PROCESS_ID, drafts(4), SOURCE)).verifyComplete();
+
+        // 02:59:59.999998 CEST, 02:59:59.999999 CEST, then 02:00:00 CET on the clock: kept after the previous row
+        assertThat(stored).extracting(row -> row.getCreatedAt().toLocalDateTime())
+                .containsExactly(LocalDateTime.parse("2026-10-25T02:59:59.999998"),
+                        LocalDateTime.parse("2026-10-25T02:59:59.999999"),
+                        LocalDateTime.parse("2026-10-25T03:00:00"),
+                        LocalDateTime.parse("2026-10-25T03:00:00.000001"));
     }
 
     @Test
@@ -456,8 +476,15 @@ class AuditChainBatchWriterTest {
         private final AtomicReference<Instant> now;
         private volatile Duration tick = Duration.ZERO;
 
+        private final ZoneId zone;
+
         MutableClock(Instant start) {
+            this(start, ZoneId.systemDefault());
+        }
+
+        MutableClock(Instant start, ZoneId zone) {
             this.now = new AtomicReference<>(start);
+            this.zone = zone;
         }
 
         void set(Instant instant) {
@@ -475,7 +502,7 @@ class AuditChainBatchWriterTest {
 
         @Override
         public ZoneId getZone() {
-            return ZoneOffset.UTC;
+            return zone;
         }
 
         @Override

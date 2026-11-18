@@ -115,7 +115,7 @@ class AuditChainBatchWriterIT {
 
     private static AuditChainBatchWriter writer(AuditRecordStatements statements, LatestAuditRecordReader reader) {
         return new AuditChainBatchWriter(reader, statements, OBJECT_MAPPER, new R2dbcTransactionManager(connectionFactory),
-                new AuditProperties(500), new ReactiveMutex(), Clock.systemUTC());
+                new AuditProperties(500), new ReactiveMutex(), Clock.systemDefaultZone());
     }
 
     @Test
@@ -301,7 +301,7 @@ class AuditChainBatchWriterIT {
         AuditRecordRepository singleRepository = new R2dbcRepositoryFactory(singleTemplate).getRepository(AuditRecordRepository.class);
         AuditChainBatchWriter writer = new AuditChainBatchWriter(new LatestAuditRecordReader(singleRepository),
                 new AuditRecordStatements(client, new AuditProperties(500)), OBJECT_MAPPER,
-                new R2dbcTransactionManager(singleConnection), new AuditProperties(500), new ReactiveMutex(), Clock.systemUTC());
+                new R2dbcTransactionManager(singleConnection), new AuditProperties(500), new ReactiveMutex(), Clock.systemDefaultZone());
 
         for (int size : new int[]{1, 7, 23, 99, 101, 250, 377, 499, 500, 731, 1234}) {
             writer.append(PROCESS_ID, drafts("s" + size, size), SOURCE).block(Duration.ofSeconds(60));

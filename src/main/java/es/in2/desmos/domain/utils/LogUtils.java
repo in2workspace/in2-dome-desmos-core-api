@@ -1,5 +1,8 @@
 package es.in2.desmos.domain.utils;
 
+import es.in2.desmos.domain.models.AuditRecord;
+import org.slf4j.Logger;
+
 import java.time.Duration;
 import java.util.Locale;
 
@@ -15,6 +18,8 @@ public final class LogUtils {
     public static final String INIT = "[init]";
     public static final String AUDIT = "[audit]";
     public static final String SUBSCRIBE = "[subscribe]";
+
+    private static final int LOGGED_HASH_LENGTH = 12;
 
     private LogUtils() {
         throw new IllegalStateException("Utility class");
@@ -43,5 +48,23 @@ public final class LogUtils {
 
     public static String formatDurationSince(long startNanos) {
         return formatDuration(Duration.ofNanos(System.nanoTime() - startNanos));
+    }
+
+    /**
+     * One INFO line per saved audit record: what the node recorded for which entity and from which flow. Shared by the
+     * single saves of the notifications and the batch writes of the P2P sync, so both write the same line. The entity
+     * hash is shortened; it is enough to tell whether repeated records are about the same content.
+     */
+    public static void logAuditSaved(Logger log, String processId, AuditRecord auditRecord, String source) {
+        log.info("{} ProcessID: {} - {} {} -> {} {} (source={}, entityHash={})",
+                AUDIT, processId, auditRecord.getEntityType(), auditRecord.getEntityId(), auditRecord.getStatus(),
+                auditRecord.getTrader(), source, shortHash(auditRecord.getEntityHash()));
+    }
+
+    private static String shortHash(String hash) {
+        if (hash == null || hash.isBlank()) {
+            return "-";
+        }
+        return hash.length() > LOGGED_HASH_LENGTH ? hash.substring(0, LOGGED_HASH_LENGTH) : hash;
     }
 }

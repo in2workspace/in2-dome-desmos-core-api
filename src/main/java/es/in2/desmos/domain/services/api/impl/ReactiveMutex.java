@@ -7,13 +7,15 @@ import reactor.core.scheduler.Schedulers;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * A reactive mutex with a single permit, granted in arrival order (FIFO).
  * <p>
  * Waiting for the permit holds no thread. A subscriber cancelled while waiting leaves the queue; one cancelled right
  * when the permit is granted to it passes the permit on. The permit is released when the guarded work completes,
- * fails or is cancelled. It is not reentrant: guarded work must not ask for the permit again.
+ * fails or is cancelled, before that signal goes downstream: what the caller does with the result does not hold the
+ * permit. It is not reentrant: guarded work must not ask for the permit again.
  */
 public final class ReactiveMutex {
 
@@ -44,7 +46,13 @@ public final class ReactiveMutex {
             Waiter waiter = new Waiter();
             boolean grantedNow = enqueue(waiter);
             Mono<Void> turn = grantedNow ? Mono.empty() : waiter.granted.asMono();
-            return turn.then(work).doFinally(signal -> finish(waiter));
+            // Released before the signal goes downstream (doFinally would run after it): the caller's handling of the
+            // result, such as logging every saved row, does not delay the next turn. finish() is idempotent, so a
+            // cancellation racing with the terminal signal releases once.
+            return turn.then(work)
+                    .doOnSuccess(value -> finish(waiter))
+                    .doOnError(error -> finish(waiter))
+                    .doOnCancel(() -> finish(waiter));
         });
     }
 
@@ -74,7 +82,7 @@ public final class ReactiveMutex {
         }
     }
 
-    // Runs exactly once per waiter, on completion, error or cancellation of the guarded chain (also while waiting)
+    // Runs on completion, error or cancellation of the guarded chain (also while waiting); only the first call acts
     private void finish(Waiter waiter) {
         Waiter next;
         synchronized (lock) {
@@ -95,7 +103,12 @@ public final class ReactiveMutex {
             next.state = State.GRANTED;
         }
         // If next is being cancelled concurrently, its finish() sees GRANTED and passes the permit on
-        handOffScheduler.schedule(next.granted::tryEmitEmpty);
+        try {
+            handOffScheduler.schedule(next.granted::tryEmitEmpty);
+        } catch (RejectedExecutionException e) {
+            // Scheduler disposed (shutdown): resume next here rather than lose the permit
+            next.granted.tryEmitEmpty();
+        }
     }
 
     private static final class Waiter {
