@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add an index on `audit_records.created_at`, used by every read of the last audit record (migration V3)
 - Align the Flyway PostgreSQL module with the Flyway core version managed by Spring Boot
 - Remove a field shared by concurrent audit record writes that only fed a debug log line
+- Fix the P2P synchronization of entity types with many related entities (product, applied-customer-billing-rate, customer-bill) failing on the node that serves them: the requested entities and their subentities are now read from the broker at most 16 at a time instead of all at once, which filled the broker connection pool
+- Send each subentity once when several requested entities share it
 
 ## [Released]: v2.0.26
 - Replicate individual, organization and usage entities: their TMF models have no lifecycleStatus, so the lifecycleStatus policy (GP_1) left all of them out
