@@ -17,12 +17,15 @@ import reactor.core.publisher.Mono;
 
 import java.util.Base64;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
 public class BrokerPublisherServiceImpl implements BrokerPublisherService {
 
     private static final String VALUE_FIELD_NAME = "value";
+    private static final int BROKER_READ_CONCURRENCY = 16;
     private final BrokerAdapterService brokerAdapterService;
 
     private final ObjectMapper objectMapper;
@@ -61,8 +64,8 @@ public class BrokerPublisherServiceImpl implements BrokerPublisherService {
     }
 
     @Override
-    public Flux<Entity> findEntitiesAndItsSubentitiesByIdInBase64(String processId, Mono<List<Id>> idsMono, List<Id> processedEntities) {
-        return findEntitiesAndItsSubentitiesById(processId, idsMono, processedEntities)
+    public Flux<Entity> findEntitiesAndItsSubentitiesByIdInBase64(String processId, Mono<List<Id>> idsMono) {
+        return findEntitiesAndItsSubentitiesById(processId, idsMono)
                 .doOnNext(entity ->
                         log.trace("ProcessID: {} - Found local entity in Scorpio. [entity={}]", processId, entity))
                 .map(item -> new Entity(Base64.getEncoder().encodeToString(item.getBytes())))
@@ -80,22 +83,35 @@ public class BrokerPublisherServiceImpl implements BrokerPublisherService {
         return brokerAdapterService.postEntity(processId, requestBody);
     }
 
-    private Flux<String> findEntitiesAndItsSubentitiesById(String processId, Mono<List<Id>> idsMono, List<Id> processedEntities) {
-        return idsMono.flatMapMany(Flux::fromIterable)
-                .flatMap(id -> {
-                    if (!processedEntities.contains(id)) {
-                        return brokerAdapterService.getEntityById(processId, id.id())
-                                .flatMapMany(entity -> {
-                                    processedEntities.add(id);
-                                    Flux<String> subEntities = getEntityRelationshipIds(Mono.just(entity))
-                                            .flatMapMany(Flux::fromIterable)
-                                            .flatMap(relatedId -> findEntitiesAndItsSubentitiesById(processId, Mono.just(List.of(relatedId)), processedEntities));
-                                    return subEntities.concatWith(Mono.just(entity));
-                                });
-                    } else {
-                        return Flux.empty();
-                    }
-                });
+    /**
+     * Reads the requested entities and, recursively, their subentities, each one once.
+     * <p>The requested entities are read {@value #BROKER_READ_CONCURRENCY} at a time and the subentities of each one
+     * in sequence, so a request never has more than {@value #BROKER_READ_CONCURRENCY} reads in flight. Without a bound
+     * a request with thousands of related entities filled the pending queue of the broker connection pool and failed
+     * whole.
+     * <p>Within the tree of one requested entity, each subentity is emitted before the entity that references it. A
+     * subentity shared by several requested entities is emitted once, in the first tree that reaches it, so it can
+     * come after another requested entity that also references it.
+     */
+    private Flux<String> findEntitiesAndItsSubentitiesById(String processId, Mono<List<Id>> idsMono) {
+        // One set per subscription, so a resubscription reads everything again
+        return Flux.defer(() -> {
+            Set<Id> processedEntities = ConcurrentHashMap.newKeySet();
+            return idsMono.flatMapMany(Flux::fromIterable)
+                    .flatMap(id -> findEntityAndItsSubentities(processId, id, processedEntities), BROKER_READ_CONCURRENCY);
+        });
+    }
+
+    private Flux<String> findEntityAndItsSubentities(String processId, Id id, Set<Id> processedEntities) {
+        // Atomic check and mark: two entities that share a subentity no longer read and emit it twice
+        if (!processedEntities.add(id)) {
+            return Flux.empty();
+        }
+        return brokerAdapterService.getEntityById(processId, id.id())
+                .flatMapMany(entity -> getEntityRelationshipIds(Mono.just(entity))
+                        .flatMapMany(Flux::fromIterable)
+                        .concatMap(relatedId -> findEntityAndItsSubentities(processId, relatedId, processedEntities))
+                        .concatWith(Mono.just(entity)));
     }
 
     private Mono<List<Id>> getEntityRelationshipIds(Mono<String> entityMono) {

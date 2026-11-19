@@ -651,7 +651,7 @@ class P2PDataSyncJobTests {
             expectedLocalEntities.add(new Entity(entity));
         }
         String processId = "0";
-        when(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(eq(processId), any(), any())).thenReturn(Flux.fromIterable(expectedLocalEntities));
+        when(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(eq(processId), any())).thenReturn(Flux.fromIterable(expectedLocalEntities));
 
         Flux<Entity> result = p2PDataSyncJob.getLocalEntitiesByIdInBase64(processId, idsMono);
 
@@ -662,7 +662,7 @@ class P2PDataSyncJobTests {
                 .assertNext(x -> assertThat(x).isEqualTo(expectedLocalEntities))
                 .verifyComplete();
 
-        verify(brokerPublisherService, times(1)).findEntitiesAndItsSubentitiesByIdInBase64(eq(processId), any(), any());
+        verify(brokerPublisherService, times(1)).findEntitiesAndItsSubentitiesByIdInBase64(eq(processId), any());
         verifyNoMoreInteractions(brokerPublisherService);
     }
 

@@ -20,7 +20,7 @@ public interface BrokerPublisherService {
 
     <T extends BrokerEntityWithIdAndType> Flux<T> findAllIdTypeAndAttributesByType(String processId, String type, String firstAttribute, String secondAttribute, String thirdAttribute, String forthAttribute, Class<T> responseClassArray);
 
-    Flux<Entity> findEntitiesAndItsSubentitiesByIdInBase64(String processId, Mono<List<Id>> idsMono, List<Id> processedEntities);
+    Flux<Entity> findEntitiesAndItsSubentitiesByIdInBase64(String processId, Mono<List<Id>> idsMono);
 
     Mono<String> getEntityById(String processId, String entityId);
 
