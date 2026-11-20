@@ -27,6 +27,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -142,6 +143,7 @@ class AuditRecordServiceTests {
         auditRecordService.buildAndSaveAuditRecordFromBrokerNotification("processId", dataMap, AuditRecordStatus.RECEIVED, null);
         auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification("processId", blockchainNotification, null, AuditRecordStatus.RECEIVED);
         auditRecordService.buildAndSaveAuditRecordForSubEntity("processId", "urn:e:1", "entityType", "{}", AuditRecordStatus.RETRIEVED);
+        auditRecordService.saveImplicitConsumerRetrieved("processId", List.of(new ImplicitRetrievedEntity("urn:e:1", "entityType", "{}")));
 
         verifyNoInteractions(auditChainWriter, auditRecordRepository);
     }
@@ -571,5 +573,108 @@ class AuditRecordServiceTests {
                 .verifyComplete();
 
         verifyNoInteractions(auditChainWriter);
+    }
+
+    @Test
+    void itShouldAppendAnImplicitRetrievedDraftForASubentityWithoutRecords() throws Exception {
+        String body = "{\"id\":\"urn:e:1\",\"type\":\"product-offering-price\"}";
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1"})).thenReturn(Flux.empty());
+        when(auditChainWriter.append(eq("processId"), any(), eq("implicit subentity"))).thenReturn(Mono.empty());
+
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
+                        List.of(new ImplicitRetrievedEntity("urn:e:1", "product-offering-price", body))))
+                .verifyComplete();
+
+        verify(auditChainWriter).append(eq("processId"), draftsCaptor.capture(), eq("implicit subentity"));
+        AuditRecord draft = singleUnchainedDraft();
+        String entityHash = ApplicationUtils.calculateSHA256(body);
+        assertThat(draft.getEntityId()).isEqualTo("urn:e:1");
+        assertThat(draft.getEntityType()).isEqualTo("product-offering-price");
+        assertThat(draft.getEntityHash()).isEqualTo(entityHash);
+        assertThat(draft.getEntityHashLink()).isEqualTo(entityHash);
+        assertThat(draft.getDataLocation()).isEmpty();
+        assertThat(draft.getStatus()).isEqualTo(AuditRecordStatus.RETRIEVED);
+        assertThat(draft.getTrader()).isEqualTo(AuditRecordTrader.CONSUMER);
+    }
+
+    @Test
+    void itShouldNotAppendAnImplicitRetrievedDraftWhenTheLastRecordHasTheSameHash() throws Exception {
+        String body = "{\"id\":\"urn:e:1\"}";
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1"}))
+                .thenReturn(Flux.just(retrievedRecord("urn:e:1", ApplicationUtils.calculateSHA256(body))));
+
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
+                        List.of(new ImplicitRetrievedEntity("urn:e:1", "type", body))))
+                .verifyComplete();
+
+        verifyNoInteractions(auditChainWriter);
+    }
+
+    @Test
+    void itShouldAppendAnImplicitRetrievedDraftWhenTheLastRecordHasAnotherHash() {
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1"}))
+                .thenReturn(Flux.just(retrievedRecord("urn:e:1", "anotherHash")));
+        when(auditChainWriter.append(eq("processId"), any(), eq("implicit subentity"))).thenReturn(Mono.empty());
+
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
+                        List.of(new ImplicitRetrievedEntity("urn:e:1", "type", "{\"id\":\"urn:e:1\"}"))))
+                .verifyComplete();
+
+        verify(auditChainWriter).append(eq("processId"), draftsCaptor.capture(), eq("implicit subentity"));
+        assertThat(singleUnchainedDraft().getEntityId()).isEqualTo("urn:e:1");
+    }
+
+    @Test
+    void itShouldAppendInOneWriteOnlyTheImplicitRetrievedDraftsWhoseHashChanged() throws Exception {
+        String unchangedBody = "{\"id\":\"urn:e:1\"}";
+        String changedBody = "{\"id\":\"urn:e:2\",\"v\":2}";
+        String newBody = "{\"id\":\"urn:e:3\"}";
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1", "urn:e:2", "urn:e:3"}))
+                .thenReturn(Flux.just(
+                        retrievedRecord("urn:e:1", ApplicationUtils.calculateSHA256(unchangedBody)),
+                        retrievedRecord("urn:e:2", "previousHash")));
+        when(auditChainWriter.append(eq("processId"), any(), eq("implicit subentity"))).thenReturn(Mono.empty());
+
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId", List.of(
+                        new ImplicitRetrievedEntity("urn:e:1", "type", unchangedBody),
+                        new ImplicitRetrievedEntity("urn:e:2", "type", changedBody),
+                        new ImplicitRetrievedEntity("urn:e:3", "type", newBody))))
+                .verifyComplete();
+
+        verify(auditChainWriter, times(1)).append(eq("processId"), draftsCaptor.capture(), eq("implicit subentity"));
+        assertThat(draftsCaptor.getValue())
+                .extracting(AuditRecord::getEntityId, AuditRecord::getEntityHash)
+                .containsExactly(
+                        tuple("urn:e:2", ApplicationUtils.calculateSHA256(changedBody)),
+                        tuple("urn:e:3", ApplicationUtils.calculateSHA256(newBody)));
+    }
+
+    @Test
+    void itShouldPropagateTheWriterErrorFromAnImplicitRetrieved() {
+        RuntimeException error = new RuntimeException("lock timeout");
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any())).thenReturn(Flux.empty());
+        when(auditChainWriter.append(any(), any(), any())).thenReturn(Mono.error(error));
+
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
+                        List.of(new ImplicitRetrievedEntity("urn:e:1", "type", "{}"))))
+                .expectErrorMatches(error::equals)
+                .verify();
+    }
+
+    @Test
+    void itShouldDoNothingForAnEmptyListOfImplicitRetrievedEntities() {
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId", List.of()))
+                .verifyComplete();
+
+        verifyNoInteractions(auditChainWriter, auditRecordRepository);
+    }
+
+    private static AuditRecord retrievedRecord(String entityId, String entityHash) {
+        return AuditRecord.builder()
+                .entityId(entityId)
+                .entityHash(entityHash)
+                .status(AuditRecordStatus.RETRIEVED)
+                .trader(AuditRecordTrader.CONSUMER)
+                .build();
     }
 }

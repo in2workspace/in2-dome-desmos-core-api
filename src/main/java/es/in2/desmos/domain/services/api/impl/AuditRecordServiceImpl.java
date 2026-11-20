@@ -157,6 +157,52 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     /**
+     * Appends one RETRIEVED/CONSUMER audit record per entity whose body hash differs from the one of its last RETRIEVED
+     * or DELETED record (or that has none), in one write. The echo check of a broker notification compares against
+     * that record, so an entity already recorded with the same hash needs no new one. The read and the write are not
+     * atomic: two concurrent calls may both write the same hash, which is harmless.
+     */
+    @Override
+    public Mono<Void> saveImplicitConsumerRetrieved(String processId, List<ImplicitRetrievedEntity> entities) {
+        return Mono.defer(() -> {
+            if (entities.isEmpty()) {
+                return Mono.empty();
+            }
+            List<AuditRecord> candidates = entities.stream()
+                    .map(entity -> implicitRetrievedDraft(processId, entity, calculateHash(entity.body())))
+                    .toList();
+            String[] entityIds = candidates.stream().map(AuditRecord::getEntityId).distinct().toArray(String[]::new);
+            return auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(entityIds)
+                    .collectMap(AuditRecord::getEntityId, AuditRecord::getEntityHash)
+                    .flatMap(lastHashById -> {
+                        List<AuditRecord> drafts = candidates.stream()
+                                .filter(draft -> !draft.getEntityHash().equals(lastHashById.get(draft.getEntityId())))
+                                .toList();
+                        if (drafts.isEmpty()) {
+                            return Mono.empty();
+                        }
+                        return auditChainWriter.append(processId, drafts, "implicit subentity");
+                    });
+        });
+    }
+
+    // No hashlink of its own, as for a first record: the entity has no blockchain event, and its hashlink is never read
+    private static AuditRecord implicitRetrievedDraft(String processId, ImplicitRetrievedEntity entity, String entityHash) {
+        return AuditRecord.builder()
+                .id(UUID.randomUUID())
+                .processId(processId)
+                .entityId(entity.id())
+                .entityType(entity.type())
+                .entityHash(entityHash)
+                .entityHashLink(entityHash)
+                .dataLocation("")
+                .status(AuditRecordStatus.RETRIEVED)
+                .trader(AuditRecordTrader.CONSUMER)
+                .newTransaction(true)
+                .build();
+    }
+
+    /**
      * Appends one audit record with trader CONSUMER per entity of the P2P synchronization (RECEIVED, RETRIEVED or
      * PUBLISHED), in batches and in the given order. The entities of a RECEIVED record carry empty hashes.
      */
