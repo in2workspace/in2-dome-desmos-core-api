@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Released]: v2.0.28
+- Fix the subentities written to the broker with a blockchain event or a P2P synchronization being re-notarized as PRODUCER: the broker notification of that write was taken as a local change, published to the DLT and the next synchronization announced the subentity as an entity of this node. Each subentity now gets a RETRIEVED/CONSUMER audit record with the hash of the written body before the write, so its notification is recognised as self-generated
+- Stop auditing as PUBLISHED/PRODUCER, in the P2P discovery of the local entities, an entity that has no PUBLISHED record but was retrieved from another node: it is announced with its broker hash and gets no new audit record
+- The subentity of a root type that comes with a blockchain event no longer gets a RETRIEVED/PUBLISHED pair chained on a previous PUBLISHED/CONSUMER record (`subentity` in the `[audit]` line); it gets the RETRIEVED record above (`implicit subentity`)
+
 ## [Released]: v2.0.27
 - Write the audit records of a P2P synchronization in batches (one transaction per chunk of `audit.batch-size` records, 500 by default, configurable with AUDIT_BATCH_SIZE between 1 and 2000) instead of one read and one insert per record
 - Serialize every write of the audit chain, those of the P2P synchronization and those of the broker and blockchain notifications (in memory and with a PostgreSQL advisory lock), so parallel genesis nodes, the local entities step, a discovery requested by another node and concurrent notifications no longer fork the audit chain; `created_at` is now strictly increasing for every audit record
