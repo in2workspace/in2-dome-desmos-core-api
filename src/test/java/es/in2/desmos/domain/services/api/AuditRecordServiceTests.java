@@ -332,6 +332,9 @@ class AuditRecordServiceTests {
                 .thenReturn(productOffering3Mono)
                 .thenReturn(productOffering4Mono);
 
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+                .thenReturn(Flux.empty());
+
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(Flux.just(AuditRecordMother.list3And4().get(0), AuditRecordMother.list3And4().get(1)));
 
@@ -361,6 +364,9 @@ class AuditRecordServiceTests {
         when(brokerPublisherService.getEntityById(eq(processId), any()))
                 .thenReturn(productOffering3Mono)
                 .thenReturn(productOffering4Mono);
+
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+                .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(
@@ -395,6 +401,9 @@ class AuditRecordServiceTests {
         when(brokerPublisherService.getEntityById(eq(processId), any()))
                 .thenReturn(productOffering3Mono)
                 .thenReturn(productOffering4Mono);
+
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+                .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(
@@ -439,6 +448,9 @@ class AuditRecordServiceTests {
         when(brokerPublisherService.getEntityById(eq(processId), any()))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_4));
+
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+                .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(
@@ -488,6 +500,9 @@ class AuditRecordServiceTests {
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_4));
 
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+                .thenReturn(Flux.empty());
+
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(Flux.just(AuditRecordMother.list3And4().get(1)));
 
@@ -528,6 +543,71 @@ class AuditRecordServiceTests {
                                             .entityHash(expectedAuditEntities.get(0).hash())
                                             .entityHashLink(expectedAuditEntities.get(0).hash())
                                             .trader(AuditRecordTrader.PRODUCER));
+                });
+    }
+
+    @Test
+    void itShouldAnnounceWithoutAuditingAsProducerAnEntityThatOnlyHasAConsumerRetrievedRecord() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3EqualsHashAndHashlinkAnd4();
+        Flux<String> entityIds = Flux.fromIterable(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
+        when(brokerPublisherService.getEntityById(eq(processId), any()))
+                .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
+                .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_4));
+        // Entity 3 has no PUBLISHED record, only the implicit RETRIEVED of a subentity written from another node
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+                .thenReturn(Flux.just(retrievedRecord(expectedAuditEntities.get(0).id(), "hashOfTheRetrievedBody")));
+        when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
+                .thenReturn(Flux.just(AuditRecordMother.list3And4().get(1)));
+        when(auditChainWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
+                .thenReturn(Mono.empty());
+
+        StepVerifier
+                .create(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIds)
+                        .collectList())
+                .assertNext(result ->
+                        assertThat(result).containsExactlyInAnyOrderElementsOf(expectedAuditEntities))
+                .verifyComplete();
+
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
+        assertThat(draftsCaptor.getValue()).as("no PRODUCER record for the entity retrieved from another node").isEmpty();
+        verifyNoInteractions(apiConfig);
+    }
+
+    @Test
+    void itShouldAuditAsProducerAnEntityWhoseLastRetrievedRecordIsNotConsumer() throws JSONException, NoSuchAlgorithmException, JsonProcessingException {
+        String processId = "0";
+        var expectedAuditEntities = MVAuditServiceEntity4DataNegotiationMother.sample3EqualsHashAndHashlinkAnd4();
+        Flux<String> entityIds = Flux.fromIterable(List.of(expectedAuditEntities.get(0).id(), expectedAuditEntities.get(1).id()));
+        when(brokerPublisherService.getEntityById(eq(processId), any()))
+                .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
+                .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_4));
+        AuditRecord producerRecord = retrievedRecord(expectedAuditEntities.get(0).id(), "someHash").toBuilder()
+                .trader(AuditRecordTrader.PRODUCER)
+                .build();
+        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+                .thenReturn(Flux.just(producerRecord));
+        when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
+                .thenReturn(Flux.just(AuditRecordMother.list3And4().get(1)));
+        when(apiConfig.getExternalDomain())
+                .thenReturn("http://my-external-domain.org");
+        when(auditChainWriter.append(eq(processId), any(), eq("unregistered or outdated entity")))
+                .thenReturn(Mono.empty());
+
+        StepVerifier
+                .create(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, expectedAuditEntities.get(0).type(), entityIds)
+                        .collectList())
+                .assertNext(result ->
+                        assertThat(result).containsExactlyInAnyOrderElementsOf(expectedAuditEntities))
+                .verifyComplete();
+
+        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("unregistered or outdated entity"));
+        assertThat(draftsCaptor.getValue())
+                .singleElement()
+                .satisfies(draft -> {
+                    assertThat(draft.getEntityId()).isEqualTo(expectedAuditEntities.get(0).id());
+                    assertThat(draft.getStatus()).isEqualTo(AuditRecordStatus.PUBLISHED);
+                    assertThat(draft.getTrader()).isEqualTo(AuditRecordTrader.PRODUCER);
                 });
     }
 

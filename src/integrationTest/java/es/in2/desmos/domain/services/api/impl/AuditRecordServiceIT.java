@@ -1,6 +1,7 @@
 package es.in2.desmos.domain.services.api.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.domain.models.AuditRecord;
 import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.AuditRecordTrader;
@@ -10,7 +11,10 @@ import es.in2.desmos.domain.models.MVAuditServiceEntity4DataNegotiation;
 import es.in2.desmos.domain.models.MVEntity4DataNegotiation;
 import es.in2.desmos.domain.repositories.AuditRecordRepository;
 import es.in2.desmos.domain.services.api.AuditRecordService;
+import es.in2.desmos.domain.utils.ApplicationUtils;
+import es.in2.desmos.inflators.ScorpioInflator;
 import es.in2.desmos.support.ContainerManager;
+import es.in2.desmos.support.ScorpioProbe;
 import es.in2.desmos.objectmothers.AuditRecordMother;
 import es.in2.desmos.objectmothers.MVAuditServiceEntity4DataNegotiationMother;
 import es.in2.desmos.objectmothers.MVEntity4DataNegotiationMother;
@@ -24,6 +28,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
@@ -40,6 +45,8 @@ import static org.awaitility.Awaitility.await;
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class AuditRecordServiceIT {
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     @Autowired
     AuditRecordService auditRecordService;
 
@@ -101,6 +108,72 @@ class AuditRecordServiceIT {
         StepVerifier.create(auditRecordService.fetchLatestProducerEntityHashLinkByEntityId(processId, entityId))
                 .expectNext("producerHashLink")
                 .verifyComplete();
+    }
+
+    // The 2:00 guard (P2P discovery of the local entities). The entities are of a type outside ROOT_OBJECTS_LIST so the
+    // startup synchronization of this context, which lists the local entities of those types, never touches them.
+    @Test
+    void itShouldAnnounceAnEntityWithOnlyAConsumerRetrievedRecordWithoutWritingAnyRecord() throws Exception {
+        String processId = "0";
+        String entityId = "urn:ngsi-ld:other:" + UUID.randomUUID();
+        String body = seedInBroker(entityId);
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved(processId,
+                        List.of(new ImplicitRetrievedEntity(entityId, "other", body))))
+                .verifyComplete();
+        long rowsBefore = countRows(entityId);
+        String brokerHash = sha256(body);
+
+        StepVerifier.create(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, "other", Flux.just(entityId)))
+                .assertNext(announced -> {
+                    assertThat(announced.id()).isEqualTo(entityId);
+                    assertThat(announced.hash()).isEqualTo(brokerHash);
+                    assertThat(announced.hashlink()).isEqualTo(brokerHash);
+                })
+                .verifyComplete();
+
+        assertThat(countRows(entityId)).as("no PRODUCER record for an entity retrieved from another node").isEqualTo(rowsBefore);
+    }
+
+    @Test
+    void itShouldKeepAnnouncingTheHashLinkOfAnEntityWithAPublishedRecord() throws Exception {
+        String processId = "0";
+        String entityId = "urn:ngsi-ld:other:" + UUID.randomUUID();
+        String body = seedInBroker(entityId);
+        // Published with the hash of the current broker body, so it is not outdated
+        @SuppressWarnings("unchecked")
+        Map<String, Object> dataMap = OBJECT_MAPPER.readValue(body, Map.class);
+        StepVerifier.create(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(processId, dataMap,
+                        AuditRecordStatus.PUBLISHED, BlockchainTxPayload.builder()
+                                .dataLocation("http://node-a/api/v1/entities/" + entityId + "?hl=publishedHashLink").build()))
+                .verifyComplete();
+        StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved(processId,
+                        List.of(new ImplicitRetrievedEntity(entityId, "other", body))))
+                .verifyComplete();
+        long rowsBefore = countRows(entityId);
+
+        StepVerifier.create(auditRecordService.findCreateOrUpdateAuditRecordsByEntityIds(processId, "other", Flux.just(entityId)))
+                .assertNext(announced -> assertThat(announced.hashlink()).isEqualTo("publishedHashLink"))
+                .verifyComplete();
+
+        assertThat(countRows(entityId)).isEqualTo(rowsBefore);
+    }
+
+    private static String seedInBroker(String entityId) {
+        ScorpioInflator.addEntitiesToBroker(ContainerManager.getBaseUriForScorpioA(),
+                "[{\"id\":\"" + entityId + "\",\"type\":\"other\",\"name\":{\"type\":\"Property\",\"value\":\"guard\"}}]");
+        return ScorpioProbe.getEntity(ContainerManager.getBaseUriForScorpioA(), entityId);
+    }
+
+    private long countRows(String entityId) {
+        return auditRecordRepository.findByEntityId(entityId).count().block();
+    }
+
+    private static String sha256(String value) {
+        try {
+            return ApplicationUtils.calculateSHA256(value);
+        } catch (NoSuchAlgorithmException | JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private void assertAuditRecordEntityIsExpected(String entityId, MVEntity4DataNegotiation expectedMVEntity4DataNegotiation) {

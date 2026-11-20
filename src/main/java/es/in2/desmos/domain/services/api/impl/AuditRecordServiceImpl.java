@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.HASHLINK_PREFIX;
 import static es.in2.desmos.domain.utils.ApplicationUtils.*;
@@ -247,7 +249,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     /**
      * Returns the negotiation data of the given local entities and audits as PUBLISHED those without an audit record
-     * or whose hash in the broker has changed. The broker hashes are read in parallel; the new audit records are then
+     * or whose hash in the broker has changed. An entity without a PUBLISHED record but with a CONSUMER RETRIEVED one
+     * came from another node: it is announced with its broker hash and not audited as a PRODUCER entity. The broker hashes are read in parallel; the new audit records are then
      * appended in one batch write, after every hash has been read.
      */
     @Override
@@ -262,10 +265,17 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     if (entityIds.isEmpty()) {
                         return Flux.empty();
                     }
-                    return auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(
-                                    entityIds.toArray(new String[0]))
-                            .collectMap(AuditRecord::getEntityId)
-                            .flatMapMany(auditRecordMap -> {
+                    String[] entityIdsArray = entityIds.toArray(new String[0]);
+                    return Mono.zip(
+                                    auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(entityIdsArray)
+                                            .collectMap(AuditRecord::getEntityId),
+                                    auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(entityIdsArray)
+                                            .filter(auditRecord -> auditRecord.getTrader() == AuditRecordTrader.CONSUMER)
+                                            .map(AuditRecord::getEntityId)
+                                            .collect(Collectors.toSet()))
+                            .flatMapMany(tuple -> {
+                                Map<String, AuditRecord> auditRecordMap = tuple.getT1();
+                                Set<String> consumerRetrievedIds = tuple.getT2();
                                 log.debug("ProcessID: {} - auditRecordMap keys: {}", processId, auditRecordMap.keySet());
                                 return Flux.fromIterable(entityIds)
                                         .flatMap(id -> getEntityHash(processId, id)
@@ -273,6 +283,15 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                     AuditRecord auditRecord = auditRecordMap.get(id);
                                                     if (auditRecord != null) {
                                                         return findOrUpdateAuditRecord(processId, entityHash, auditRecord);
+                                                    }
+                                                    if (consumerRetrievedIds.contains(id)) {
+                                                        // Retrieved from another node (a subentity) and never published
+                                                        // here: announced with its broker hash, without becoming a
+                                                        // PRODUCER entity of this node
+                                                        log.debug("ProcessID: {} - Only a CONSUMER RETRIEVED auditRecord found for entityId: {}", processId, id);
+                                                        return Mono.just(new SyncAuditResult(
+                                                                new MVAuditServiceEntity4DataNegotiation(id, entityType, entityHash, entityHash),
+                                                                null));
                                                     }
                                                     log.debug("ProcessID: {} - NO auditRecord found for entityId: {}", processId, id);
                                                     return Mono.just(draftFromUnregisteredOrOutdatedEntity(
