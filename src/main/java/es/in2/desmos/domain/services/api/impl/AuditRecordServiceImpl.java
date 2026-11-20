@@ -127,36 +127,6 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     /**
-     * Appends an AuditRecord with trader CONSUMER for a subentity of a blockchain notification, chained on the last
-     * PUBLISHED CONSUMER record of the subentity. If there is none, nothing is written.
-     */
-    @Override
-    public Mono<Void> buildAndSaveAuditRecordForSubEntity(String processId, String entityId, String entityType,
-                                                          String retrievedBrokerEntity,
-                                                          AuditRecordStatus status) {
-        return Mono.defer(() -> findLatestConsumerPublishedAuditRecordByEntityId(processId, entityId))
-                .flatMap(previousAuditRecord -> {
-                    String entityHash = calculateHash(retrievedBrokerEntity);
-                    return Mono.fromCallable(() -> ApplicationUtils.calculateHashLink(previousAuditRecord.getEntityHashLink(), entityHash))
-                            .flatMap(entityHashLink -> {
-                                AuditRecord draft = AuditRecord.builder()
-                                        .id(UUID.randomUUID())
-                                        .processId(processId)
-                                        .entityId(entityId)
-                                        .entityType(entityType)
-                                        .entityHash(entityHash)
-                                        .entityHashLink(entityHashLink)
-                                        .dataLocation("")
-                                        .status(status)
-                                        .trader(AuditRecordTrader.CONSUMER)
-                                        .newTransaction(true)
-                                        .build();
-                                return auditChainWriter.append(processId, List.of(draft), "subentity");
-                            });
-                });
-    }
-
-    /**
      * Appends one RETRIEVED/CONSUMER audit record per entity whose body hash differs from the one of its last RETRIEVED
      * or DELETED record (or that has none), in one write. The echo check of a broker notification compares against
      * that record, so an entity already recorded with the same hash needs no new one. The read and the write are not

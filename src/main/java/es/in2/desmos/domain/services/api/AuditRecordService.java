@@ -13,10 +13,6 @@ public interface AuditRecordService {
 
     Mono<Void> buildAndSaveAuditRecordFromBlockchainNotification(String processId, BlockchainNotification blockchainNotification, String retrievedBrokerEntity, AuditRecordStatus status);
 
-    Mono<Void> buildAndSaveAuditRecordForSubEntity(String processId, String entityId, String entityType,
-                                                   String retrievedBrokerEntity,
-                                                   AuditRecordStatus status);
-
     /**
      * Records as RETRIEVED/CONSUMER the entities about to be written to the local broker without an audit trail of
      * their own, so the broker notification of that write is recognised as self-generated. Must complete before the

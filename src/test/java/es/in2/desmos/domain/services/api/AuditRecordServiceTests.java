@@ -142,7 +142,6 @@ class AuditRecordServiceTests {
 
         auditRecordService.buildAndSaveAuditRecordFromBrokerNotification("processId", dataMap, AuditRecordStatus.RECEIVED, null);
         auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification("processId", blockchainNotification, null, AuditRecordStatus.RECEIVED);
-        auditRecordService.buildAndSaveAuditRecordForSubEntity("processId", "urn:e:1", "entityType", "{}", AuditRecordStatus.RETRIEVED);
         auditRecordService.saveImplicitConsumerRetrieved("processId", List.of(new ImplicitRetrievedEntity("urn:e:1", "entityType", "{}")));
 
         verifyNoInteractions(auditChainWriter, auditRecordRepository);
@@ -530,49 +529,6 @@ class AuditRecordServiceTests {
                                             .entityHashLink(expectedAuditEntities.get(0).hash())
                                             .trader(AuditRecordTrader.PRODUCER));
                 });
-    }
-
-    @Test
-    void itShouldAppendASubEntityDraftChainedOnItsLastConsumerPublishedRecord() throws Exception {
-        String processId = "processId";
-        String entityId = "testEntityId";
-        String entityType = "testEntityType";
-        String retrievedBrokerEntity = "testRetrievedBrokerEntity";
-        AuditRecord previous = AuditRecord.builder()
-                .entityId(entityId)
-                .entityHashLink("previousEntityHashLink")
-                .status(AuditRecordStatus.PUBLISHED)
-                .trader(AuditRecordTrader.CONSUMER)
-                .build();
-        when(auditRecordRepository.findLastPublishedConsumerAuditRecordByEntityId(entityId)).thenReturn(Mono.just(previous));
-        when(auditChainWriter.append(eq(processId), any(), eq("subentity"))).thenReturn(Mono.empty());
-
-        StepVerifier.create(auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType,
-                        retrievedBrokerEntity, AuditRecordStatus.RETRIEVED))
-                .verifyComplete();
-
-        verify(auditChainWriter).append(eq(processId), draftsCaptor.capture(), eq("subentity"));
-        verify(auditRecordRepository, never()).findMostRecentAuditRecord();
-        AuditRecord draft = singleUnchainedDraft();
-        String entityHash = ApplicationUtils.calculateSHA256(retrievedBrokerEntity);
-        assertThat(draft.getEntityId()).isEqualTo(entityId);
-        assertThat(draft.getEntityType()).isEqualTo(entityType);
-        assertThat(draft.getStatus()).isEqualTo(AuditRecordStatus.RETRIEVED);
-        assertThat(draft.getTrader()).isEqualTo(AuditRecordTrader.CONSUMER);
-        assertThat(draft.getEntityHash()).isEqualTo(entityHash);
-        assertThat(draft.getEntityHashLink()).isEqualTo(ApplicationUtils.calculateHashLink("previousEntityHashLink", entityHash));
-        assertThat(draft.getDataLocation()).isEmpty();
-    }
-
-    @Test
-    void itShouldWriteNothingForASubEntityWithoutAConsumerPublishedRecord() {
-        when(auditRecordRepository.findLastPublishedConsumerAuditRecordByEntityId("testEntityId")).thenReturn(Mono.empty());
-
-        StepVerifier.create(auditRecordService.buildAndSaveAuditRecordForSubEntity("processId", "testEntityId",
-                        "testEntityType", "{}", AuditRecordStatus.RETRIEVED))
-                .verifyComplete();
-
-        verifyNoInteractions(auditChainWriter);
     }
 
     @Test

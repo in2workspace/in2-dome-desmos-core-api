@@ -8,6 +8,7 @@ import es.in2.desmos.domain.exceptions.JsonReadingException;
 import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BlockchainNotification;
 import es.in2.desmos.domain.models.BrokerWriteAction;
+import es.in2.desmos.domain.models.ImplicitRetrievedEntity;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
@@ -95,17 +96,15 @@ public class SubscribeWorkflowImpl implements SubscribeWorkflow {
                                                                                 .thenReturn(new StoredEntity(entityType, entityId, action, true, null)));
                                                             } else {
                                                                 log.debug("ProcessID: {} - Retrieved entity with id: {} has root object type but it isn't the current root object", processId, entityId);
-                                                                return auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.RETRIEVED)
-                                                                        .then(brokerPublisherService.upsertDataInBroker(processId, entityId, retrievedBrokerEntity))
-                                                                        .flatMap(action -> auditRecordService.buildAndSaveAuditRecordForSubEntity(processId, entityId, entityType, retrievedBrokerEntity, AuditRecordStatus.PUBLISHED)
-                                                                                .thenReturn(new StoredEntity(entityType, entityId, action, false, null)));
+                                                                return storeSubentity(processId, entityId, entityType, retrievedBrokerEntity)
+                                                                        .map(action -> new StoredEntity(entityType, entityId, action, false, null));
                                                             }
                                                         } else {
-                                                            // Not a replicated type, so no audit record: its hash goes to the [subscribe] line
+                                                            // Not a replicated type: its hash goes to the [subscribe] line
                                                             String entityHash = calculateHash(retrievedBrokerEntity);
                                                             log.debug("ProcessID: {} - AuditLog: RETRIEVED from Blockchain. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash);
 
-                                                            return brokerPublisherService.upsertDataInBroker(processId, entityId, retrievedBrokerEntity)
+                                                            return storeSubentity(processId, entityId, entityType, retrievedBrokerEntity)
                                                                     .doOnSuccess(x -> log.debug("ProcessID: {} - AuditLog: PUBLISHED to Broker. Sub-object with id: {}, type: {} and hash: {}.", processId, entityId, entityType, entityHash))
                                                                     .map(action -> new StoredEntity(entityType, entityId, action, false, shortHash(entityHash)));
                                                         }
@@ -125,6 +124,14 @@ public class SubscribeWorkflowImpl implements SubscribeWorkflow {
                                                             .then(Mono.empty()))
                             );
                 });
+    }
+
+    // A subentity has no blockchain event of its own: it is recorded as an implicit RETRIEVED before the write, so the
+    // broker notification of that write is recognised as self-generated instead of being published as a local change
+    private Mono<BrokerWriteAction> storeSubentity(String processId, String entityId, String entityType, String retrievedBrokerEntity) {
+        return auditRecordService.saveImplicitConsumerRetrieved(processId,
+                        List.of(new ImplicitRetrievedEntity(entityId, entityType, retrievedBrokerEntity)))
+                .then(Mono.defer(() -> brokerPublisherService.upsertDataInBroker(processId, entityId, retrievedBrokerEntity)));
     }
 
     // One line per blockchain event with everything the per-step lines used to say: the notified entity and whether

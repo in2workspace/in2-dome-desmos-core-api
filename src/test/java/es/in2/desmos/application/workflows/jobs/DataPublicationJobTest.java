@@ -1,6 +1,7 @@
 package es.in2.desmos.application.workflows.jobs;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import es.in2.desmos.application.workflows.jobs.impl.DataPublicationJobImpl;
 import es.in2.desmos.domain.exceptions.BrokerRequestRejectedException;
 import es.in2.desmos.domain.models.*;
@@ -17,6 +18,7 @@ import org.mockito.Captor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -41,6 +43,8 @@ class DataPublicationJobTest {
     private AuditRecordService auditRecordService;
     @Mock
     private BrokerPublisherService brokerPublisherService;
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Captor
     private ArgumentCaptor<List<MVAuditServiceEntity4DataNegotiation>> auditedEntitiesCaptor;
@@ -81,15 +85,17 @@ class DataPublicationJobTest {
     }
 
     @Test
-    void itShouldNotBuildAnSaveAuditRecordForSubEntity() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
+    void itShouldAuditTheSubentityAsImplicitRetrievedBeforeWritingIt() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
 
         String processId = "0";
 
         when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.saveImplicitConsumerRetrieved(any(), any())).thenReturn(Mono.empty());
 
         when(brokerPublisherService.publishDataToBroker(any(), any(), any())).thenReturn(Mono.empty());
 
 
+        // sample2 is received but not negotiated: it is a subentity of sample4
         Map<Id, Entity> entitiesById = new HashMap<>();
         entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new Entity(EntityMother.PRODUCT_OFFERING_2));
         entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample4().id()), new Entity(EntityMother.PRODUCT_OFFERING_4));
@@ -106,11 +112,41 @@ class DataPublicationJobTest {
                 create(result)
                 .verifyComplete();
 
-        verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.RETRIEVED));
-        verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.PUBLISHED));
+        // The subentity gets an implicit RETRIEVED with the body written to the broker, before any broker write
+        String subentityType = objectMapper.readTree(EntityMother.PRODUCT_OFFERING_2).get("type").asText();
+        InOrder inOrder = inOrder(auditRecordService, brokerPublisherService);
+        inOrder.verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.RETRIEVED));
+        inOrder.verify(auditRecordService).saveImplicitConsumerRetrieved(processId, List.of(new ImplicitRetrievedEntity(
+                MVEntity4DataNegotiationMother.sample2().id(), subentityType, EntityMother.PRODUCT_OFFERING_2)));
+        inOrder.verify(brokerPublisherService, times(2)).publishDataToBroker(any(), any(), any());
+        inOrder.verify(auditRecordService).buildAndSaveAuditRecordsFromDataSync(eq(processId), auditedEntitiesCaptor.capture(), eq(AuditRecordStatus.PUBLISHED));
+        verifyNoMoreInteractions(auditRecordService);
 
+        // The negotiated entity, and only it, keeps its RETRIEVED and PUBLISHED records
         assertThat(auditedEntitiesCaptor.getAllValues()).allSatisfy(audited ->
                 assertThat(audited).containsExactly(MVAuditServiceEntity4DataNegotiationMother.sample4()));
+    }
+
+    @Test
+    void itShouldNotWriteToTheBrokerWhenTheImplicitRetrievedFails() throws JsonProcessingException, JSONException, NoSuchAlgorithmException {
+        String processId = "0";
+        RuntimeException auditError = new RuntimeException("lock timeout");
+        when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.saveImplicitConsumerRetrieved(any(), any())).thenReturn(Mono.error(auditError));
+
+        Map<Id, Entity> entitiesById = new HashMap<>();
+        entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample2().id()), new Entity(EntityMother.PRODUCT_OFFERING_2));
+        entitiesById.put(new Id(MVEntity4DataNegotiationMother.sample4().id()), new Entity(EntityMother.PRODUCT_OFFERING_4));
+
+        Mono<Void> result = dataVerificationJob.verifyData(processId, Mono.just(entitiesById),
+                Mono.just(List.of(MVEntity4DataNegotiationMother.sample4())), Mono.just(new HashMap<>()));
+
+        StepVerifier.create(result)
+                .expectErrorMatches(auditError::equals)
+                .verify();
+
+        verifyNoInteractions(brokerPublisherService);
+        verify(auditRecordService, never()).buildAndSaveAuditRecordsFromDataSync(any(), any(), eq(AuditRecordStatus.PUBLISHED));
     }
 
     @Test
@@ -189,6 +225,7 @@ class DataPublicationJobTest {
         String processId = "0";
 
         when(auditRecordService.buildAndSaveAuditRecordsFromDataSync(any(), any(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.saveImplicitConsumerRetrieved(any(), any())).thenReturn(Mono.empty());
 
         AtomicInteger writesInFlight = new AtomicInteger();
         AtomicInteger maxWritesInFlight = new AtomicInteger();
