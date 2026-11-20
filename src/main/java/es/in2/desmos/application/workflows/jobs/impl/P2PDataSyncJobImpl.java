@@ -21,7 +21,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -411,7 +410,7 @@ public class P2PDataSyncJobImpl implements P2PDataSyncJob {
 
     @Override
     public Flux<Entity> getLocalEntitiesByIdInBase64(String processId, Mono<List<Id>> ids) {
-        return brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, ids, new ArrayList<>());
+        return brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, ids);
     }
 
     private Flux<MVEntity4DataNegotiation> createLocalMvEntitiesByType(String processId, String entityType) {

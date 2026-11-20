@@ -27,13 +27,19 @@ import org.skyscreamer.jsonassert.JSONAssert;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -135,7 +141,7 @@ class BrokerPublisherServiceTests {
         });
 
 
-        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
+        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono);
 
         StepVerifier
                 .create(resultFlux.collectList())
@@ -177,7 +183,7 @@ class BrokerPublisherServiceTests {
         });
 
 
-        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
+        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono);
 
         StepVerifier
                 .create(resultFlux.collectList())
@@ -229,7 +235,7 @@ class BrokerPublisherServiceTests {
         });
 
 
-        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
+        var resultFlux = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono);
 
         StepVerifier
                 .create(resultFlux.collectList())
@@ -259,12 +265,105 @@ class BrokerPublisherServiceTests {
         when(brokerAdapterService.getEntityById(eq(processId), any())).thenReturn(Mono.just(brokerJson));
 
 
-        var resultMono = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono, new ArrayList<>());
+        var resultMono = brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, idsMono);
 
         StepVerifier.
                 create(resultMono)
                 .expectErrorMatches(JsonProcessingException.class::isInstance)
                 .verify();
+    }
+
+    @Test
+    void itShouldNotReadMoreThanSixteenEntitiesAtTheSameTime() {
+        String processId = "0";
+        int requestedEntities = 200;
+        List<Id> ids = IntStream.range(0, requestedEntities)
+                .mapToObj(i -> new Id("urn:ngsi-ld:customer-bill:" + i))
+                .toList();
+
+        AtomicInteger inFlight = new AtomicInteger();
+        AtomicInteger maxInFlight = new AtomicInteger();
+        when(brokerAdapterService.getEntityById(eq(processId), anyString())).thenAnswer(invocation -> {
+            String entityId = invocation.getArgument(1);
+            String entity = entityId.startsWith("urn:ngsi-ld:customer-bill:")
+                    ? entityWithRelationship(entityId, "urn:ngsi-ld:billing-account:" + entityId.substring(entityId.lastIndexOf(':') + 1))
+                    : entityWithoutRelationships(entityId);
+            // A read ends when its response arrives, before the entity goes downstream: that is when WebClient gives
+            // the connection back to the pool, and it is the moment the next read of the same tree can start
+            return Mono.defer(() -> {
+                maxInFlight.accumulateAndGet(inFlight.incrementAndGet(), Math::max);
+                return Mono.delay(Duration.ofMillis(5)).map(tick -> {
+                    inFlight.decrementAndGet();
+                    return entity;
+                });
+            });
+        });
+
+        StepVerifier.create(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, Mono.just(ids)).count())
+                .expectNext((long) requestedEntities * 2)
+                .verifyComplete();
+
+        assertThat(maxInFlight.get()).isBetween(2, 16);
+    }
+
+    @Test
+    void itShouldReadAndEmitASharedSubentityOnce() {
+        String processId = "0";
+        String sharedOrganization = "urn:ngsi-ld:organization:shared";
+        List<Id> ids = IntStream.range(0, 20)
+                .mapToObj(i -> new Id("urn:ngsi-ld:customer-bill:" + i))
+                .toList();
+
+        when(brokerAdapterService.getEntityById(eq(processId), anyString())).thenAnswer(invocation -> {
+            String entityId = invocation.getArgument(1);
+            String entity = entityId.equals(sharedOrganization)
+                    ? entityWithoutRelationships(entityId)
+                    : entityWithRelationship(entityId, sharedOrganization);
+            return Mono.delay(Duration.ofMillis(5)).thenReturn(entity);
+        });
+
+        StepVerifier.create(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, Mono.just(ids))
+                        .map(entity -> Base64Converter.convertBase64ToString(entity.value()))
+                        .collectList())
+                .assertNext(entities -> {
+                    assertThat(entities).hasSize(ids.size() + 1);
+                    assertThat(entities).filteredOn(entity -> entity.contains("\"id\":\"" + sharedOrganization + "\"")).hasSize(1);
+                })
+                .verifyComplete();
+
+        verify(brokerAdapterService, times(1)).getEntityById(processId, sharedOrganization);
+    }
+
+    @Test
+    void itShouldEmitTheSubentitiesOfARequestedEntityBeforeIt() {
+        String processId = "0";
+        final String customerBill = "urn:ngsi-ld:customer-bill:1";
+        final String billingAccount = "urn:ngsi-ld:billing-account:1";
+        final String organization = "urn:ngsi-ld:organization:1";
+
+        when(brokerAdapterService.getEntityById(eq(processId), anyString())).thenAnswer(invocation -> {
+            String entityId = invocation.getArgument(1);
+            return Mono.just(switch (entityId) {
+                case customerBill -> entityWithRelationship(customerBill, billingAccount);
+                case billingAccount -> entityWithRelationship(billingAccount, organization);
+                default -> entityWithoutRelationships(entityId);
+            });
+        });
+
+        StepVerifier.create(brokerPublisherService.findEntitiesAndItsSubentitiesByIdInBase64(processId, Mono.just(List.of(new Id(customerBill))))
+                        .map(entity -> Base64Converter.convertBase64ToString(entity.value())))
+                .assertNext(entity -> assertThat(entity).contains(organization))
+                .assertNext(entity -> assertThat(entity).contains("\"id\":\"" + billingAccount + "\""))
+                .assertNext(entity -> assertThat(entity).contains("\"id\":\"" + customerBill + "\""))
+                .verifyComplete();
+    }
+
+    private static String entityWithRelationship(String id, String relatedId) {
+        return "{\"id\":\"" + id + "\",\"type\":\"test\",\"related\":{\"type\":\"Relationship\",\"object\":\"" + relatedId + "\"}}";
+    }
+
+    private static String entityWithoutRelationships(String id) {
+        return "{\"id\":\"" + id + "\",\"type\":\"test\"}";
     }
 
     private JsonNode getJsonNodeFromStringsList(List<String> localEntities) throws JsonProcessingException {

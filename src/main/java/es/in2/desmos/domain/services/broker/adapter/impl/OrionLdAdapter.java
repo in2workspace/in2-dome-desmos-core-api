@@ -9,53 +9,57 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 
-// TODO: Implement OrionLdAdapter
+// TODO: Implement OrionLdAdapter. Until then every operation fails with UnsupportedOperationException
 @Component
 public class OrionLdAdapter implements BrokerAdapterService {
 
     @Override
     public Mono<Void> postEntity(String processId, String requestBody) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public Mono<String> getEntityById(String processId, String entityId) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public Mono<Void> updateEntity(String processId, String requestBody) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public Mono<Void> deleteEntityById(String processId, String entityId) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public Mono<Void> createSubscription(String processId, BrokerSubscription brokerSubscription) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public Mono<List<BrokerSubscription>> getSubscriptions(String processId) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public Mono<Void> updateSubscription(String processId, BrokerSubscription brokerSubscription) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public Mono<Void> deleteSubscription(String processId, String subscriptionId) {
-        return null;
+        return Mono.error(notImplemented());
     }
 
     @Override
     public <T extends BrokerEntityWithIdAndType> Flux<T> findAllIdTypeAndAttributesByType(String processId, String type, String firstAttribute, String secondAttribute, String thirdAttribute, String forthAttribute, Class<T> responseClass) {
-        return null;
+        return Flux.error(notImplemented());
+    }
+
+    private static UnsupportedOperationException notImplemented() {
+        return new UnsupportedOperationException("Orion-LD broker adapter is not implemented");
     }
 
 }
