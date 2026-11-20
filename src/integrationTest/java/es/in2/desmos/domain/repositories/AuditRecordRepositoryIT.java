@@ -339,6 +339,42 @@ class AuditRecordRepositoryIT {
                 .verifyComplete();
     }
 
+    @Order(12)
+    @Test
+    void itShouldReturnTheMostRecentRetrievedOrDeletedAuditRecordOfEachEntity() {
+        var entityIdE = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        var entityIdF = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        var entityIdG = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        var entityIdH = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
+        long now = System.currentTimeMillis();
+
+        // E: an older RETRIEVED, then a newer one, then a PUBLISHED that must be ignored
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdE, AuditRecordStatus.RETRIEVED, new Timestamp(now));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdE, AuditRecordStatus.RETRIEVED, new Timestamp(now + 1000));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdE, AuditRecordStatus.PUBLISHED, new Timestamp(now + 2000));
+        // F: a RETRIEVED, then a newer DELETED
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdF, AuditRecordStatus.RETRIEVED, new Timestamp(now));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdF, AuditRecordStatus.DELETED, new Timestamp(now + 3000));
+        // G: only PUBLISHED and RECEIVED, so it is left out
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdG, AuditRecordStatus.RECEIVED, new Timestamp(now));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdG, AuditRecordStatus.PUBLISHED, new Timestamp(now + 1000));
+        // H is not requested: its newer DELETED must not show up as the record of another entity
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdH, AuditRecordStatus.DELETED, new Timestamp(now + 5000));
+
+        List<AuditRecord> received = auditRecordRepository
+                .findMostRecentRetrievedOrDeletedByEntityIds(new String[]{entityIdE, entityIdF, entityIdG})
+                .collectList()
+                .block();
+
+        assertThat(received)
+                .usingRecursiveFieldByFieldElementComparatorOnFields("entityId", "status", "createdAt")
+                .containsExactlyInAnyOrder(
+                        AuditRecord.builder().entityId(entityIdE).status(AuditRecordStatus.RETRIEVED)
+                                .createdAt(new Timestamp(now + 1000)).build(),
+                        AuditRecord.builder().entityId(entityIdF).status(AuditRecordStatus.DELETED)
+                                .createdAt(new Timestamp(now + 3000)).build());
+    }
+
     private void saveAuditRecordWithEntityIdStatusAndTimestamp(String entityId, AuditRecordStatus auditRecordStatus, Timestamp timestamp) {
         AuditRecord auditRecordToSave = AuditRecord
                 .builder()

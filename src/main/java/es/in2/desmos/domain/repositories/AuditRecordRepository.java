@@ -34,6 +34,20 @@ public interface AuditRecordRepository extends ReactiveCrudRepository<AuditRecor
     @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId AND status IN ('RETRIEVED', 'DELETED') ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findMostRecentRetrievedOrDeletedByEntityId(String entityId);
 
+    /**
+     * Batch version of {@link #findMostRecentRetrievedOrDeletedByEntityId(String)}: for each given entity ID, its most
+     * recent RETRIEVED or DELETED audit record. Same status filter, so it reads what the echo check of a broker
+     * notification will read. Entities without such a record are left out.
+     */
+    @Query("""
+       SELECT DISTINCT ON (ar.entity_id) ar.*
+        FROM desmos.audit_records ar
+        WHERE ar.entity_id = ANY(:entityIds)
+        AND ar.status IN ('RETRIEVED', 'DELETED')
+        ORDER BY ar.entity_id, ar.created_at DESC;
+       """)
+    Flux<AuditRecord> findMostRecentRetrievedOrDeletedByEntityIds(String[] entityIds);
+
     @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findMostRecentPublishedAuditRecordByEntityId(String entityId);
 
