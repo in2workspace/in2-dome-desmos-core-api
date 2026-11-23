@@ -375,6 +375,63 @@ class AuditRecordRepositoryIT {
                                 .createdAt(new Timestamp(now + 3000)).build());
     }
 
+    @Order(13)
+    @Test
+    void itShouldReturnEachEntityWithAConsumerPublishedRecordOnce() {
+        String suffix = UUID.randomUUID().toString();
+        String twiceConsumer = "urn:consumer-twice:" + suffix;
+        String producer = "urn:producer:" + suffix;
+        String consumerRetrieved = "urn:consumer-retrieved:" + suffix;
+        saveRecord(twiceConsumer, AuditRecordStatus.PUBLISHED, AuditRecordTrader.CONSUMER, "h1");
+        saveRecord(twiceConsumer, AuditRecordStatus.PUBLISHED, AuditRecordTrader.CONSUMER, "h2");
+        saveRecord(producer, AuditRecordStatus.PUBLISHED, AuditRecordTrader.PRODUCER, "h1");
+        saveRecord(consumerRetrieved, AuditRecordStatus.RETRIEVED, AuditRecordTrader.CONSUMER, "h1");
+
+        StepVerifier.create(auditRecordRepository.findEntityIdsWithConsumerPublished()
+                        .filter(entityId -> entityId.endsWith(suffix))
+                        .collectList())
+                .assertNext(entityIds -> assertThat(entityIds).containsExactly(twiceConsumer))
+                .verifyComplete();
+    }
+
+    @Order(14)
+    @Test
+    void itShouldReturnTheDistinctNonEmptyHashesOfEachRequestedEntity() {
+        String suffix = UUID.randomUUID().toString();
+        String first = "urn:first:" + suffix;
+        String second = "urn:second:" + suffix;
+        String notRequested = "urn:not-requested:" + suffix;
+        saveRecord(first, AuditRecordStatus.PUBLISHED, AuditRecordTrader.PRODUCER, "h1");
+        saveRecord(first, AuditRecordStatus.RECEIVED, AuditRecordTrader.PRODUCER, "h1");
+        saveRecord(first, AuditRecordStatus.RETRIEVED, AuditRecordTrader.CONSUMER, "h2");
+        saveRecord(first, AuditRecordStatus.RECEIVED, AuditRecordTrader.CONSUMER, "");
+        saveRecord(second, AuditRecordStatus.CREATED, AuditRecordTrader.PRODUCER, "h3");
+        saveRecord(notRequested, AuditRecordStatus.PUBLISHED, AuditRecordTrader.PRODUCER, "h4");
+
+        StepVerifier.create(auditRecordRepository.findKnownEntityHashesByEntityIds(new String[]{first, second}).collectList())
+                .assertNext(records -> assertThat(records)
+                        .extracting(AuditRecord::getEntityId, AuditRecord::getEntityHash)
+                        .containsExactlyInAnyOrder(
+                                org.assertj.core.groups.Tuple.tuple(first, "h1"),
+                                org.assertj.core.groups.Tuple.tuple(first, "h2"),
+                                org.assertj.core.groups.Tuple.tuple(second, "h3")))
+                .verifyComplete();
+    }
+
+    private void saveRecord(String entityId, AuditRecordStatus status, AuditRecordTrader trader, String entityHash) {
+        StepVerifier.create(auditRecordRepository.save(AuditRecord.builder()
+                        .id(UUID.randomUUID())
+                        .entityId(entityId)
+                        .entityHash(entityHash)
+                        .status(status)
+                        .trader(trader)
+                        .createdAt(new Timestamp(System.currentTimeMillis()))
+                        .newTransaction(true)
+                        .build()))
+                .expectNextCount(1)
+                .verifyComplete();
+    }
+
     private void saveAuditRecordWithEntityIdStatusAndTimestamp(String entityId, AuditRecordStatus auditRecordStatus, Timestamp timestamp) {
         AuditRecord auditRecordToSave = AuditRecord
                 .builder()

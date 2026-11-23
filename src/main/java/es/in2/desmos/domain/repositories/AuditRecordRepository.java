@@ -48,6 +48,26 @@ public interface AuditRecordRepository extends ReactiveCrudRepository<AuditRecor
        """)
     Flux<AuditRecord> findMostRecentRetrievedOrDeletedByEntityIds(String[] entityIds);
 
+    /**
+     * The IDs of the entities written to the local broker as root of a blockchain event or of a P2P synchronization
+     * (a PUBLISHED record with trader CONSUMER), each one once.
+     */
+    @Query("SELECT DISTINCT entity_id FROM desmos.audit_records WHERE status = 'PUBLISHED' AND trader = 'CONSUMER'")
+    Flux<String> findEntityIdsWithConsumerPublished();
+
+    /**
+     * For each given entity ID, one audit record per distinct non-empty entity hash, of any status and trader: the
+     * contents of the entity this node has already seen. Only the entity ID and the entity hash are meaningful.
+     */
+    @Query("""
+       SELECT DISTINCT ON (ar.entity_id, ar.entity_hash) ar.*
+        FROM desmos.audit_records ar
+        WHERE ar.entity_id = ANY(:entityIds)
+        AND ar.entity_hash <> ''
+        ORDER BY ar.entity_id, ar.entity_hash;
+       """)
+    Flux<AuditRecord> findKnownEntityHashesByEntityIds(String[] entityIds);
+
     @Query("SELECT * FROM desmos.audit_records WHERE entity_id = :entityId AND status = 'PUBLISHED' ORDER BY created_at DESC LIMIT 1")
     Mono<AuditRecord> findMostRecentPublishedAuditRecordByEntityId(String entityId);
 
