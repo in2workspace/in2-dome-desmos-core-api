@@ -1,12 +1,11 @@
 # in2-dome-desmos-core-api
 
 Desmos, el Blockchain Connector del Access Node de DOME: replica entidades NGSI-LD entre nodos (DLT + P2P) y lleva la
-cadena de audits en `desmos.audit_records`. Arquitectura y puntos delicados: `../DESMOS.md`. Pasos de cada flujo:
-`docs/APPLICATION_FLOW.md`.
+cadena de audits en `desmos.audit_records`. Flujos y sus pasos: `docs/APPLICATION_FLOW.md`.
 
 ## Build y tests
 
-- JDK 17: `JAVA_HOME=~/.sdkman/candidates/java/17.0.18-tem`. Siempre `sh ./gradlew`.
+- JDK 17. Siempre `sh ./gradlew`.
 - Unitarios: `sh ./gradlew test`. Integración (Testcontainers: Scorpio `java-6.0.2`, PostGIS, Postgres):
   `sh ./gradlew integrationTest` (`src/integrationTest`). Checkstyle corre en los tres source sets.
 - Imagen para desmos-load: `docker build --build-arg SKIP_TESTS=true -t desmos-api:<tag> .`
@@ -25,8 +24,7 @@ cadena de audits en `desmos.audit_records`. Arquitectura y puntos delicados: `..
 - El eco se detecta comparando el hash del aviso de Scorpio con el último `RETRIEVED`/`DELETED` del `id`. Lo que se
   escribe en Scorpio sin `RETRIEVED` previo se toma por cambio local y se publica como `PRODUCER`.
 - `calculateSHA256` ordena las claves del JSON: el orden no rompe los ecos.
-- La verificación de consistencia busca por `0x…` y la tabla guarda la URN: hoy no encuentra nada y se salta
-  (DESMOS.md §9.3).
+- La verificación de consistencia busca por `0x…` y la tabla guarda la URN: hoy no encuentra nada y se salta.
 
 ## Logs
 
