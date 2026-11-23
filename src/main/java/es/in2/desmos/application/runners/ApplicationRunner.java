@@ -3,6 +3,7 @@ package es.in2.desmos.application.runners;
 import es.in2.desmos.application.workflows.DataSyncWorkflow;
 import es.in2.desmos.application.workflows.PublishWorkflow;
 import es.in2.desmos.application.workflows.SubscribeWorkflow;
+import es.in2.desmos.application.workflows.jobs.ImplicitRetrievedBackfillJob;
 import es.in2.desmos.domain.exceptions.P2PDataSyncException;
 import es.in2.desmos.domain.exceptions.RequestErrorException;
 import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
@@ -79,6 +80,7 @@ public class ApplicationRunner {
     private final LearCredentialMachineConfig learCredentialMachineConfig;
     private final QueueService pendingPublishEventsQueue;
     private final QueueService pendingSubscribeEventsQueue;
+    private final ImplicitRetrievedBackfillJob implicitRetrievedBackfillJob;
     private final AtomicBoolean isQueueAuthorizedForEmit = new AtomicBoolean(false);
     private final String getCurrentEnvironment;
     private Disposable publishQueueDisposable;
@@ -127,7 +129,18 @@ public class ApplicationRunner {
                             }
                             return Flux.empty();
                         }))
-                .then();
+                .then(Mono.defer(() -> runImplicitRetrievedBackfill(processId)));
+    }
+
+    // After the READY line (logged when the initial sync terminates), with the queues already running: the backfill
+    // only records content the node already saw, so it cannot hide a local edit notified meanwhile. Its failure is
+    // logged and does not stop the node.
+    private Mono<Void> runImplicitRetrievedBackfill(String processId) {
+        return implicitRetrievedBackfillJob.runIfEnabled(processId)
+                .onErrorResume(error -> {
+                    log.error("{} ProcessID: {} - Implicit RETRIEVED backfill failed: {}", INIT, processId, error.getMessage(), error);
+                    return Mono.empty();
+                });
     }
 
     // Spring's @Retryable never applied here: these methods are private and called from this class, so no

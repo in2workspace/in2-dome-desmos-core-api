@@ -167,3 +167,9 @@ audit:
   batch-size: ${AUDIT_BATCH_SIZE:500}
   # Maximum wait for the audit chain lock held by another transaction (sync chunks and notifications alike).
   lock-timeout: ${AUDIT_LOCK_TIMEOUT:30s}
+
+# One-off backfill, at startup after the initial synchronization: an implicit RETRIEVED/CONSUMER record for each
+# subentity written to the broker before 2.0.28 whose current content this node already saw. Enable it, restart, check
+# the [backfill] END line and disable it again.
+backfill:
+  implicit-retrieved: ${BACKFILL_IMPLICIT_RETRIEVED:false}
