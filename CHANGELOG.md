@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Released]: v2.0.29
+- Add a one-off backfill for the subentities written to the broker before 2.0.28, enabled with BACKFILL_IMPLICIT_RETRIEVED=true (false by default): after the initial synchronization it reads every entity with a PUBLISHED/CONSUMER record and its subentities, and records an implicit RETRIEVED/CONSUMER for each subentity of a root type whose current content already appears in its audit records. A later broker notification with that content is then recognised as self-generated instead of being re-notarized as PRODUCER. Subentities with unknown content (maybe a local edit not processed yet) are skipped. It never writes to the broker, writes nothing on a second run and ends with a `[backfill] END` line with roots, subentities, skipped, up to date, inserted and failed counters; disable it again once run
+
 ## [Released]: v2.0.28
 - Fix the subentities written to the broker with a blockchain event or a P2P synchronization being re-notarized as PRODUCER: the broker notification of that write was taken as a local change, published to the DLT and the next synchronization announced the subentity as an entity of this node. Each subentity now gets a RETRIEVED/CONSUMER audit record with the hash of the written body before the write, so its notification is recognised as self-generated
 - Stop auditing as PUBLISHED/PRODUCER, in the P2P discovery of the local entities, an entity that has no PUBLISHED record but was retrieved from another node: it is announced with its broker hash and gets no new audit record
