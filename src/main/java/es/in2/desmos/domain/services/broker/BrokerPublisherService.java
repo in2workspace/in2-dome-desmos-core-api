@@ -22,6 +22,12 @@ public interface BrokerPublisherService {
 
     Flux<Entity> findEntitiesAndItsSubentitiesByIdInBase64(String processId, Mono<List<Id>> idsMono);
 
+    /**
+     * Reads the requested entities and, recursively, the entities they reference with a Relationship, each one once,
+     * with a bounded number of reads in flight. Requested entities missing from the broker are left out.
+     */
+    Flux<String> findEntitiesAndItsSubentitiesById(String processId, Mono<List<Id>> idsMono);
+
     Mono<String> getEntityById(String processId, String entityId);
 
     Mono<Void> postEntity(String processId, String requestBody);
