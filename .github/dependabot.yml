@@ -1,0 +1,40 @@
+version: 2
+updates:
+  # Gradle dependencies and plugins (build.gradle)
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      gradle-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # Major upgrades (e.g. Spring Boot 4) are done manually
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Docker base images (Dockerfile)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    ignore:
+      # Avoid JDK / Gradle major jumps in base images
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions used in .github/workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
