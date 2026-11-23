@@ -17,8 +17,10 @@ public interface AuditRecordService {
      * Records as RETRIEVED/CONSUMER the entities about to be written to the local broker without an audit trail of
      * their own, so the broker notification of that write is recognised as self-generated. Must complete before the
      * write. Skips the entities whose last RETRIEVED or DELETED record already has the hash of the body.
+     *
+     * @return the number of records written: the entities given minus the ones skipped
      */
-    Mono<Void> saveImplicitConsumerRetrieved(String processId, List<ImplicitRetrievedEntity> entities);
+    Mono<Integer> saveImplicitConsumerRetrieved(String processId, List<ImplicitRetrievedEntity> entities);
 
     Mono<Void> buildAndSaveAuditRecordsFromDataSync(String processId, List<MVAuditServiceEntity4DataNegotiation> entities, AuditRecordStatus status);
 

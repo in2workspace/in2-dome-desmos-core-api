@@ -95,6 +95,7 @@ class AuditRecordServiceIT {
 
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved(processId, entities)
                         .then(auditRecordService.saveImplicitConsumerRetrieved(processId, entities)))
+                .expectNext(0)
                 .verifyComplete();
 
         StepVerifier.create(auditRecordRepository.findByEntityId(entityId)
@@ -119,6 +120,7 @@ class AuditRecordServiceIT {
         String body = seedInBroker(entityId);
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved(processId,
                         List.of(new ImplicitRetrievedEntity(entityId, "other", body))))
+                .expectNext(1)
                 .verifyComplete();
         long rowsBefore = countRows(entityId);
         String brokerHash = sha256(body);
@@ -148,6 +150,7 @@ class AuditRecordServiceIT {
                 .verifyComplete();
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved(processId,
                         List.of(new ImplicitRetrievedEntity(entityId, "other", body))))
+                .expectNext(1)
                 .verifyComplete();
         long rowsBefore = countRows(entityId);
 

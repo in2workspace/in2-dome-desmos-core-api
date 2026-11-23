@@ -619,6 +619,7 @@ class AuditRecordServiceTests {
 
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
                         List.of(new ImplicitRetrievedEntity("urn:e:1", "product-offering-price", body))))
+                .expectNext(1)
                 .verifyComplete();
 
         verify(auditChainWriter).append(eq("processId"), draftsCaptor.capture(), eq("implicit subentity"));
@@ -641,6 +642,7 @@ class AuditRecordServiceTests {
 
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
                         List.of(new ImplicitRetrievedEntity("urn:e:1", "type", body))))
+                .expectNext(0)
                 .verifyComplete();
 
         verifyNoInteractions(auditChainWriter);
@@ -654,6 +656,7 @@ class AuditRecordServiceTests {
 
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
                         List.of(new ImplicitRetrievedEntity("urn:e:1", "type", "{\"id\":\"urn:e:1\"}"))))
+                .expectNext(1)
                 .verifyComplete();
 
         verify(auditChainWriter).append(eq("processId"), draftsCaptor.capture(), eq("implicit subentity"));
@@ -675,6 +678,7 @@ class AuditRecordServiceTests {
                         new ImplicitRetrievedEntity("urn:e:1", "type", unchangedBody),
                         new ImplicitRetrievedEntity("urn:e:2", "type", changedBody),
                         new ImplicitRetrievedEntity("urn:e:3", "type", newBody))))
+                .expectNext(2)
                 .verifyComplete();
 
         verify(auditChainWriter, times(1)).append(eq("processId"), draftsCaptor.capture(), eq("implicit subentity"));
@@ -700,6 +704,7 @@ class AuditRecordServiceTests {
     @Test
     void itShouldDoNothingForAnEmptyListOfImplicitRetrievedEntities() {
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId", List.of()))
+                .expectNext(0)
                 .verifyComplete();
 
         verifyNoInteractions(auditChainWriter, auditRecordRepository);

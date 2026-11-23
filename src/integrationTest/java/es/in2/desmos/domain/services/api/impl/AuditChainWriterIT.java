@@ -495,7 +495,7 @@ class AuditChainWriterIT {
                     i % 2 == 0 ? AuditRecordStatus.RECEIVED : AuditRecordStatus.RETRIEVED);
             default -> service.saveImplicitConsumerRetrieved(PROCESS_ID, java.util.List.of(
                     new es.in2.desmos.domain.models.ImplicitRetrievedEntity("urn:sub:" + i,
-                            "product-offering-price", "{\"id\":\"urn:sub:" + i + "\"}")));
+                            "product-offering-price", "{\"id\":\"urn:sub:" + i + "\"}"))).then();
         };
     }
 

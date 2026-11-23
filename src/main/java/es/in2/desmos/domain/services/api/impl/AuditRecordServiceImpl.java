@@ -135,10 +135,10 @@ public class AuditRecordServiceImpl implements AuditRecordService {
      * atomic: two concurrent calls may both write the same hash, which is harmless.
      */
     @Override
-    public Mono<Void> saveImplicitConsumerRetrieved(String processId, List<ImplicitRetrievedEntity> entities) {
+    public Mono<Integer> saveImplicitConsumerRetrieved(String processId, List<ImplicitRetrievedEntity> entities) {
         return Mono.defer(() -> {
             if (entities.isEmpty()) {
-                return Mono.empty();
+                return Mono.just(0);
             }
             List<AuditRecord> candidates = entities.stream()
                     .map(entity -> implicitRetrievedDraft(processId, entity, calculateHash(entity.body())))
@@ -151,9 +151,10 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                 .filter(draft -> !draft.getEntityHash().equals(lastHashById.get(draft.getEntityId())))
                                 .toList();
                         if (drafts.isEmpty()) {
-                            return Mono.empty();
+                            return Mono.just(0);
                         }
-                        return auditChainWriter.append(processId, drafts, "implicit subentity");
+                        return auditChainWriter.append(processId, drafts, "implicit subentity")
+                                .thenReturn(drafts.size());
                     });
         });
     }

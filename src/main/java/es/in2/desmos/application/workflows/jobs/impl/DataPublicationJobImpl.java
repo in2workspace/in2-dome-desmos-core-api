@@ -70,7 +70,7 @@ public class DataPublicationJobImpl implements DataPublicationJob {
                     if (subentities.isEmpty()) {
                         return Mono.empty();
                     }
-                    return auditRecordService.saveImplicitConsumerRetrieved(processId, subentities);
+                    return auditRecordService.saveImplicitConsumerRetrieved(processId, subentities).then();
                 });
     }
 
