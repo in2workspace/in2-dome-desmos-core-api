@@ -130,7 +130,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     /**
      * Appends one RETRIEVED/CONSUMER audit record per entity whose body hash differs from the one of its last RETRIEVED
-     * or DELETED record (or that has none), in one write. The echo check of a broker notification compares against
+     * record (or that has none), in one write. The echo check of a broker notification compares against
      * that record, so an entity already recorded with the same hash needs no new one. The read and the write are not
      * atomic: two concurrent calls may both write the same hash, which is harmless.
      */
@@ -144,7 +144,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     .map(entity -> implicitRetrievedDraft(processId, entity, calculateHash(entity.body())))
                     .toList();
             String[] entityIds = candidates.stream().map(AuditRecord::getEntityId).distinct().toArray(String[]::new);
-            return auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(entityIds)
+            return auditRecordRepository.findMostRecentRetrievedByEntityIds(entityIds)
                     .collectMap(AuditRecord::getEntityId, AuditRecord::getEntityHash)
                     .flatMap(lastHashById -> {
                         List<AuditRecord> drafts = candidates.stream()
@@ -210,16 +210,16 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     /**
-     * Retrieves the most recent audit record for the specified entity that is either published or deleted.
+     * Retrieves the most recent retrieved audit record for the specified entity.
      *
      * @param processId The unique identifier of the process requesting the audit record.
      * @param entityId  The unique identifier of the entity for which to find the audit record.
-     * @return A Mono emitting the latest published or deleted audit record for the given entity, if available.
+     * @return A Mono emitting the latest retrieved audit record for the given entity, if available.
      */
     @Override
-    public Mono<AuditRecord> findMostRecentRetrievedOrDeletedByEntityId(String processId, String entityId) {
+    public Mono<AuditRecord> findMostRecentRetrievedByEntityId(String processId, String entityId) {
         log.debug("ProcessID: {} - Fetching latest audit record for entity ID: {}", processId, entityId);
-        return auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityId(entityId);
+        return auditRecordRepository.findMostRecentRetrievedByEntityId(entityId);
     }
 
     @Override
@@ -270,7 +270,7 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     return Mono.zip(
                                     auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(entityIdsArray)
                                             .collectMap(AuditRecord::getEntityId),
-                                    auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(entityIdsArray)
+                                    auditRecordRepository.findMostRecentRetrievedByEntityIds(entityIdsArray)
                                             .filter(auditRecord -> auditRecord.getTrader() == AuditRecordTrader.CONSUMER)
                                             .map(AuditRecord::getEntityId)
                                             .collect(Collectors.toSet()))

@@ -316,9 +316,9 @@ class AuditRecordServiceTests {
         String entityId = "entityId";
         AuditRecord auditRecord = new AuditRecord();
         auditRecord.setEntityHash("entityHash");
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityId(entityId)).thenReturn(Mono.just(auditRecord));
+        when(auditRecordRepository.findMostRecentRetrievedByEntityId(entityId)).thenReturn(Mono.just(auditRecord));
         // Act
-        AuditRecord actualAuditRecord = auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(processId, entityId).block();
+        AuditRecord actualAuditRecord = auditRecordService.findMostRecentRetrievedByEntityId(processId, entityId).block();
         // Assert
         assertEquals(auditRecord, actualAuditRecord);
     }
@@ -332,7 +332,7 @@ class AuditRecordServiceTests {
                 .thenReturn(productOffering3Mono)
                 .thenReturn(productOffering4Mono);
 
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any()))
                 .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
@@ -365,7 +365,7 @@ class AuditRecordServiceTests {
                 .thenReturn(productOffering3Mono)
                 .thenReturn(productOffering4Mono);
 
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any()))
                 .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
@@ -402,7 +402,7 @@ class AuditRecordServiceTests {
                 .thenReturn(productOffering3Mono)
                 .thenReturn(productOffering4Mono);
 
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any()))
                 .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
@@ -449,7 +449,7 @@ class AuditRecordServiceTests {
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_4));
 
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any()))
                 .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
@@ -500,7 +500,7 @@ class AuditRecordServiceTests {
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_4));
 
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any()))
                 .thenReturn(Flux.empty());
 
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
@@ -555,7 +555,7 @@ class AuditRecordServiceTests {
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_3))
                 .thenReturn(Mono.just(EntityMother.PRODUCT_OFFERING_4));
         // Entity 3 has no PUBLISHED record, only the implicit RETRIEVED of a subentity written from another node
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any()))
                 .thenReturn(Flux.just(retrievedRecord(expectedAuditEntities.get(0).id(), "hashOfTheRetrievedBody")));
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(Flux.just(AuditRecordMother.list3And4().get(1)));
@@ -585,7 +585,7 @@ class AuditRecordServiceTests {
         AuditRecord producerRecord = retrievedRecord(expectedAuditEntities.get(0).id(), "someHash").toBuilder()
                 .trader(AuditRecordTrader.PRODUCER)
                 .build();
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any()))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any()))
                 .thenReturn(Flux.just(producerRecord));
         when(auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(any()))
                 .thenReturn(Flux.just(AuditRecordMother.list3And4().get(1)));
@@ -614,7 +614,7 @@ class AuditRecordServiceTests {
     @Test
     void itShouldAppendAnImplicitRetrievedDraftForASubentityWithoutRecords() throws Exception {
         String body = "{\"id\":\"urn:e:1\",\"type\":\"product-offering-price\"}";
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1"})).thenReturn(Flux.empty());
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(new String[]{"urn:e:1"})).thenReturn(Flux.empty());
         when(auditChainWriter.append(eq("processId"), any(), eq("implicit subentity"))).thenReturn(Mono.empty());
 
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
@@ -637,7 +637,7 @@ class AuditRecordServiceTests {
     @Test
     void itShouldNotAppendAnImplicitRetrievedDraftWhenTheLastRecordHasTheSameHash() throws Exception {
         String body = "{\"id\":\"urn:e:1\"}";
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1"}))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(new String[]{"urn:e:1"}))
                 .thenReturn(Flux.just(retrievedRecord("urn:e:1", ApplicationUtils.calculateSHA256(body))));
 
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",
@@ -650,7 +650,7 @@ class AuditRecordServiceTests {
 
     @Test
     void itShouldAppendAnImplicitRetrievedDraftWhenTheLastRecordHasAnotherHash() {
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1"}))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(new String[]{"urn:e:1"}))
                 .thenReturn(Flux.just(retrievedRecord("urn:e:1", "anotherHash")));
         when(auditChainWriter.append(eq("processId"), any(), eq("implicit subentity"))).thenReturn(Mono.empty());
 
@@ -668,7 +668,7 @@ class AuditRecordServiceTests {
         String unchangedBody = "{\"id\":\"urn:e:1\"}";
         String changedBody = "{\"id\":\"urn:e:2\",\"v\":2}";
         String newBody = "{\"id\":\"urn:e:3\"}";
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(new String[]{"urn:e:1", "urn:e:2", "urn:e:3"}))
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(new String[]{"urn:e:1", "urn:e:2", "urn:e:3"}))
                 .thenReturn(Flux.just(
                         retrievedRecord("urn:e:1", ApplicationUtils.calculateSHA256(unchangedBody)),
                         retrievedRecord("urn:e:2", "previousHash")));
@@ -692,7 +692,7 @@ class AuditRecordServiceTests {
     @Test
     void itShouldPropagateTheWriterErrorFromAnImplicitRetrieved() {
         RuntimeException error = new RuntimeException("lock timeout");
-        when(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityIds(any())).thenReturn(Flux.empty());
+        when(auditRecordRepository.findMostRecentRetrievedByEntityIds(any())).thenReturn(Flux.empty());
         when(auditChainWriter.append(any(), any(), any())).thenReturn(Mono.error(error));
 
         StepVerifier.create(auditRecordService.saveImplicitConsumerRetrieved("processId",

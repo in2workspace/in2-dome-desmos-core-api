@@ -21,7 +21,7 @@ cadena de audits en `desmos.audit_records`. Flujos y sus pasos: `docs/APPLICATIO
 ## Audits y ecos (resumen)
 
 - Toda escritura de audits pasa por `AuditChainWriter.append`, que calcula `hash`/`hashLink` y serializa la cadena.
-- El eco se detecta comparando el hash del aviso de Scorpio con el último `RETRIEVED`/`DELETED` del `id`. Lo que se
+- El eco se detecta comparando el hash del aviso de Scorpio con el último `RETRIEVED` del `id`. Lo que se
   escribe en Scorpio sin `RETRIEVED` previo se toma por cambio local y se publica como `PRODUCER`.
 - `calculateSHA256` ordena las claves del JSON: el orden no rompe los ecos.
 - La verificación de consistencia busca por `0x…` y la tabla guarda la URN: hoy no encuentra nada y se salta.

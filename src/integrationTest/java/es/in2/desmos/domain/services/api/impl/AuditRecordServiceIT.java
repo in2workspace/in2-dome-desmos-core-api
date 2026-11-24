@@ -182,7 +182,7 @@ class AuditRecordServiceIT {
     private void assertAuditRecordEntityIsExpected(String entityId, MVEntity4DataNegotiation expectedMVEntity4DataNegotiation) {
         await().atMost(10, TimeUnit.SECONDS).ignoreExceptions().until(() -> {
             String processId = "0";
-            Mono<AuditRecord> auditRecordMono = auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(processId, entityId);
+            Mono<AuditRecord> auditRecordMono = auditRecordService.findMostRecentRetrievedByEntityId(processId, entityId);
 
             StepVerifier
                     .create(auditRecordMono)

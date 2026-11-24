@@ -32,7 +32,7 @@ import static org.awaitility.Awaitility.await;
  * {@code BrokerListenerServiceImpl.isBrokerNotificationSelfGenerated} is what's supposed to stop
  * node B from re-notarizing (as trader PRODUCER) an entity it only ever consumed, by comparing
  * the incoming notification's hash against the {@code entityHash} of the most recent
- * RETRIEVED/DELETED audit record for that entity.
+ * RETRIEVED audit record for that entity.
  * <p>
  * Those two hashes come from different serializations of the same entity (Scorpio's own
  * self-notification payload vs. the body node B originally fetched from node A) -- exactly the

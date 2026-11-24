@@ -184,42 +184,15 @@ class AuditRecordRepositoryIT {
 
     @Order(4)
     @Test
-    void shouldFindMostRecentRetrievedOrDeletedByEntityId() {
+    void shouldFindMostRecentRetrievedByEntityId() {
         auditRecord.setStatus(AuditRecordStatus.RETRIEVED);
         auditRecord.setNewTransaction(false);
         auditRecordRepository.save(auditRecord).block();
         AuditRecord auditRecordMono = auditRecordRepository
-                .findMostRecentRetrievedOrDeletedByEntityId("urn:ngsi-ld:ProductOffering:6e00d349-4c49-4bbe-83a9-65115f144908")
+                .findMostRecentRetrievedByEntityId("urn:ngsi-ld:ProductOffering:6e00d349-4c49-4bbe-83a9-65115f144908")
                 .block();
         assert auditRecordMono != null;
         assertEquals(auditRecord.getProcessId(), auditRecordMono.getProcessId());
-    }
-
-    @Order(5)
-    @Test
-    void shouldFindLatestDeletedTransactionByEntityId() {
-        auditRecord.setStatus(AuditRecordStatus.DELETED);
-        auditRecord.setNewTransaction(false);
-        auditRecordRepository.save(auditRecord).block();
-        AuditRecord auditRecordMono = auditRecordRepository
-                .findMostRecentRetrievedOrDeletedByEntityId("urn:ngsi-ld:ProductOffering:6e00d349-4c49-4bbe-83a9-65115f144908")
-                .block();
-        assert auditRecordMono != null;
-        assertEquals(auditRecord.getProcessId(), auditRecordMono.getProcessId());
-        // In the database, we have a transaction which status is DELETED and PUBLISHED, the last one is DELETED (@Order(5))
-        assertEquals(AuditRecordStatus.DELETED, auditRecordMono.getStatus());
-    }
-
-    @Order(6)
-    @Test
-    void shouldVerifyLatestTransactionIsNotPublished() {
-        AuditRecord auditRecordMono = auditRecordRepository
-                .findMostRecentRetrievedOrDeletedByEntityId("urn:ngsi-ld:ProductOffering:6e00d349-4c49-4bbe-83a9-65115f144908")
-                .block();
-        assert auditRecordMono != null;
-        // In the database, we have a transaction which status is DELETED and PUBLISHED, the last one is DELETED (@Order(5))
-        assertNotEquals(AuditRecordStatus.PUBLISHED, auditRecordMono.getStatus());
-        assertEquals(AuditRecordStatus.DELETED, auditRecordMono.getStatus());
     }
 
     @Order(7)
@@ -237,7 +210,7 @@ class AuditRecordRepositoryIT {
         var entityId = "1234";
         saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.PUBLISHED);
 
-        saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.DELETED);
+        saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.RETRIEVED);
 
         var publishedTimestamp = saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.PUBLISHED);
         AuditRecord expectedAuditRecord = AuditRecord
@@ -277,7 +250,7 @@ class AuditRecordRepositoryIT {
             saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.PUBLISHED);
             saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.PUBLISHED);
             timestampsByEntityId.put(entityId, saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.PUBLISHED));
-            saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.DELETED);
+            saveAuditRecordWithEntityIdStatusAndCurrentTimestamp(entityId, AuditRecordStatus.RETRIEVED);
         }
 
         List<AuditRecord> expectedAuditRecords = new ArrayList<>();
@@ -303,20 +276,20 @@ class AuditRecordRepositoryIT {
                 .containsExactlyInAnyOrderElementsOf(expectedAuditRecords);
     }
 
-    // Regression: AND binds tighter than OR, so "entity_id = :id AND status = 'RETRIEVED' OR status = 'DELETED'"
-    // matched every DELETED row of any entity and returned it when it was newer than the RETRIEVED of :id.
+    // The record of :id only, never a newer one of another entity. A former "AND ... OR" filter without parentheses
+    // returned the newer row of any entity; the property still has to hold with the RETRIEVED-only filter.
     @Order(10)
     @Test
-    void itShouldNotReturnDeletedAuditRecordOfAnotherEntityWhenFindingMostRecentRetrievedOrDeleted() {
+    void itShouldNotReturnTheRetrievedAuditRecordOfAnotherEntity() {
         var entityIdA = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
         var entityIdB = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
         long now = System.currentTimeMillis();
 
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdA, AuditRecordStatus.RETRIEVED, new Timestamp(now));
-        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdB, AuditRecordStatus.DELETED, new Timestamp(now + 1000));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdB, AuditRecordStatus.RETRIEVED, new Timestamp(now + 1000));
 
         StepVerifier
-                .create(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityId(entityIdA))
+                .create(auditRecordRepository.findMostRecentRetrievedByEntityId(entityIdA))
                 .assertNext(receivedAuditRecord -> {
                     assertEquals(entityIdA, receivedAuditRecord.getEntityId());
                     assertEquals(AuditRecordStatus.RETRIEVED, receivedAuditRecord.getStatus());
@@ -326,22 +299,22 @@ class AuditRecordRepositoryIT {
 
     @Order(11)
     @Test
-    void itShouldReturnEmptyWhenOnlyAnotherEntityHasDeletedAuditRecord() {
+    void itShouldReturnEmptyWhenOnlyAnotherEntityHasARetrievedAuditRecord() {
         var entityIdC = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
         var entityIdD = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
         long now = System.currentTimeMillis();
 
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdC, AuditRecordStatus.PUBLISHED, new Timestamp(now));
-        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdD, AuditRecordStatus.DELETED, new Timestamp(now + 1000));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdD, AuditRecordStatus.RETRIEVED, new Timestamp(now + 1000));
 
         StepVerifier
-                .create(auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityId(entityIdC))
+                .create(auditRecordRepository.findMostRecentRetrievedByEntityId(entityIdC))
                 .verifyComplete();
     }
 
     @Order(12)
     @Test
-    void itShouldReturnTheMostRecentRetrievedOrDeletedAuditRecordOfEachEntity() {
+    void itShouldReturnTheMostRecentRetrievedAuditRecordOfEachEntity() {
         var entityIdE = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
         var entityIdF = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
         var entityIdG = "urn:ngsi-ld:ProductOffering:" + UUID.randomUUID();
@@ -352,17 +325,17 @@ class AuditRecordRepositoryIT {
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdE, AuditRecordStatus.RETRIEVED, new Timestamp(now));
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdE, AuditRecordStatus.RETRIEVED, new Timestamp(now + 1000));
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdE, AuditRecordStatus.PUBLISHED, new Timestamp(now + 2000));
-        // F: a RETRIEVED, then a newer DELETED
+        // F: a RETRIEVED, then a newer RECEIVED that must be ignored
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdF, AuditRecordStatus.RETRIEVED, new Timestamp(now));
-        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdF, AuditRecordStatus.DELETED, new Timestamp(now + 3000));
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdF, AuditRecordStatus.RECEIVED, new Timestamp(now + 3000));
         // G: only PUBLISHED and RECEIVED, so it is left out
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdG, AuditRecordStatus.RECEIVED, new Timestamp(now));
         saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdG, AuditRecordStatus.PUBLISHED, new Timestamp(now + 1000));
-        // H is not requested: its newer DELETED must not show up as the record of another entity
-        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdH, AuditRecordStatus.DELETED, new Timestamp(now + 5000));
+        // H is not requested: its newer RETRIEVED must not show up as the record of another entity
+        saveAuditRecordWithEntityIdStatusAndTimestamp(entityIdH, AuditRecordStatus.RETRIEVED, new Timestamp(now + 5000));
 
         List<AuditRecord> received = auditRecordRepository
-                .findMostRecentRetrievedOrDeletedByEntityIds(new String[]{entityIdE, entityIdF, entityIdG})
+                .findMostRecentRetrievedByEntityIds(new String[]{entityIdE, entityIdF, entityIdG})
                 .collectList()
                 .block();
 
@@ -371,8 +344,8 @@ class AuditRecordRepositoryIT {
                 .containsExactlyInAnyOrder(
                         AuditRecord.builder().entityId(entityIdE).status(AuditRecordStatus.RETRIEVED)
                                 .createdAt(new Timestamp(now + 1000)).build(),
-                        AuditRecord.builder().entityId(entityIdF).status(AuditRecordStatus.DELETED)
-                                .createdAt(new Timestamp(now + 3000)).build());
+                        AuditRecord.builder().entityId(entityIdF).status(AuditRecordStatus.RETRIEVED)
+                                .createdAt(new Timestamp(now)).build());
     }
 
     @Order(13)
