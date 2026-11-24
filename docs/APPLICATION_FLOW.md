@@ -560,8 +560,10 @@ The application uses an in-memory priority queue system for event processing:
 
 - `enqueueEvent(EventQueue)`: Add event to queue
 - `getEventStream()`: Get reactive stream of events
-- `pause()`: Pause queue processing
-- `resume()`: Resume queue processing
+- `pendingEvents()`: Number of events waiting to be consumed (logging only)
+
+The queues are not paused during a P2P synchronization. Until the startup synchronization ends, the workflows do not
+consume them (`ApplicationRunner`).
 
 ---
 
