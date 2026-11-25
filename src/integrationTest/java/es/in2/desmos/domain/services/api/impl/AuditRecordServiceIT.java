@@ -114,7 +114,7 @@ class AuditRecordServiceIT {
     // The 2:00 guard (P2P discovery of the local entities). The entities are of a type outside ROOT_OBJECTS_LIST so the
     // startup synchronization of this context, which lists the local entities of those types, never touches them.
     @Test
-    void itShouldAnnounceAnEntityWithOnlyAConsumerRetrievedRecordWithoutWritingAnyRecord() throws Exception {
+    void itShouldAnnounceAnEntityWithOnlyAConsumerRetrievedRecordWithoutWritingAnyRecord() {
         String processId = "0";
         String entityId = "urn:ngsi-ld:other:" + UUID.randomUUID();
         String body = seedInBroker(entityId);

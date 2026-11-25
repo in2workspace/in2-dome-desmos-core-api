@@ -190,7 +190,7 @@ class SubscribeWorkflowTests {
     }
 
     @Test
-    void itShouldNotWriteTheSubentityWhenItsImplicitRetrievedFails() throws JsonProcessingException {
+    void itShouldNotWriteTheSubentityWhenItsImplicitRetrievedFails() {
         String retrievedBrokerEntity = BrokerDataMother.NOT_ROOT_OBJECT;
         BlockchainNotification blockchainNotification = BlockchainNotificationMother.Empty();
         EventQueue eventQueueMock = mock(EventQueue.class);

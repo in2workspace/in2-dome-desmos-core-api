@@ -68,7 +68,7 @@ class ImplicitRetrievedBackfillJobTest {
     }
 
     @Test
-    void itShouldRecordTheSubentitiesOfARootTypeWhoseContentIsKnown() throws Exception {
+    void itShouldRecordTheSubentitiesOfARootTypeWhoseContentIsKnown() {
         String child = entity("urn:ngsi-ld:product-offering-price:1", "product-offering-price");
         String otherRoot = entity("urn:ngsi-ld:category:2", "category");
         String outsideRootTypes = entity("urn:ngsi-ld:other:3", "other");
@@ -92,7 +92,7 @@ class ImplicitRetrievedBackfillJobTest {
     }
 
     @Test
-    void itShouldSkipASubentityWhoseContentIsUnknown() throws Exception {
+    void itShouldSkipASubentityWhoseContentIsUnknown() {
         String child = entity("urn:ngsi-ld:product-offering-price:1", "product-offering-price");
         when(auditRecordRepository.findEntityIdsWithConsumerPublished()).thenReturn(Flux.just(ROOT));
         when(brokerPublisherService.findEntitiesAndItsSubentitiesById(eq(PROCESS_ID), any())).thenReturn(Flux.just(child));
@@ -113,7 +113,7 @@ class ImplicitRetrievedBackfillJobTest {
     }
 
     @Test
-    void itShouldCountAsUpToDateTheSubentitiesNotWritten() throws Exception {
+    void itShouldCountAsUpToDateTheSubentitiesNotWritten() {
         String first = entity("urn:ngsi-ld:product-offering-price:1", "product-offering-price");
         String second = entity("urn:ngsi-ld:product-offering-price:2", "product-offering-price");
         when(auditRecordRepository.findEntityIdsWithConsumerPublished()).thenReturn(Flux.just(ROOT));
@@ -183,7 +183,7 @@ class ImplicitRetrievedBackfillJobTest {
     }
 
     @Test
-    void aFailedReadOfTheAuditRecordsShouldCountTheChunkAsFailed() throws Exception {
+    void aFailedReadOfTheAuditRecordsShouldCountTheChunkAsFailed() {
         String child = entity("urn:ngsi-ld:product-offering-price:1", "product-offering-price");
         when(auditRecordRepository.findEntityIdsWithConsumerPublished()).thenReturn(Flux.just(ROOT));
         when(brokerPublisherService.findEntitiesAndItsSubentitiesById(eq(PROCESS_ID), any())).thenReturn(Flux.just(child));
@@ -214,7 +214,7 @@ class ImplicitRetrievedBackfillJobTest {
         verifyNoInteractions(auditRecordService);
     }
 
-    private void stubKnownChildren(List<String> children) throws Exception {
+    private void stubKnownChildren(List<String> children) {
         when(auditRecordRepository.findEntityIdsWithConsumerPublished()).thenReturn(Flux.just(ROOT));
         when(brokerPublisherService.findEntitiesAndItsSubentitiesById(eq(PROCESS_ID), any())).thenReturn(Flux.fromIterable(children));
         List<AuditRecord> known = children.stream()
@@ -222,7 +222,7 @@ class ImplicitRetrievedBackfillJobTest {
                 .toList();
         when(auditRecordRepository.findKnownEntityHashesByEntityIds(any())).thenAnswer(invocation -> {
             List<String> ids = Arrays.asList(invocation.<String[]>getArgument(0));
-            return Flux.fromIterable(known).filter(record -> ids.contains(record.getEntityId()));
+            return Flux.fromIterable(known).filter(auditRecord -> ids.contains(auditRecord.getEntityId()));
         });
     }
 

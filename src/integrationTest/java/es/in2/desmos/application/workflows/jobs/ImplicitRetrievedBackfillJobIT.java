@@ -84,10 +84,10 @@ class ImplicitRetrievedBackfillJobIT {
 
         assertThat(retrieved(knownChildId))
                 .singleElement()
-                .satisfies(record -> {
-                    assertThat(record.getTrader()).isEqualTo(AuditRecordTrader.CONSUMER);
-                    assertThat(record.getEntityHash()).isEqualTo(ApplicationUtils.calculateSHA256(knownChildBody));
-                    assertThat(record.getEntityType()).isEqualTo("product-offering-price");
+                .satisfies(auditRecord -> {
+                    assertThat(auditRecord.getTrader()).isEqualTo(AuditRecordTrader.CONSUMER);
+                    assertThat(auditRecord.getEntityHash()).isEqualTo(ApplicationUtils.calculateSHA256(knownChildBody));
+                    assertThat(auditRecord.getEntityType()).isEqualTo("product-offering-price");
                 });
         assertThat(retrieved(editedChildId)).as("unknown content: maybe a local edit").isEmpty();
         assertThat(retrieved(rootId)).as("a root is not a subentity").isEmpty();
@@ -107,7 +107,7 @@ class ImplicitRetrievedBackfillJobIT {
 
     private List<AuditRecord> retrieved(String entityId) {
         return auditRecordRepository.findByEntityId(entityId)
-                .filter(record -> record.getStatus() == AuditRecordStatus.RETRIEVED)
+                .filter(auditRecord -> auditRecord.getStatus() == AuditRecordStatus.RETRIEVED)
                 .collectList().block();
     }
 
