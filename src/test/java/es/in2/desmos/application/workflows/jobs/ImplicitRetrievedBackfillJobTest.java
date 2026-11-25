@@ -135,7 +135,7 @@ class ImplicitRetrievedBackfillJobTest {
     }
 
     @Test
-    void itShouldWriteInChunksOfTheBatchSize() throws Exception {
+    void itShouldWriteInChunksOfTheBatchSize() {
         List<String> children = List.of(
                 entity("urn:ngsi-ld:product-offering-price:1", "product-offering-price"),
                 entity("urn:ngsi-ld:product-offering-price:2", "product-offering-price"),
@@ -152,7 +152,7 @@ class ImplicitRetrievedBackfillJobTest {
     }
 
     @Test
-    void aFailedChunkShouldNotStopTheOthersAndShouldFailTheRunWithItsSummary() throws Exception {
+    void aFailedChunkShouldNotStopTheOthersAndShouldFailTheRunWithItsSummary() {
         List<String> children = List.of(
                 entity("urn:ngsi-ld:product-offering-price:1", "product-offering-price"),
                 entity("urn:ngsi-ld:product-offering-price:2", "product-offering-price"),
