@@ -4,19 +4,18 @@ import es.in2.desmos.domain.models.EventQueue;
 import es.in2.desmos.domain.services.api.QueueService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
 import reactor.core.Scannable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Priority queue of pending events, consumed by one workflow. Not a Spring component: the two queues in use are the
+ * beans of {@link es.in2.desmos.infrastructure.configs.QueueConfig}.
+ */
 @Slf4j
-@Service
 @RequiredArgsConstructor
 public class QueueServiceImpl implements QueueService {
 
@@ -28,16 +27,8 @@ public class QueueServiceImpl implements QueueService {
     private final Sinks.Many<EventQueue> sink = Sinks.many().unicast().onBackpressureBuffer();
     private final PriorityBlockingQueue<EventQueue> queue = new PriorityBlockingQueue<>();
 
-    private final AtomicBoolean paused = new AtomicBoolean(false);
-    private final Queue<EventQueue> buffer = new ConcurrentLinkedQueue<>();
-
     @Override
     public Mono<Void> enqueueEvent(EventQueue event) {
-        if (paused.get()) {
-            buffer.offer(event);
-            return Mono.empty();
-        }
-
         if (queue.offer(event)) {
             log.debug("Event added to queue - queue: {}", queue);
             emitNext();
@@ -64,32 +55,10 @@ public class QueueServiceImpl implements QueueService {
         return sink.asFlux();
     }
 
-    public void pause() {
-        paused.set(true);
-        log.debug("Queue paused.");
-    }
-
-    public void resume() {
-        paused.set(false);
-        log.debug("Queue resumed.");
-        // Procesar todos los eventos almacenados en buffer
-        processBufferedEvents();
-    }
-
     @Override
     public long pendingEvents() {
         Integer bufferedInSink = sink.scan(Scannable.Attr.BUFFERED);
-        return (long) queue.size() + buffer.size() + (bufferedInSink != null ? bufferedInSink : 0);
-    }
-
-    private synchronized void processBufferedEvents() {
-        EventQueue eventQueue;
-        while ((eventQueue = buffer.poll()) != null) {
-            if (queue.offer(eventQueue)) {
-                log.debug("Re-processing buffered event - queue: {}", eventQueue);
-                emitNext();
-            }
-        }
+        return (long) queue.size() + (bufferedInSink != null ? bufferedInSink : 0);
     }
 
 }

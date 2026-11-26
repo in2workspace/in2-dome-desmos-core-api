@@ -90,7 +90,7 @@ class BrokerListenerServiceTests {
                 .notifiedAt(Instant.now().toString())
                 .build();
         // Act
-        when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.empty());
+        when(auditRecordService.findMostRecentRetrievedByEntityId(anyString(), any())).thenReturn(Mono.empty());
         when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE_DECISION));
         when(auditRecordService.buildAndSaveAuditRecordFromBrokerNotification(anyString(), any(), any(), any())).thenReturn(Mono.empty());
         when(queueService.enqueueEvent(any())).thenReturn(Mono.empty());
@@ -114,7 +114,7 @@ class BrokerListenerServiceTests {
                 .notifiedAt(Instant.now().toString())
                 .build();
         // Act
-        when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
+        when(auditRecordService.findMostRecentRetrievedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
         when(objectMapper.writer()).thenReturn(objectWriter);
         when(objectWriter.writeValueAsString(any())).thenReturn("""
                 {
@@ -158,7 +158,7 @@ class BrokerListenerServiceTests {
                 .notifiedAt(Instant.now().toString())
                 .build();
         // Act
-        when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
+        when(auditRecordService.findMostRecentRetrievedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
         when(replicationPoliciesService.evaluate(anyString(), any())).thenReturn(Mono.just(ReplicationDecision.REPLICABLE_DECISION));
         when(objectMapper.writer()).thenReturn(objectWriter);
         when(objectWriter.writeValueAsString(any())).thenReturn("""
@@ -201,7 +201,7 @@ class BrokerListenerServiceTests {
                 .notifiedAt(Instant.now().toString())
                 .build();
 
-        when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
+        when(auditRecordService.findMostRecentRetrievedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
         when(objectMapper.writer()).thenReturn(objectWriter);
         when(objectWriter.writeValueAsString(any())).thenReturn("""
                 {
@@ -250,7 +250,7 @@ class BrokerListenerServiceTests {
                 .notifiedAt(Instant.now().toString())
                 .build();
         // Act
-        when(auditRecordService.findMostRecentRetrievedOrDeletedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
+        when(auditRecordService.findMostRecentRetrievedByEntityId(anyString(), any())).thenReturn(Mono.just(auditRecord));
         when(objectMapper.writer()).thenReturn(objectWriter);
         when(objectWriter.writeValueAsString(any())).thenReturn("""
                 {

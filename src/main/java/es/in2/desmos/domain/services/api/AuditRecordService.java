@@ -13,13 +13,18 @@ public interface AuditRecordService {
 
     Mono<Void> buildAndSaveAuditRecordFromBlockchainNotification(String processId, BlockchainNotification blockchainNotification, String retrievedBrokerEntity, AuditRecordStatus status);
 
-    Mono<Void> buildAndSaveAuditRecordForSubEntity(String processId, String entityId, String entityType,
-                                                   String retrievedBrokerEntity,
-                                                   AuditRecordStatus status);
+    /**
+     * Records as RETRIEVED/CONSUMER the entities about to be written to the local broker without an audit trail of
+     * their own, so the broker notification of that write is recognised as self-generated. Must complete before the
+     * write. Skips the entities whose last RETRIEVED record already has the hash of the body.
+     *
+     * @return the number of records written: the entities given minus the ones skipped
+     */
+    Mono<Integer> saveImplicitConsumerRetrieved(String processId, List<ImplicitRetrievedEntity> entities);
 
     Mono<Void> buildAndSaveAuditRecordsFromDataSync(String processId, List<MVAuditServiceEntity4DataNegotiation> entities, AuditRecordStatus status);
 
-    Mono<AuditRecord> findMostRecentRetrievedOrDeletedByEntityId(String processId, String entityId);
+    Mono<AuditRecord> findMostRecentRetrievedByEntityId(String processId, String entityId);
 
     Mono<AuditRecord> getLastPublishedAuditRecordForProducerByEntityId(String processId, String entityId);
 

@@ -8,7 +8,6 @@ import es.in2.desmos.domain.models.AuditRecord;
 import es.in2.desmos.domain.models.BlockchainNotification;
 import es.in2.desmos.domain.models.Entity;
 import es.in2.desmos.domain.services.api.AuditRecordService;
-import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.sync.services.DataSyncService;
 import es.in2.desmos.domain.utils.Base64Converter;
 import es.in2.desmos.infrastructure.configs.ApiConfig;
@@ -34,7 +33,6 @@ public class DataSyncServiceImpl implements DataSyncService {
     private final ApiConfig apiConfig;
     private final AuditRecordService auditRecordService;
     private final P2PDataSyncJob p2PDataSyncJob;
-    private final QueueService queueServiceImpl;
     private final M2MAccessTokenProvider m2MAccessTokenProvider;
 
     /*
@@ -50,14 +48,8 @@ public class DataSyncServiceImpl implements DataSyncService {
     public Mono<Void> synchronizeData(String processId) {
         log.debug("ProcessID: {} - Synchronizing data...", processId);
 
-        queueServiceImpl.pause();
-
         return p2PDataSyncJob.synchronizeData(processId)
-                .doOnTerminate(() -> {
-                    log.info("ProcessID: {} - DataSyncWorkflow completed. Restarting queues...", processId);
-
-                    queueServiceImpl.resume();
-                })
+                .doOnTerminate(() -> log.info("ProcessID: {} - DataSyncWorkflow completed.", processId))
                 .then();
     }
 

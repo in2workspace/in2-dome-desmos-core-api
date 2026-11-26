@@ -10,12 +10,8 @@ public interface QueueService {
 
     Flux<EventQueue> getEventStream();
 
-    void pause();
-
-    void resume();
-
     /**
-     * Number of events waiting to be consumed: queued, buffered while paused, or emitted but not yet
+     * Number of events waiting to be consumed: queued, or emitted but not yet
      * requested by the consumer. Only used for logging.
      */
     long pendingEvents();

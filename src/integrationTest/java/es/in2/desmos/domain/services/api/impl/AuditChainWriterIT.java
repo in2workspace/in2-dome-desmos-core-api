@@ -385,17 +385,15 @@ class AuditChainWriterIT {
     @Test
     void concurrentNotificationsLeaveALinearChain() {
         AuditRecordServiceImpl service = service(writer());
-        int subEntities = 20;
-        seedConsumerPublishedSubEntities(service, subEntities);
 
         StepVerifier.create(Flux.range(0, 200)
-                        .flatMap(i -> notification(service, i, subEntities).subscribeOn(Schedulers.parallel()))
+                        .flatMap(i -> notification(service, i).subscribeOn(Schedulers.parallel()))
                         .then())
                 .expectComplete()
                 .verify(Duration.ofSeconds(120));
 
         List<AuditRecord> rows = allRowsByCreatedAt();
-        assertThat(rows).hasSize(subEntities + 200);
+        assertThat(rows).hasSize(200);
         assertLinearChain(rows);
     }
 
@@ -426,19 +424,17 @@ class AuditChainWriterIT {
     void aSyncBatchAndNotificationsAtTheSameTimeLeaveALinearChain() {
         AuditChainWriter writer = writer();
         AuditRecordServiceImpl service = service(writer);
-        int subEntities = 20;
-        seedConsumerPublishedSubEntities(service, subEntities);
 
         StepVerifier.create(Flux.merge(
                                 writer.append(PROCESS_ID, drafts("sync", 2000), SOURCE).subscribeOn(Schedulers.parallel()),
                                 Flux.range(0, 200)
-                                        .flatMap(i -> notification(service, i, subEntities).subscribeOn(Schedulers.parallel())))
+                                        .flatMap(i -> notification(service, i).subscribeOn(Schedulers.parallel())))
                         .then())
                 .expectComplete()
                 .verify(Duration.ofSeconds(120));
 
         List<AuditRecord> rows = allRowsByCreatedAt();
-        assertThat(rows).hasSize(subEntities + 2000 + 200);
+        assertThat(rows).hasSize(2000 + 200);
         assertLinearChain(rows);
     }
 
@@ -485,16 +481,9 @@ class AuditChainWriterIT {
                 mock(ApiConfig.class), mock(EndpointsConfig.class), writer);
     }
 
-    // A PUBLISHED CONSUMER record per subentity, which the subentity audits chain on
-    private static void seedConsumerPublishedSubEntities(AuditRecordServiceImpl service, int subEntities) {
-        List<MVAuditServiceEntity4DataNegotiation> published = IntStream.range(0, subEntities)
-                .mapToObj(i -> new MVAuditServiceEntity4DataNegotiation("urn:sub:" + i, "product-offering-price", "h" + i, "hl" + i))
-                .toList();
-        service.buildAndSaveAuditRecordsFromDataSync(PROCESS_ID, published, AuditRecordStatus.PUBLISHED).block(Duration.ofSeconds(30));
-    }
-
-    // The i-th notification: a broker notification, a blockchain notification or a subentity of one, in turn
-    private static Mono<Void> notification(AuditRecordServiceImpl service, int i, int subEntities) {
+    // The i-th notification: a broker notification, a blockchain notification or a subentity of one, in turn. Every
+    // subentity body is different, so each implicit RETRIEVED is written
+    private static Mono<Void> notification(AuditRecordServiceImpl service, int i) {
         String dataLocation = "http://node-b/api/v1/entities/urn:dlt:" + i + "?hl=abc" + i;
         return switch (i % 3) {
             case 0 -> service.buildAndSaveAuditRecordFromBrokerNotification(PROCESS_ID,
@@ -504,8 +493,9 @@ class AuditChainWriterIT {
                             .eventType("product-offering").build(),
                     i % 2 == 0 ? null : "{\"id\":\"urn:dlt:" + i + "\"}",
                     i % 2 == 0 ? AuditRecordStatus.RECEIVED : AuditRecordStatus.RETRIEVED);
-            default -> service.buildAndSaveAuditRecordForSubEntity(PROCESS_ID, "urn:sub:" + (i % subEntities),
-                    "product-offering-price", "{\"id\":\"urn:sub:" + i + "\"}", AuditRecordStatus.RETRIEVED);
+            default -> service.saveImplicitConsumerRetrieved(PROCESS_ID, java.util.List.of(
+                    new es.in2.desmos.domain.models.ImplicitRetrievedEntity("urn:sub:" + i,
+                            "product-offering-price", "{\"id\":\"urn:sub:" + i + "\"}"))).then();
         };
     }
 

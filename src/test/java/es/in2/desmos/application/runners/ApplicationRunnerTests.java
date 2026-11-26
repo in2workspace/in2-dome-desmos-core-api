@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level;
 import es.in2.desmos.application.workflows.DataSyncWorkflow;
 import es.in2.desmos.application.workflows.PublishWorkflow;
 import es.in2.desmos.application.workflows.SubscribeWorkflow;
+import es.in2.desmos.application.workflows.jobs.ImplicitRetrievedBackfillJob;
 import es.in2.desmos.domain.exceptions.P2PDataSyncException;
 import es.in2.desmos.domain.exceptions.SubscriptionCreationException;
 import es.in2.desmos.domain.exceptions.SubscriptionLookupException;
@@ -45,6 +46,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -96,17 +98,63 @@ class ApplicationRunnerTests {
     @Mock
     private QueueService pendingSubscribeEventsQueue;
 
+    @Mock
+    private ImplicitRetrievedBackfillJob implicitRetrievedBackfillJob;
+
     private ApplicationRunner applicationRunner;
 
     @BeforeEach
     void setUp() {
         applicationRunner = newApplicationRunner(applicationContext);
+        // Lenient: only the tests that get past the startup subscriptions reach the backfill
+        lenient().when(implicitRetrievedBackfillJob.runIfEnabled(anyString())).thenReturn(Mono.empty());
+    }
+
+    @Test
+    void itShouldRunTheBackfillAfterTheReadyLine() {
+        stubSuccessfulStartup();
+        AtomicBoolean readyLoggedBeforeBackfill = new AtomicBoolean(false);
+        try (LogCapture logCapture = LogCapture.of(ApplicationRunner.class)) {
+            when(implicitRetrievedBackfillJob.runIfEnabled(anyString())).thenReturn(Mono.fromRunnable(() ->
+                    readyLoggedBeforeBackfill.set(logCapture.messages(Level.INFO).stream()
+                            .anyMatch(line -> line.contains(" - READY startup=")))));
+
+            StepVerifier.create(applicationRunner.onApplicationReady()).verifyComplete();
+        }
+
+        verify(implicitRetrievedBackfillJob).runIfEnabled(anyString());
+        assertThat(readyLoggedBeforeBackfill).isTrue();
+    }
+
+    @Test
+    void aFailedBackfillShouldBeLoggedWithoutFailingTheStartup() {
+        stubSuccessfulStartup();
+        when(implicitRetrievedBackfillJob.runIfEnabled(anyString()))
+                .thenReturn(Mono.error(new IllegalStateException("broker down")));
+
+        try (LogCapture logCapture = LogCapture.of(ApplicationRunner.class)) {
+            StepVerifier.create(applicationRunner.onApplicationReady()).verifyComplete();
+
+            assertThat(logCapture.messages(Level.ERROR))
+                    .anySatisfy(line -> assertThat(line).contains("Implicit RETRIEVED backfill failed: broker down"));
+        }
+    }
+
+    private void stubSuccessfulStartup() {
+        when(brokerListenerService.createSubscription(anyString(), any())).thenReturn(Mono.empty());
+        when(blockchainListenerService.createSubscription(anyString(), any(BlockchainSubscription.class))).thenReturn(Mono.empty());
+        when(trustFrameworkConfig.initialize()).thenReturn(Mono.empty());
+        when(dataSyncWorkflow.startDataSyncWorkflow(anyString())).thenReturn(Flux.empty());
+        when(publishWorkflow.startPublishWorkflow()).thenReturn(Flux.empty());
+        when(subscribeWorkflow.startSubscribeWorkflow()).thenReturn(Flux.empty());
+        when(apiConfig.getCurrentEnvironment()).thenReturn("dev");
     }
 
     private ApplicationRunner newApplicationRunner(ApplicationContext context) {
         return new ApplicationRunner(apiConfig, brokerConfig, blockchainConfig, brokerListenerService,
                 blockchainListenerService, trustFrameworkConfig, dataSyncWorkflow, publishWorkflow, subscribeWorkflow,
-                context, learCredentialMachineConfig, pendingPublishEventsQueue, pendingSubscribeEventsQueue, "dev");
+                context, learCredentialMachineConfig, pendingPublishEventsQueue, pendingSubscribeEventsQueue,
+                implicitRetrievedBackfillJob, "dev");
     }
 
     @Test

@@ -24,7 +24,7 @@ public final class NodeBProbe {
     private NodeBProbe() {
     }
 
-    public record AuditRow(String status, String trader) {
+    public record AuditRow(String status, String trader, String entityHash) {
     }
 
     /** POSTs a DLT notification to node B's public {@code /api/v2/notifications/dlt} endpoint. */
@@ -77,11 +77,12 @@ public final class NodeBProbe {
                 ContainerManager.getPostgresBUsername(),
                 ContainerManager.getPostgresBPassword());
              PreparedStatement statement = connection.prepareStatement(
-                     "SELECT status, trader FROM desmos.audit_records WHERE entity_id = ? ORDER BY created_at")) {
+                     "SELECT status, trader, entity_hash FROM desmos.audit_records WHERE entity_id = ? ORDER BY created_at")) {
             statement.setString(1, entityId);
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
-                    rows.add(new AuditRow(resultSet.getString("status"), resultSet.getString("trader")));
+                    rows.add(new AuditRow(resultSet.getString("status"), resultSet.getString("trader"),
+                            resultSet.getString("entity_hash")));
                 }
             }
         } catch (SQLException e) {

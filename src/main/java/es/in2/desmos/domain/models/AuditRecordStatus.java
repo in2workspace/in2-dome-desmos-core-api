@@ -10,8 +10,7 @@ public enum AuditRecordStatus {
     RECEIVED("received"),
     CREATED("created"),
     RETRIEVED("retrieved"),
-    PUBLISHED("published"),
-    DELETED("deleted");
+    PUBLISHED("published");
 
     private final String description;
 

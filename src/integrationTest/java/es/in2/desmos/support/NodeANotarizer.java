@@ -32,8 +32,19 @@ public final class NodeANotarizer {
     public static AuditRecord seedAndNotarizeCategoryEntity(NotificationController notificationController,
                                                               AuditRecordRepository auditRecordRepository,
                                                               String entityId) throws JsonProcessingException {
+        return seedAndNotarize(notificationController, auditRecordRepository, entityId,
+                List.of(ReplicationFixtures.categoryEntityJson(entityId)));
+    }
+
+    /**
+     * Seeds every entity into node A's broker and notarizes only {@code entityId}, the root: the others are its
+     * subentities, which node A serves with the root and node B writes without a blockchain event of their own.
+     */
+    public static AuditRecord seedAndNotarize(NotificationController notificationController,
+                                              AuditRecordRepository auditRecordRepository,
+                                              String entityId, List<String> entityJsons) throws JsonProcessingException {
         ScorpioInflator.addEntitiesToBroker(
-                ContainerManager.getBaseUriForScorpioA(), "[" + ReplicationFixtures.categoryEntityJson(entityId) + "]");
+                ContainerManager.getBaseUriForScorpioA(), "[" + String.join(",", entityJsons) + "]");
         String scorpioCanonicalJson = ScorpioProbe.getEntity(ContainerManager.getBaseUriForScorpioA(), entityId);
 
         Map<String, Object> dataMap = OBJECT_MAPPER.readValue(scorpioCanonicalJson, Map.class);

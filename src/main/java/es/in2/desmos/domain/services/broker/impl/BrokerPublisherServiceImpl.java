@@ -93,7 +93,8 @@ public class BrokerPublisherServiceImpl implements BrokerPublisherService {
      * subentity shared by several requested entities is emitted once, in the first tree that reaches it, so it can
      * come after another requested entity that also references it.
      */
-    private Flux<String> findEntitiesAndItsSubentitiesById(String processId, Mono<List<Id>> idsMono) {
+    @Override
+    public Flux<String> findEntitiesAndItsSubentitiesById(String processId, Mono<List<Id>> idsMono) {
         // One set per subscription, so a resubscription reads everything again
         return Flux.defer(() -> {
             Set<Id> processedEntities = ConcurrentHashMap.newKeySet();

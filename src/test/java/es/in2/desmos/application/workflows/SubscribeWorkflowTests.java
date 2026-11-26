@@ -13,6 +13,7 @@ import es.in2.desmos.domain.models.AuditRecordStatus;
 import es.in2.desmos.domain.models.BlockchainNotification;
 import es.in2.desmos.domain.models.BrokerWriteAction;
 import es.in2.desmos.domain.models.EventQueue;
+import es.in2.desmos.domain.models.ImplicitRetrievedEntity;
 import es.in2.desmos.domain.services.api.AuditRecordService;
 import es.in2.desmos.domain.services.api.QueueService;
 import es.in2.desmos.domain.services.broker.BrokerPublisherService;
@@ -23,6 +24,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -110,6 +112,7 @@ class SubscribeWorkflowTests {
                         eq(blockchainNotification),
                         eq(retrievedBrokerEntity),
                         eq(AuditRecordStatus.PUBLISHED));
+        verify(auditRecordService, never()).saveImplicitConsumerRetrieved(any(), any());
     }
 
     @Test
@@ -128,12 +131,11 @@ class SubscribeWorkflowTests {
                 .thenReturn(List.of(blockchainNotification));
         when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(retrievedBrokerEntity));
-        when(auditRecordService.buildAndSaveAuditRecordForSubEntity(anyString(), eq(entityId), eq(entityType), eq(retrievedBrokerEntity), eq(AuditRecordStatus.RETRIEVED)))
+        List<ImplicitRetrievedEntity> implicitRetrieved = List.of(new ImplicitRetrievedEntity(entityId, entityType, retrievedBrokerEntity));
+        when(auditRecordService.saveImplicitConsumerRetrieved(anyString(), eq(implicitRetrieved)))
                 .thenReturn(Mono.empty());
         when(brokerPublisherService.upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
                 .thenReturn(Mono.just(BrokerWriteAction.CREATED));
-        when(auditRecordService.buildAndSaveAuditRecordForSubEntity(anyString(), eq(entityId), eq(entityType), eq(retrievedBrokerEntity), eq(AuditRecordStatus.PUBLISHED)))
-                .thenReturn(Mono.empty());
 
         StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
                 .expectNextCount(0)
@@ -143,22 +145,11 @@ class SubscribeWorkflowTests {
                 .getEntityFromExternalSource(anyString(), eq(blockchainNotification));
         verify(dataSyncService, times(0))
                 .verifyRetrievedEntityData(any(), any(), any());
-        verify(brokerPublisherService, times(1))
-                .upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
-        verify(auditRecordService, times(1))
-                .buildAndSaveAuditRecordForSubEntity(
-                        anyString(),
-                        eq(entityId),
-                        eq(entityType),
-                        eq(retrievedBrokerEntity),
-                        eq(AuditRecordStatus.RETRIEVED));
-        verify(auditRecordService, times(1))
-                .buildAndSaveAuditRecordForSubEntity(
-                        anyString(),
-                        eq(entityId),
-                        eq(entityType),
-                        eq(retrievedBrokerEntity),
-                        eq(AuditRecordStatus.PUBLISHED));
+        // The implicit RETRIEVED is committed before the write, and nothing is audited as PUBLISHED
+        InOrder inOrder = inOrder(auditRecordService, brokerPublisherService);
+        inOrder.verify(auditRecordService).saveImplicitConsumerRetrieved(anyString(), eq(implicitRetrieved));
+        inOrder.verify(brokerPublisherService).upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
+        verifyNoMoreInteractions(auditRecordService);
     }
 
     @Test
@@ -176,6 +167,10 @@ class SubscribeWorkflowTests {
                 .thenReturn(List.of(blockchainNotification));
         when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
                 .thenReturn(Flux.just(retrievedBrokerEntity));
+        List<ImplicitRetrievedEntity> implicitRetrieved = List.of(
+                new ImplicitRetrievedEntity(entityId, getEntityType(retrievedBrokerEntity), retrievedBrokerEntity));
+        when(auditRecordService.saveImplicitConsumerRetrieved(anyString(), eq(implicitRetrieved)))
+                .thenReturn(Mono.empty());
         when(brokerPublisherService.upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity)))
                 .thenReturn(Mono.just(BrokerWriteAction.CREATED));
 
@@ -187,9 +182,29 @@ class SubscribeWorkflowTests {
                 .getEntityFromExternalSource(anyString(), eq(blockchainNotification));
         verify(dataSyncService, times(0))
                 .verifyRetrievedEntityData(any(), any(), any());
-        verify(brokerPublisherService, times(1))
-                .upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
-        verifyNoInteractions(auditRecordService);
+        // The implicit RETRIEVED is committed before the write, and nothing is audited as PUBLISHED
+        InOrder inOrder = inOrder(auditRecordService, brokerPublisherService);
+        inOrder.verify(auditRecordService).saveImplicitConsumerRetrieved(anyString(), eq(implicitRetrieved));
+        inOrder.verify(brokerPublisherService).upsertDataInBroker(anyString(), eq(entityId), eq(retrievedBrokerEntity));
+        verifyNoMoreInteractions(auditRecordService);
+    }
+
+    @Test
+    void itShouldNotWriteTheSubentityWhenItsImplicitRetrievedFails() {
+        String retrievedBrokerEntity = BrokerDataMother.NOT_ROOT_OBJECT;
+        BlockchainNotification blockchainNotification = BlockchainNotificationMother.Empty();
+        EventQueue eventQueueMock = mock(EventQueue.class);
+        when(eventQueueMock.getEvent()).thenReturn(List.of(blockchainNotification));
+        when(pendingSubscribeEventsQueue.getEventStream()).thenReturn(Flux.just(eventQueueMock));
+        when(dataSyncService.getEntityFromExternalSource(anyString(), eq(blockchainNotification)))
+                .thenReturn(Flux.just(retrievedBrokerEntity));
+        when(auditRecordService.saveImplicitConsumerRetrieved(anyString(), any()))
+                .thenReturn(Mono.error(new RuntimeException("lock timeout")));
+
+        StepVerifier.create(subscribeWorkflow.startSubscribeWorkflow())
+                .verifyComplete();
+
+        verifyNoInteractions(brokerPublisherService);
     }
 
     @Test
@@ -207,6 +222,8 @@ class SubscribeWorkflowTests {
         when(dataSyncService.verifyRetrievedEntityData(anyString(), eq(blockchainNotification), eq(rootEntity)))
                 .thenReturn(Mono.empty());
         when(auditRecordService.buildAndSaveAuditRecordFromBlockchainNotification(anyString(), eq(blockchainNotification), eq(rootEntity), any()))
+                .thenReturn(Mono.empty());
+        when(auditRecordService.saveImplicitConsumerRetrieved(anyString(), any()))
                 .thenReturn(Mono.empty());
         when(brokerPublisherService.upsertDataInBroker(anyString(), eq(subObjectId), eq(subObject)))
                 .thenReturn(Mono.just(BrokerWriteAction.CREATED));

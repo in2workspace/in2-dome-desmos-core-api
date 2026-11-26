@@ -21,7 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static es.in2.desmos.domain.utils.ApplicationConstants.HASHLINK_PREFIX;
 import static es.in2.desmos.domain.utils.ApplicationUtils.*;
@@ -127,33 +129,50 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     /**
-     * Appends an AuditRecord with trader CONSUMER for a subentity of a blockchain notification, chained on the last
-     * PUBLISHED CONSUMER record of the subentity. If there is none, nothing is written.
+     * Appends one RETRIEVED/CONSUMER audit record per entity whose body hash differs from the one of its last RETRIEVED
+     * record (or that has none), in one write. The echo check of a broker notification compares against
+     * that record, so an entity already recorded with the same hash needs no new one. The read and the write are not
+     * atomic: two concurrent calls may both write the same hash, which is harmless.
      */
     @Override
-    public Mono<Void> buildAndSaveAuditRecordForSubEntity(String processId, String entityId, String entityType,
-                                                          String retrievedBrokerEntity,
-                                                          AuditRecordStatus status) {
-        return Mono.defer(() -> findLatestConsumerPublishedAuditRecordByEntityId(processId, entityId))
-                .flatMap(previousAuditRecord -> {
-                    String entityHash = calculateHash(retrievedBrokerEntity);
-                    return Mono.fromCallable(() -> ApplicationUtils.calculateHashLink(previousAuditRecord.getEntityHashLink(), entityHash))
-                            .flatMap(entityHashLink -> {
-                                AuditRecord draft = AuditRecord.builder()
-                                        .id(UUID.randomUUID())
-                                        .processId(processId)
-                                        .entityId(entityId)
-                                        .entityType(entityType)
-                                        .entityHash(entityHash)
-                                        .entityHashLink(entityHashLink)
-                                        .dataLocation("")
-                                        .status(status)
-                                        .trader(AuditRecordTrader.CONSUMER)
-                                        .newTransaction(true)
-                                        .build();
-                                return auditChainWriter.append(processId, List.of(draft), "subentity");
-                            });
-                });
+    public Mono<Integer> saveImplicitConsumerRetrieved(String processId, List<ImplicitRetrievedEntity> entities) {
+        return Mono.defer(() -> {
+            if (entities.isEmpty()) {
+                return Mono.just(0);
+            }
+            List<AuditRecord> candidates = entities.stream()
+                    .map(entity -> implicitRetrievedDraft(processId, entity, calculateHash(entity.body())))
+                    .toList();
+            String[] entityIds = candidates.stream().map(AuditRecord::getEntityId).distinct().toArray(String[]::new);
+            return auditRecordRepository.findMostRecentRetrievedByEntityIds(entityIds)
+                    .collectMap(AuditRecord::getEntityId, AuditRecord::getEntityHash)
+                    .flatMap(lastHashById -> {
+                        List<AuditRecord> drafts = candidates.stream()
+                                .filter(draft -> !draft.getEntityHash().equals(lastHashById.get(draft.getEntityId())))
+                                .toList();
+                        if (drafts.isEmpty()) {
+                            return Mono.just(0);
+                        }
+                        return auditChainWriter.append(processId, drafts, "implicit subentity")
+                                .thenReturn(drafts.size());
+                    });
+        });
+    }
+
+    // No hashlink of its own, as for a first record: the entity has no blockchain event, and its hashlink is never read
+    private static AuditRecord implicitRetrievedDraft(String processId, ImplicitRetrievedEntity entity, String entityHash) {
+        return AuditRecord.builder()
+                .id(UUID.randomUUID())
+                .processId(processId)
+                .entityId(entity.id())
+                .entityType(entity.type())
+                .entityHash(entityHash)
+                .entityHashLink(entityHash)
+                .dataLocation("")
+                .status(AuditRecordStatus.RETRIEVED)
+                .trader(AuditRecordTrader.CONSUMER)
+                .newTransaction(true)
+                .build();
     }
 
     /**
@@ -191,16 +210,16 @@ public class AuditRecordServiceImpl implements AuditRecordService {
     }
 
     /**
-     * Retrieves the most recent audit record for the specified entity that is either published or deleted.
+     * Retrieves the most recent retrieved audit record for the specified entity.
      *
      * @param processId The unique identifier of the process requesting the audit record.
      * @param entityId  The unique identifier of the entity for which to find the audit record.
-     * @return A Mono emitting the latest published or deleted audit record for the given entity, if available.
+     * @return A Mono emitting the latest retrieved audit record for the given entity, if available.
      */
     @Override
-    public Mono<AuditRecord> findMostRecentRetrievedOrDeletedByEntityId(String processId, String entityId) {
+    public Mono<AuditRecord> findMostRecentRetrievedByEntityId(String processId, String entityId) {
         log.debug("ProcessID: {} - Fetching latest audit record for entity ID: {}", processId, entityId);
-        return auditRecordRepository.findMostRecentRetrievedOrDeletedByEntityId(entityId);
+        return auditRecordRepository.findMostRecentRetrievedByEntityId(entityId);
     }
 
     @Override
@@ -231,7 +250,8 @@ public class AuditRecordServiceImpl implements AuditRecordService {
 
     /**
      * Returns the negotiation data of the given local entities and audits as PUBLISHED those without an audit record
-     * or whose hash in the broker has changed. The broker hashes are read in parallel; the new audit records are then
+     * or whose hash in the broker has changed. An entity without a PUBLISHED record but with a CONSUMER RETRIEVED one
+     * came from another node: it is announced with its broker hash and not audited as a PRODUCER entity. The broker hashes are read in parallel; the new audit records are then
      * appended in one batch write, after every hash has been read.
      */
     @Override
@@ -246,10 +266,17 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                     if (entityIds.isEmpty()) {
                         return Flux.empty();
                     }
-                    return auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(
-                                    entityIds.toArray(new String[0]))
-                            .collectMap(AuditRecord::getEntityId)
-                            .flatMapMany(auditRecordMap -> {
+                    String[] entityIdsArray = entityIds.toArray(new String[0]);
+                    return Mono.zip(
+                                    auditRecordRepository.findMostRecentPublishedAuditRecordsByEntityIds(entityIdsArray)
+                                            .collectMap(AuditRecord::getEntityId),
+                                    auditRecordRepository.findMostRecentRetrievedByEntityIds(entityIdsArray)
+                                            .filter(auditRecord -> auditRecord.getTrader() == AuditRecordTrader.CONSUMER)
+                                            .map(AuditRecord::getEntityId)
+                                            .collect(Collectors.toSet()))
+                            .flatMapMany(tuple -> {
+                                Map<String, AuditRecord> auditRecordMap = tuple.getT1();
+                                Set<String> consumerRetrievedIds = tuple.getT2();
                                 log.debug("ProcessID: {} - auditRecordMap keys: {}", processId, auditRecordMap.keySet());
                                 return Flux.fromIterable(entityIds)
                                         .flatMap(id -> getEntityHash(processId, id)
@@ -257,6 +284,15 @@ public class AuditRecordServiceImpl implements AuditRecordService {
                                                     AuditRecord auditRecord = auditRecordMap.get(id);
                                                     if (auditRecord != null) {
                                                         return findOrUpdateAuditRecord(processId, entityHash, auditRecord);
+                                                    }
+                                                    if (consumerRetrievedIds.contains(id)) {
+                                                        // Retrieved from another node (a subentity) and never published
+                                                        // here: announced with its broker hash, without becoming a
+                                                        // PRODUCER entity of this node
+                                                        log.debug("ProcessID: {} - Only a CONSUMER RETRIEVED auditRecord found for entityId: {}", processId, id);
+                                                        return Mono.just(new SyncAuditResult(
+                                                                new MVAuditServiceEntity4DataNegotiation(id, entityType, entityHash, entityHash),
+                                                                null));
                                                     }
                                                     log.debug("ProcessID: {} - NO auditRecord found for entityId: {}", processId, id);
                                                     return Mono.just(draftFromUnregisteredOrOutdatedEntity(

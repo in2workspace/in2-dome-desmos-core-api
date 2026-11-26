@@ -76,6 +76,59 @@ public final class ReplicationFixtures {
     }
 
     /**
+     * NGSI-LD JSON for a seedable "product-offering" root that links one subentity through a
+     * {@code Relationship}: node A serves the subentity with the root, and node B writes both.
+     */
+    public static String productOfferingWithSubentityJson(String entityId, String subentityId) {
+        return """
+                {
+                    "id": "%s",
+                    "type": "product-offering",
+                    "version": {"type": "Property", "value": "1.0"},
+                    "lifecycleStatus": {"type": "Property", "value": "Launched"},
+                    "validFor": {"type": "Property", "value": {
+                        "startDateTime": "2024-01-01T00:00:00.000Z",
+                        "endDateTime": "2099-01-01T00:00:00.000Z"
+                    }},
+                    "lastUpdate": {"type": "Property", "value": "2024-09-05T12:00:00Z"},
+                    "relatedEntity": {"type": "Relationship", "object": "%s"}
+                }
+                """.formatted(entityId, subentityId);
+    }
+
+    /**
+     * NGSI-LD JSON for a "product-offering-price" subentity. It is a root type, so node B's broker
+     * subscription covers it, and it passes the replication policies (GP_1 and GP_2): node B would
+     * re-notarize its echo as PRODUCER instead of dropping it as not replicable.
+     */
+    public static String productOfferingPriceEntityJson(String entityId) {
+        return """
+                {
+                    "id": "%s",
+                    "type": "product-offering-price",
+                    "version": {"type": "Property", "value": "1.0"},
+                    "lifecycleStatus": {"type": "Property", "value": "Launched"},
+                    "validFor": {"type": "Property", "value": {
+                        "startDateTime": "2024-01-01T00:00:00.000Z",
+                        "endDateTime": "2099-01-01T00:00:00.000Z"
+                    }},
+                    "lastUpdate": {"type": "Property", "value": "2024-09-05T12:00:00Z"}
+                }
+                """.formatted(entityId);
+    }
+
+    /** NGSI-LD JSON for a subentity of a type outside {@code ROOT_OBJECTS_LIST}: no broker subscription covers it. */
+    public static String unsubscribedSubentityJson(String entityId) {
+        return """
+                {
+                    "id": "%s",
+                    "type": "other",
+                    "lastUpdate": {"type": "Property", "value": "2024-09-05T12:00:00Z"}
+                }
+                """.formatted(entityId);
+    }
+
+    /**
      * A publish-path notification for a non-free type ("category") with a lifecycleStatus outside
      * {@code {Launched, Retired, Obsolete}} -- R10, GP_1 should reject this.
      */

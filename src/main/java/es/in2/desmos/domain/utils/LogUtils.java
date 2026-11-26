@@ -18,6 +18,7 @@ public final class LogUtils {
     public static final String INIT = "[init]";
     public static final String AUDIT = "[audit]";
     public static final String SUBSCRIBE = "[subscribe]";
+    public static final String BACKFILL = "[backfill]";
 
     private static final int LOGGED_HASH_LENGTH = 12;
 
@@ -56,6 +57,9 @@ public final class LogUtils {
      * hash is shortened; it is enough to tell whether repeated records are about the same content.
      */
     public static void logAuditSaved(Logger log, String processId, AuditRecord auditRecord, String source) {
+        if (!log.isInfoEnabled()) {
+            return;
+        }
         log.info("{} ProcessID: {} - {} {} -> {} {} (source={}, entityHash={})",
                 AUDIT, processId, auditRecord.getEntityType(), auditRecord.getEntityId(), auditRecord.getStatus(),
                 auditRecord.getTrader(), source, shortHash(auditRecord.getEntityHash()));
